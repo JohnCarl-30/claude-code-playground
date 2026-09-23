@@ -229,6 +229,11 @@ function SdkMessage({
   }
 
   if (message.type === "result") {
+    const STOP_REASONS: Record<string, string> = {
+      error_max_budget_usd: "Stopped: hit the spending cap. Raise it under Settings if you need a longer run.",
+      error_max_turns: "Stopped: hit the max turns limit. Raise it under Settings if you need a longer run.",
+      error_during_execution: "Stopped: something went wrong while running.",
+    };
     const usage = (message.usage ?? {}) as Record<string, number>;
     const ok = message.subtype === "success" && !message.is_error;
     const stats = [
@@ -239,7 +244,7 @@ function SdkMessage({
       ["Cache reads", String(usage.cache_read_input_tokens ?? 0)],
     ];
     return (
-      <Card tone={ok ? "ok" : "danger"} icon={ok ? "✅" : "⛔"} title={ok ? "Done" : `Stopped: ${message.subtype}`}>
+      <Card tone={ok ? "ok" : "danger"} icon={ok ? "✅" : "⛔"} title={ok ? "Done" : (STOP_REASONS[String(message.subtype)] ?? `Stopped: ${message.subtype}`)}>
         <dl className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-5">
           {stats.map(([k, v]) => (
             <div key={k}>

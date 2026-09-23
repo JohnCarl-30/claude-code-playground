@@ -1,6 +1,6 @@
 "use client";
 
-import { BUILT_IN_TOOLS, MODEL_CHOICES, type PlaygroundPermissionMode, type RunConfig } from "@/lib/run-types";
+import { BUDGET_LIMITS, BUILT_IN_TOOLS, MODEL_CHOICES, type PlaygroundPermissionMode, type RunConfig } from "@/lib/run-types";
 
 const MODES: { id: PlaygroundPermissionMode; label: string; hint: string }[] = [
   { id: "default", label: "default", hint: "Ask before edits and commands" },
@@ -47,16 +47,36 @@ export function SettingsPanel({
         </select>
       </div>
 
-      <div>
-        <span className={label}>Max turns</span>
-        <input
-          type="number"
-          min={1}
-          max={40}
-          value={config.maxTurns}
-          onChange={(e) => set("maxTurns", Number(e.target.value) || 1)}
-          className="w-24 rounded-md border border-line bg-surface px-2 py-1.5"
-        />
+      <div className="flex flex-wrap gap-5">
+        <label>
+          <span className={label}>Max turns</span>
+          <input
+            type="number"
+            min={1}
+            max={40}
+            value={config.maxTurns}
+            onChange={(e) => set("maxTurns", Number(e.target.value) || 1)}
+            className="w-24 rounded-md border border-line bg-surface px-2 py-1.5"
+          />
+        </label>
+        <label>
+          <span className={label}>Spending cap per run</span>
+          <span className="flex items-center gap-1">
+            $
+            <input
+              type="number"
+              min={BUDGET_LIMITS.min}
+              max={BUDGET_LIMITS.max}
+              step={0.05}
+              value={config.maxBudgetUsd}
+              onChange={(e) => set("maxBudgetUsd", Number(e.target.value))}
+              className="w-24 rounded-md border border-line bg-surface px-2 py-1.5"
+            />
+          </span>
+          <span className="mt-1 block text-xs text-muted">
+            Stops the run at this estimated cost (${BUDGET_LIMITS.min}–${BUDGET_LIMITS.max})
+          </span>
+        </label>
       </div>
 
       <div className="md:col-span-2">

@@ -1,5 +1,7 @@
 # Claude Code Playground
 
+[![CI](https://github.com/JohnCarl-30/claude-code-playground/actions/workflows/ci.yml/badge.svg)](https://github.com/JohnCarl-30/claude-code-playground/actions/workflows/ci.yml)
+
 A hands-on way to learn **Claude Code**, the **Claude Agent SDK**, the **Claude API** and **MCP**.
 Short lessons, each with a real example you run and watch: every tool call, permission prompt and message appears as it happens.
 
@@ -46,6 +48,8 @@ When you're done, the **Free playground** page unlocks every setting so you can 
 ## Good to know
 
 - **Usage:** each run uses your Claude plan's usage, just like using Claude Code in the terminal. The lessons use small prompts, and you can pick the fast Haiku model under **Settings**.
+- **Spending cap:** every run stops once its estimated cost reaches $1.00. Change it per run under **Settings** (from $0.05 to $5).
+- **Progress:** lessons get a ✓ when you run their example successfully. Progress is saved in your browser only.
 - **The sample project:** Claude works in `workspace/`, a tiny "Tiny Shop" project with a planted bug. Click **Reset workspace** at any time to restore it.
 - **Permissions:** reading files inside the sample project is automatic. Edits and commands wait for you to click **Allow**. Paths outside the project are always blocked.
 - **Your settings stay yours:** the playground ignores your personal `~/.claude` settings and MCP servers, so everyone sees the same results.
@@ -70,5 +74,6 @@ When you're done, the **Free playground** page unlocks every setting so you can 
 - `src/app/api/run/route.ts`: streams SDK messages to the browser as NDJSON
 - `src/components/Runner.tsx`, `Timeline.tsx`: the prompt box and the live timeline
 - `workspace-seed/`: the sample project that `workspace/` is copied from
+- `npm run check:lessons`: checks lesson content for common mistakes (runs in CI with lint, type-check and build)
 
 > This playground signs in with your personal Claude account, which is right for learning on your own computer. If you build an app that other people use, give that app its own API key.

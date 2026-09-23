@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CodeBlock } from "@/components/CodeBlock";
 import { Markdownish } from "@/components/Markdownish";
+import { LessonStatus } from "@/components/Progress";
 import { Runner } from "@/components/Runner";
 import { ALL_LESSONS, TRACKS, findLesson } from "@/lib/lessons";
 
@@ -33,6 +34,7 @@ export default async function LessonPage({ params }: PageProps<"/learn/[track]/[
       </p>
       <h1 className="mt-1 text-3xl font-semibold tracking-tight text-balance">{lesson.title}</h1>
       <p className="mt-1 text-lg text-muted">{lesson.summary}</p>
+      <LessonStatus id={`${track.slug}/${lesson.slug}`} manual={!lesson.tryIt} />
 
       <Markdownish blocks={lesson.body} className="mt-6" />
 
@@ -55,7 +57,12 @@ export default async function LessonPage({ params }: PageProps<"/learn/[track]/[
             {lesson.tryIt.next && <Markdownish blocks={[`**Then try:** ${lesson.tryIt.next}`]} className="mt-3" />}
           </div>
           <div className="mt-4">
-            <Runner key={`${track.slug}/${lesson.slug}`} preset={lesson.tryIt.config} showRawByDefault={lesson.tryIt.showRaw} />
+            <Runner
+              key={`${track.slug}/${lesson.slug}`}
+              lessonId={`${track.slug}/${lesson.slug}`}
+              preset={lesson.tryIt.config}
+              showRawByDefault={lesson.tryIt.showRaw}
+            />
           </div>
         </section>
       )}

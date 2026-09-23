@@ -23,7 +23,11 @@ export type RunConfig = {
   hooks: boolean;
   appendSystemPrompt: string;
   maxTurns: number;
+  /** Stop the run once its estimated cost passes this many US dollars. */
+  maxBudgetUsd: number;
 };
+
+export const BUDGET_LIMITS = { min: 0.05, max: 5, default: 1 };
 
 export const DEFAULT_CONFIG: RunConfig = {
   prompt: "",
@@ -37,6 +41,7 @@ export const DEFAULT_CONFIG: RunConfig = {
   hooks: false,
   appendSystemPrompt: "",
   maxTurns: 12,
+  maxBudgetUsd: BUDGET_LIMITS.default,
 };
 
 export const MODEL_CHOICES = [

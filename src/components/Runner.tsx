@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { markLessonDone } from "@/lib/progress";
 import { DEFAULT_CONFIG, type RunConfig, type RunEvent } from "@/lib/run-types";
 import { FilesPanel } from "./FilesPanel";
 import { SettingsPanel } from "./SettingsPanel";
@@ -11,10 +12,13 @@ type Status = "idle" | "running" | "done";
 
 export function Runner({
   preset,
+  lessonId,
   showRawByDefault = false,
   settingsOpenByDefault = false,
 }: {
   preset: Partial<RunConfig>;
+  /** When set, a successful run marks this lesson as completed. */
+  lessonId?: string;
   showRawByDefault?: boolean;
   settingsOpenByDefault?: boolean;
 }) {
@@ -61,6 +65,8 @@ export function Runner({
         buffer = lines.pop() ?? "";
         const parsed = lines.filter(Boolean).map((l) => JSON.parse(l) as RunEvent);
         if (parsed.length) setEvents((prev) => [...prev, ...parsed]);
+        const succeeded = parsed.some((e) => e.kind === "sdk" && e.message.type === "result" && e.message.subtype === "success");
+        if (lessonId && succeeded) markLessonDone(lessonId);
       }
     } catch (err) {
       if (!controller.signal.aborted) {

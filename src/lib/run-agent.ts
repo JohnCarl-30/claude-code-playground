@@ -9,7 +9,7 @@ import {
   type Options,
 } from "@anthropic-ai/claude-agent-sdk";
 import { createDemoMcpServer, DEMO_MCP_TOOLS } from "./demo-mcp";
-import type { RunConfig, RunEvent, SdkMessageLike } from "./run-types";
+import { BUDGET_LIMITS, type RunConfig, type RunEvent, type SdkMessageLike } from "./run-types";
 import { WORKSPACE_DIR, ensureWorkspace, isInsideWorkspace } from "./workspace";
 
 // Permission prompts waiting for a click in the browser, keyed by request id.
@@ -64,6 +64,12 @@ const TEAM: Record<string, AgentDefinition> = {
     model: "haiku",
   },
 };
+
+function clampBudget(value: unknown) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return BUDGET_LIMITS.default;
+  return Math.min(Math.max(n, BUDGET_LIMITS.min), BUDGET_LIMITS.max);
+}
 
 export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGenerator<RunEvent> {
   await ensureWorkspace();
@@ -209,6 +215,8 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
       append: config.appendSystemPrompt || undefined,
     },
     maxTurns: Math.min(Math.max(config.maxTurns, 1), 40),
+    // Spending cap: the SDK stops the run with an error_max_budget_usd result.
+    maxBudgetUsd: clampBudget(config.maxBudgetUsd),
   };
 
   const flush = function* () {
@@ -219,15 +227,25 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
   // is waiting, so race the next message against new side events.
   const iterator = query({ prompt: config.prompt, options })[Symbol.asyncIterator]();
   let next = iterator.next();
+  // After an error result (spending cap, max turns) the SDK also throws. The
+  // result card already explains what happened, so that throw is ignored.
+  let sawResult = false;
   try {
     while (true) {
       const sideEvent = new Promise<"side">((resolve) => (wake = () => resolve("side")));
       if (sideEvents.length) wake!();
-      const winner = await Promise.race([next, sideEvent]);
+      let winner: Awaited<typeof next> | "side";
+      try {
+        winner = await Promise.race([next, sideEvent]);
+      } catch (err) {
+        if (sawResult) break;
+        throw err;
+      }
       wake = null;
       yield* flush();
       if (winner === "side") continue;
       if (winner.done) break;
+      if (winner.value.type === "result") sawResult = true;
       yield { kind: "sdk", message: winner.value as unknown as SdkMessageLike };
       next = iterator.next();
     }

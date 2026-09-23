@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TrackProgress } from "@/components/Progress";
 import { SetupBanner, SetupPill } from "@/components/SetupStatus";
 import { TRACKS } from "@/lib/lessons";
 
@@ -62,6 +63,7 @@ export default function Home() {
               </div>
               <p className="mt-3 text-sm font-medium">{track.tagline}</p>
               <p className="mt-1 text-sm text-muted">{track.description}</p>
+              <TrackProgress ids={track.lessons.map((l) => `${track.slug}/${l.slug}`)} />
             </Link>
           ))}
         </div>

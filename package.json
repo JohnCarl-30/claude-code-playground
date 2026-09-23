@@ -6,6 +6,7 @@
     "predev": "node scripts/check-setup.mjs",
     "dev": "next dev --hostname 127.0.0.1",
     "check": "node scripts/check-setup.mjs",
+    "check:lessons": "node scripts/check-lessons.mjs",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint"
