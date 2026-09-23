@@ -123,6 +123,6 @@ Start with [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) for the architecture, re
 - `src/components/Runner.tsx`, `Timeline.tsx`: the prompt box and the live timeline
 - `templates/`: the starter projects `workspace/` is created from; `src/lib/templates.ts` lists them and their scripts
 - `src/lib/processes.ts`, `src/components/RunPanel.tsx`: running a starter's scripts and the request tester
-- `npm run check:examples`: checks examples for common mistakes (runs in CI with lint, type-check and build)
+- `npm test`: the Jest test suite in `tests/` (logic and UI, no Claude calls). CI runs it with lint, type-check and build on every push.
 
 > This playground signs in with your personal Claude account, which is right for learning on your own computer. If you build an app that other people use, give that app its own API key.

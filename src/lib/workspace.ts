@@ -7,7 +7,8 @@ import { DEFAULT_TEMPLATE, TEMPLATES, findTemplate, type TemplateId } from "./te
 
 const run = promisify(execFile);
 
-const ROOT = process.cwd();
+// PLAYGROUND_ROOT lets tests use a temporary folder instead of the real workspace.
+const ROOT = process.env.PLAYGROUND_ROOT ?? process.cwd();
 export const WORKSPACE_DIR = path.join(ROOT, "workspace");
 const TEMPLATES_DIR = path.join(ROOT, "templates");
 // Workspaces of the starters you aren't using right now, kept so switching back restores your work.

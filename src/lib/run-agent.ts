@@ -11,7 +11,8 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { createDemoMcpServer, DEMO_MCP_TOOLS } from "./demo-mcp";
 import { BUDGET_LIMITS, type CustomMcpServer, type RunConfig, type RunEvent, type SdkMessageLike } from "./run-types";
-import { WORKSPACE_DIR, ensureWorkspace, isInsideWorkspace } from "./workspace";
+import { pathsIn, precheckTool } from "./permissions";
+import { WORKSPACE_DIR, ensureWorkspace } from "./workspace";
 
 // Permission prompts waiting for a click in the browser, keyed by request id.
 // Kept on globalThis so the /api/permission route sees the same map in dev.
@@ -39,12 +40,6 @@ export function toSdkMcpServers(servers: CustomMcpServer[]): Record<string, McpS
   );
 }
 
-const READ_ONLY_TOOLS = new Set(["Read", "Glob", "Grep"]);
-const PATH_KEYS = ["file_path", "path", "notebook_path"];
-
-function pathsIn(input: Record<string, unknown>) {
-  return PATH_KEYS.map((k) => input[k]).filter((v): v is string => typeof v === "string");
-}
 
 const SUBAGENTS: Record<string, AgentDefinition> = {
   "code-reviewer": {
@@ -101,24 +96,13 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
   const alwaysAllowed = new Set<string>();
 
   const canUseTool: CanUseTool = async (toolName, input, { signal: toolSignal }) => {
-    const deny = (reason: string) => {
-      emit({ kind: "permission_decision", tool: toolName, allowed: false, reason, by: "playground" });
-      return { behavior: "deny" as const, message: reason };
-    };
-
-    if (!toolName.startsWith("mcp__") && !enabled.has(toolName) && toolName !== "Agent") {
-      return deny(`${toolName} is switched off in this playground run.`);
+    const check = precheckTool(toolName, input, enabled, alwaysAllowed);
+    if (check.decision === "deny") {
+      emit({ kind: "permission_decision", tool: toolName, allowed: false, reason: check.reason, by: "playground" });
+      return { behavior: "deny" as const, message: check.reason };
     }
-    const outside = pathsIn(input).find((p) => !isInsideWorkspace(p));
-    if (outside) return deny(`${outside} is outside this project. Only files inside ${WORKSPACE_DIR} are allowed.`);
-
-    if (READ_ONLY_TOOLS.has(toolName)) {
-      emit({ kind: "permission_decision", tool: toolName, allowed: true, reason: "Read-only tool inside workspace/", by: "playground" });
-      return { behavior: "allow" as const, updatedInput: input };
-    }
-
-    if (alwaysAllowed.has(toolName)) {
-      emit({ kind: "permission_decision", tool: toolName, allowed: true, reason: "You chose Always allow for this run", by: "playground" });
+    if (check.decision === "allow") {
+      emit({ kind: "permission_decision", tool: toolName, allowed: true, reason: check.reason, by: "playground" });
       return { behavior: "allow" as const, updatedInput: input };
     }
 

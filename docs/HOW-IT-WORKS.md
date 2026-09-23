@@ -268,7 +268,7 @@ If storage is blocked (private windows, strict settings), everything still works
 
 | I want to… | Edit |
 |---|---|
-| Add an example to the sidebar | `src/lib/examples.ts` (then `npm run check:examples`) |
+| Add an example to the sidebar | `src/lib/examples.ts` (then `npm test`: `tests/examples.test.ts` checks it) |
 | Add a starter project | a folder in `templates/` + an entry in `src/lib/templates.ts` |
 | Add a quick-add MCP server | `MCP_PRESETS` in `src/lib/run-types.ts` |
 | Add a demo MCP tool | `src/lib/demo-mcp.ts` |
@@ -283,6 +283,25 @@ If storage is blocked (private windows, strict settings), everything still works
 ```bash
 npm run lint
 npx next typegen && npx tsc --noEmit
-npm run check:examples
+npm test
 npm run build
 ```
+
+### Tests
+
+`npm test` runs the Jest suite in `tests/` (about 2 seconds, no Claude calls, nothing sent to the network):
+
+| Test file | What it covers |
+|---|---|
+| `run-types.test.ts` | MCP server validation (names, URLs, limits) |
+| `local-only.test.ts` | the localhost-only request guard |
+| `permissions.test.ts` | the permission rules: switched-off tools, paths outside the workspace, read-only auto-allow, Always allow |
+| `zip.test.ts` | the ZIP writer round-trips files, and `unzip -t` accepts its output |
+| `workspace.test.ts` | creating, diffing, switching (work kept), exporting and resetting the workspace |
+| `processes.test.ts` | Run & test: only declared scripts run, the API server starts, answers and stops quickly |
+| `examples.test.ts` | every sidebar example is well-formed |
+| `code-preview.test.ts` | the Code tab mirrors settings, adds `resume`, wraps long prompts |
+| `components/*.test.tsx` | the UI in a simulated browser: timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), and the Runner (follow-ups send the session id, New conversation, Switch banner, connecting your MCP server) |
+
+The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something else is using port 4100.
+
