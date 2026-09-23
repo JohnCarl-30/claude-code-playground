@@ -38,7 +38,8 @@ export function getProcessStatus(): ProcessStatus {
 
 export async function stopProcess() {
   const child = state.child;
-  if (!child || child.exitCode !== null) return;
+  // A program stopped by a signal has signalCode set and exitCode null.
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
   await new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
       child.kill("SIGKILL");

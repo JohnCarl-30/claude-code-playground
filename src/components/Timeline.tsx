@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { RunEvent, SdkMessageLike } from "@/lib/run-types";
+import { ClaudeText } from "./ClaudeText";
 
 type Block = { type: string; [key: string]: unknown };
 
@@ -164,7 +165,7 @@ function SdkMessage({
           if (block.type === "text") {
             return (
               <Card key={i} icon="💬" title={<span className="flex items-center gap-2">Claude {subTag}</span>} indent={isSub}>
-                <p className="mt-0.5 whitespace-pre-wrap leading-relaxed">{str(block.text)}</p>
+                <ClaudeText text={str(block.text)} />
                 {raw}
               </Card>
             );

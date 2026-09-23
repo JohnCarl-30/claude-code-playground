@@ -191,7 +191,7 @@ export function Runner({
           rows={3}
           disabled={running}
           placeholder="Ask Claude to do something in the sample project…"
-          className="w-full resize-y rounded-md border border-line bg-bg px-3 py-2 leading-relaxed disabled:opacity-60"
+          className="field-sizing-content max-h-80 min-h-24 w-full resize-y rounded-md border border-line bg-bg px-3 py-2 leading-relaxed disabled:opacity-60"
         />
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {running ? (

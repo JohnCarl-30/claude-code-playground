@@ -5,6 +5,22 @@ import { CodeBlock } from "./CodeBlock";
 
 const q = (s: string) => JSON.stringify(s);
 
+/** A string literal split over several lines ("…" +) so long prompts stay readable. */
+function wrapped(s: string, indent: string, width = 72) {
+  const parts: string[] = [];
+  let line = "";
+  for (const word of s.split(" ")) {
+    if (line && (line + " " + word).length > width) {
+      parts.push(line + " ");
+      line = word;
+    } else {
+      line = line ? `${line} ${word}` : word;
+    }
+  }
+  parts.push(line);
+  return parts.map(q).join(` +\n${indent}`);
+}
+
 /** The Agent SDK code that matches the current settings. */
 export function sdkCodeFor(config: RunConfig) {
   const tools = [...config.tools, ...(config.subagents || config.team ? ["Agent"] : [])];
@@ -45,7 +61,7 @@ export function sdkCodeFor(config: RunConfig) {
     'import { query } from "@anthropic-ai/claude-agent-sdk";',
     "",
     "for await (const message of query({",
-    `  prompt: ${q(config.prompt)},`,
+    `  prompt: ${wrapped(config.prompt, "    ")},`,
     "  options: {",
     ...lines,
     "  },",
@@ -60,7 +76,7 @@ export function CodePreview({ config }: { config: RunConfig }) {
     <div className="space-y-2 text-sm">
       <p className="text-muted">
         The Claude Agent SDK call that matches your current settings. It updates as you change them. Install with{" "}
-        <code className="font-mono">npm install @anthropic-ai/claude-agent-sdk</code>.
+        <code className="font-mono whitespace-nowrap">npm install @anthropic-ai/claude-agent-sdk</code>.
       </p>
       <CodeBlock label="run.mjs" source={sdkCodeFor(config)} />
     </div>
