@@ -115,11 +115,14 @@ function SdkMessage({
   workspace,
   showRaw,
   agents,
+  followUp,
 }: {
   message: SdkMessageLike;
   workspace: string;
   showRaw: boolean;
   agents: Record<string, AgentInfo>;
+  /** A follow-up turn: the session already started earlier in the conversation. */
+  followUp?: boolean;
 }) {
   const raw = showRaw ? <Raw value={message} /> : null;
   const inner = (message.message ?? {}) as { content?: unknown };
@@ -128,6 +131,14 @@ function SdkMessage({
   const subTag = agent ? (
     <span className={`rounded px-1.5 font-mono text-[11px] font-medium text-white ${agent.color}`}>{agent.name}</span>
   ) : null;
+
+  if (message.type === "system" && message.subtype === "init" && followUp && !showRaw) {
+    return (
+      <li className="pl-3 text-xs text-muted">
+        ↻ continuing the conversation · <span className="font-mono">{String(message.model)}</span>
+      </li>
+    );
+  }
 
   if (message.type === "system" && message.subtype === "init") {
     const tools = (message.tools as string[]) ?? [];
@@ -172,6 +183,14 @@ function SdkMessage({
           }
           if (block.type === "thinking") {
             const thought = str(block.thinking);
+            // The model's reasoning is usually hidden; then just note that it thought.
+            if (!thought && !raw) {
+              return (
+                <li key={i} className={`pl-3 text-xs text-muted ${isSub ? "ml-6" : ""}`}>
+                  💭 thinking {subTag}
+                </li>
+              );
+            }
             return (
               <Card key={i} icon="💭" title={<span className="flex items-center gap-2 text-muted">Thinking {subTag}</span>} indent={isSub}>
                 {thought ? <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted">{thought}</p> : null}
@@ -277,7 +296,9 @@ export function Timeline({
   running,
   answered,
   onDecide,
+  followUp,
 }: {
+  followUp?: boolean;
   events: RunEvent[];
   showRaw: boolean;
   running: boolean;
@@ -292,7 +313,7 @@ export function Timeline({
       {events.map((event, i) => {
         switch (event.kind) {
           case "sdk":
-            return <SdkMessage key={i} message={event.message} workspace={workspace} showRaw={showRaw} agents={agents} />;
+            return <SdkMessage key={i} message={event.message} workspace={workspace} showRaw={showRaw} agents={agents} followUp={followUp} />;
           case "permission_request": {
             const decided = event.id in answered;
             return (

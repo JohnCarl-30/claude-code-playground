@@ -241,6 +241,10 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
     maxTurns: Math.min(Math.max(config.maxTurns, 1), 40),
     // Spending cap: the SDK stops the run with an error_max_budget_usd result.
     maxBudgetUsd: clampBudget(config.maxBudgetUsd),
+    // Follow-ups: Claude Code reloads the earlier turns of this session.
+    resume: config.resumeSessionId,
+    // No cross-session memory files: a conversation remembers only its own turns.
+    settings: { autoMemoryEnabled: false },
   };
 
   const flush = function* () {

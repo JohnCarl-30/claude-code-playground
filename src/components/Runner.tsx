@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_CONFIG, type CustomMcpServer, type RunConfig, type RunEvent } from "@/lib/run-types";
-import { loadSavedMcpServers, mergeServers, saveMcpServers } from "@/lib/saved-mcp";
+import { loadSavedMcpServers, mergeServers, saveMcpServers, useSavedMcpServers } from "@/lib/saved-mcp";
 import { WORKSPACE_MCP_SERVER, findTemplate, type TemplateId } from "@/lib/templates";
 import { markTried } from "@/lib/tried";
 import { CodePreview } from "./CodePreview";
@@ -13,6 +13,8 @@ import { Timeline, type Choice } from "./Timeline";
 import { WorkspacePanel, type WorkspaceSnapshot } from "./WorkspacePanel";
 
 type Status = "idle" | "running" | "done";
+/** One prompt you sent and everything that happened in response. */
+type Turn = { prompt: string; events: RunEvent[] };
 type Tab = "settings" | "mcp" | "code";
 
 export function Runner({
@@ -30,7 +32,9 @@ export function Runner({
 }) {
   const initial: RunConfig = { ...DEFAULT_CONFIG, ...preset };
   const [config, setConfig] = useState<RunConfig>(initial);
-  const [events, setEvents] = useState<RunEvent[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  // Set after the first run: follow-ups resume this Claude Code session.
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [showRaw, setShowRaw] = useState(showRawByDefault);
   const [tab, setTab] = useState<Tab | null>(null);
@@ -46,11 +50,23 @@ export function Runner({
     if (data && !data.error) setWorkspace(data);
   }
 
+  /** Append events to the turn that's running. */
+  function addEvents(events: RunEvent[]) {
+    setTurns((ts) => (ts.length ? [...ts.slice(0, -1), { ...ts[ts.length - 1], events: [...ts[ts.length - 1].events, ...events] }] : ts));
+  }
+
+  function newConversation(prompt = initial.prompt) {
+    setTurns([]);
+    setSessionId(null);
+    setConfig((c) => ({ ...c, prompt }));
+  }
+
   async function changeWorkspace(init: RequestInit) {
     setWorkspaceBusy(true);
     try {
       await loadWorkspace(init);
-      setEvents([]);
+      // The conversation was about the old files, so start a fresh one.
+      newConversation();
     } finally {
       setWorkspaceBusy(false);
     }
@@ -60,35 +76,42 @@ export function Runner({
     changeWorkspace({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template: id }) });
 
   useEffect(() => {
-    loadWorkspace();
+    let cancelled = false;
+    fetch("/api/workspace")
+      .then((r) => r.json())
+      .then((data: WorkspaceSnapshot & { error?: string }) => {
+        if (!cancelled && !data.error) setWorkspace(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // MCP servers you added earlier come along to every example.
-  useEffect(() => {
-    const saved = loadSavedMcpServers();
-    if (saved.length) setConfig((c) => ({ ...c, mcpServers: mergeServers(saved, c.mcpServers) }));
-  }, []);
+  const savedServers = useSavedMcpServers();
+  const effective: RunConfig = { ...config, mcpServers: mergeServers(savedServers, config.mcpServers) };
 
   const running = status === "running";
 
   async function run() {
     const controller = new AbortController();
     abortRef.current = controller;
-    setEvents([]);
-    setAnswered({});
+    setTurns((ts) => [...ts, { prompt: config.prompt, events: [] }]);
     setStatus("running");
     setTab(null);
+    let succeeded = false;
 
     try {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify({ ...effective, resumeSessionId: sessionId ?? undefined }),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {
         const { error } = await res.json().catch(() => ({ error: `Request failed (${res.status})` }));
-        setEvents([{ kind: "error", message: error }]);
+        addEvents([{ kind: "error", message: error }]);
         return;
       }
 
@@ -102,19 +125,22 @@ export function Runner({
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
         const parsed = lines.filter(Boolean).map((l) => JSON.parse(l) as RunEvent);
-        if (parsed.length) setEvents((prev) => [...prev, ...parsed]);
-        const succeeded = parsed.some((e) => e.kind === "sdk" && e.message.type === "result" && e.message.subtype === "success");
-        if (exampleId && succeeded) markTried(exampleId);
+        if (parsed.length) addEvents(parsed);
+        for (const e of parsed) {
+          if (e.kind !== "sdk") continue;
+          if (typeof e.message.session_id === "string") setSessionId(e.message.session_id);
+          if (e.message.type === "result" && e.message.subtype === "success") succeeded = true;
+        }
       }
     } catch (err) {
-      if (!controller.signal.aborted) {
-        setEvents((prev) => [...prev, { kind: "error", message: err instanceof Error ? err.message : String(err) }]);
-      } else {
-        setEvents((prev) => [...prev, { kind: "error", message: "Stopped." }]);
-      }
+      addEvents([{ kind: "error", message: controller.signal.aborted ? "Stopped." : err instanceof Error ? err.message : String(err) }]);
     } finally {
       setStatus("done");
       loadWorkspace();
+      if (succeeded) {
+        if (exampleId) markTried(exampleId);
+        setConfig((c) => ({ ...c, prompt: "" })); // ready for a follow-up
+      }
     }
   }
 
@@ -134,7 +160,7 @@ export function Runner({
     saveMcpServers(servers.filter((s) => !fromExample.has(s.name) || alreadySaved.has(s.name)));
   }
 
-  const mcpConnected = config.mcpServers.some((s) => s.name === WORKSPACE_MCP_SERVER.name);
+  const mcpConnected = effective.mcpServers.some((s) => s.name === WORKSPACE_MCP_SERVER.name);
   function connectWorkspaceMcp() {
     setConfig((c) => ({ ...c, mcpServers: mergeServers(c.mcpServers, [WORKSPACE_MCP_SERVER]) }));
   }
@@ -150,7 +176,7 @@ export function Runner({
   const needed = template ? findTemplate(template) : undefined;
   const mismatch = needed && workspace && workspace.template !== needed.id;
 
-  const mcpCount = config.mcpServers.length + (config.demoMcp ? 1 : 0);
+  const mcpCount = effective.mcpServers.length + (config.demoMcp ? 1 : 0);
   const tabs: { id: Tab; label: string }[] = [
     { id: "settings", label: "⚙ Settings" },
     { id: "mcp", label: `⌁ MCP servers${mcpCount ? ` (${mcpCount})` : ""}` },
@@ -160,6 +186,27 @@ export function Runner({
   return (
     <div className="space-y-4">
       <SetupBanner />
+      {turns.length > 0 && (
+        <section aria-label="Conversation" className="space-y-6">
+          {turns.map((turn, i) => {
+            const last = i === turns.length - 1;
+            return (
+              <div key={i}>
+                <div className="mb-2 flex justify-end">
+                  <p className="max-w-[85%] rounded-2xl rounded-br-sm bg-accent px-4 py-2 whitespace-pre-wrap text-white">{turn.prompt}</p>
+                </div>
+                <Timeline followUp={i > 0} events={turn.events} showRaw={showRaw} running={running && last} answered={answered} onDecide={decide} />
+                {running && last && (
+                  <p className="mt-2 flex items-center gap-2 text-sm text-muted">
+                    <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden />
+                    {turn.events.length <= 1 ? "Starting Claude Code… the first run can take a few seconds." : "Working…"}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </section>
+      )}
       {mismatch && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-info/30 bg-info-soft p-3 text-sm">
           <p className="mr-auto">
@@ -173,7 +220,7 @@ export function Runner({
           >
             {workspaceBusy ? "Switching…" : `Switch to ${needed.title}`}
           </button>
-          <span className="w-full text-xs text-muted">Switching replaces the files in your workspace.</span>
+          <span className="w-full text-xs text-muted">Your current files are kept and come back when you switch back.</span>
         </div>
       )}
       <section className="rounded-xl border border-line bg-surface p-4 shadow-sm">
@@ -190,7 +237,7 @@ export function Runner({
           }}
           rows={3}
           disabled={running}
-          placeholder="Ask Claude to do something in the sample project…"
+          placeholder={sessionId ? "Ask a follow-up… Claude remembers this conversation." : "Ask Claude to do something in your workspace…"}
           className="field-sizing-content max-h-80 min-h-24 w-full resize-y rounded-md border border-line bg-bg px-3 py-2 leading-relaxed disabled:opacity-60"
         />
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -208,7 +255,16 @@ export function Runner({
               title="Ctrl/⌘ + Enter"
               className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              ▶ Run {status === "done" ? "again" : ""}
+              {sessionId ? "▶ Send follow-up" : "▶ Run"}
+            </button>
+          )}
+          {turns.length > 0 && !running && (
+            <button
+              onClick={() => newConversation("")}
+              title="Forget this conversation and start over (your files stay as they are)"
+              className="rounded-md border border-line px-3 py-2 text-sm hover:bg-surface-2"
+            >
+              ＋ New conversation
             </button>
           )}
           <div role="tablist" aria-label="Run options" className="flex flex-wrap gap-1">
@@ -227,7 +283,7 @@ export function Runner({
             ))}
           </div>
           <button
-            onClick={() => setConfig({ ...initial, mcpServers: mergeServers(loadSavedMcpServers(), initial.mcpServers) })}
+            onClick={() => setConfig({ ...initial, prompt: config.prompt })}
             disabled={running}
             className="rounded-md px-3 py-2 text-sm text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-50"
           >
@@ -241,24 +297,12 @@ export function Runner({
         {tab && (
           <div role="tabpanel" className="mt-4 border-t border-line pt-4">
             {tab === "settings" && <SettingsPanel config={config} onChange={setConfig} disabled={running} />}
-            {tab === "mcp" && <McpPanel config={config} onChange={setConfig} onServersChange={rememberServers} disabled={running} />}
-            {tab === "code" && <CodePreview config={config} />}
+            {tab === "mcp" && <McpPanel config={effective} onChange={setConfig} onServersChange={rememberServers} disabled={running} />}
+            {tab === "code" && <CodePreview config={effective} sessionId={sessionId} />}
           </div>
         )}
       </section>
 
-      {(events.length > 0 || running) && (
-        <section>
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-medium text-muted">
-            What happened
-            {running && <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-label="running" />}
-          </h3>
-          <Timeline events={events} showRaw={showRaw} running={running} answered={answered} onDecide={decide} />
-          {running && events.length <= 1 && (
-            <p className="mt-2 text-sm text-muted">Starting Claude Code… the first run can take a few seconds.</p>
-          )}
-        </section>
-      )}
 
       <WorkspacePanel
         workspace={workspace}

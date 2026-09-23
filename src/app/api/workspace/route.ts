@@ -1,11 +1,11 @@
 import { rejectNonLocal } from "@/lib/local-only";
 import { stopProcess } from "@/lib/processes";
 import { findTemplate } from "@/lib/templates";
-import { currentTemplate, readWorkspace, resetWorkspace } from "@/lib/workspace";
+import { currentTemplate, parkedTemplates, readWorkspace, resetWorkspace, switchWorkspace } from "@/lib/workspace";
 
 async function snapshot() {
   const files = await readWorkspace();
-  return { template: await currentTemplate(), files };
+  return { template: await currentTemplate(), files, parked: await parkedTemplates() };
 }
 
 /** List the workspace files and which starter they came from. */
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   return Response.json(await snapshot());
 }
 
-/** Switch to another starter: { template }. Replaces everything in workspace/. */
+/** Switch to another starter: { template }. Your current work is kept for when you switch back. */
 export async function POST(request: Request) {
   const rejected = rejectNonLocal(request);
   if (rejected) return rejected;
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const info = findTemplate(template);
   if (!info) return Response.json({ error: "Unknown starter." }, { status: 400 });
   await stopProcess();
-  await resetWorkspace(info.id);
+  await switchWorkspace(info.id);
   return Response.json(await snapshot());
 }
 

@@ -84,6 +84,8 @@ export type RunConfig = {
   maxTurns: number;
   /** Stop the run once its estimated cost passes this many US dollars. */
   maxBudgetUsd: number;
+  /** Continue an earlier conversation (its session_id) instead of starting a new one. */
+  resumeSessionId?: string;
 };
 
 export const BUDGET_LIMITS = { min: 0.05, max: 5, default: 1 };

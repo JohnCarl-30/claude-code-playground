@@ -7,6 +7,7 @@ Build a real REST API, MCP server or agent with Claude, then run and test it rig
 
 - **No API key.** It uses your own Claude login, the same one Claude Code uses.
 - **Build real projects.** Start from a REST API, MCP server or Agent SDK starter; Claude writes the code, and you start the server, send requests, plug in your MCP server or run your agent.
+- **Keep the conversation going.** Follow-ups continue the same Claude Code session, so Claude remembers what it just did. See every change as a diff, and download your project as a .zip.
 - **Plug in any MCP server.** Add a local program (stdio) or a remote URL (HTTP), test the connection, and let Claude use it.
 - **Safe to experiment.** Claude only works inside a small sample project, and it asks you before it edits a file, runs a command or calls a tool from a server you added.
 - **See the code.** The Code tab shows the Agent SDK call that matches your current settings.
@@ -50,8 +51,14 @@ The **Workspace** panel under the prompt holds the project Claude works on. Pick
 | Agent SDK script | `agent.mjs` calling `query()` | run it and read its output |
 | Tiny Shop | a cart library with a planted bug | run its tests |
 
-A typical loop: pick **Build a REST API** in the sidebar → **Run** → **Start server** → send `POST /todos` → ask Claude for the next feature → **Reset** to start over.
-Each starter has a `CLAUDE.md` that tells Claude its conventions, and the examples turn it on. Switching starters replaces the workspace files.
+A typical loop: pick **Build a REST API** in the sidebar → **Run** → **Start server** → send `POST /todos` → **Send follow-up** ("now add pagination") → check the **Changes** tab → **⤓ .zip** to keep it.
+
+- **Follow-ups:** after a run, the prompt box becomes a follow-up box and Claude remembers the conversation. **＋ New conversation** starts fresh (your files stay as they are).
+- **Changes:** a colored diff of everything changed since the starter's starting point.
+- **Your work is kept:** switching starters parks the current workspace (files and git history) and brings it back when you switch back; the starter list marks those as "saved". **Reset** is the only thing that throws work away.
+- **⤓ .zip:** download the current project to keep or open elsewhere.
+
+Each starter has a `CLAUDE.md` that tells Claude its conventions, and the examples turn it on.
 
 ## What you can try
 
@@ -94,7 +101,8 @@ Only add servers you trust: a stdio server is a program running on your computer
 |---|---|
 | "Claude isn't ready yet" / "not signed in" | Run `claude` in a terminal, sign in, then reload the page. |
 | `npm run dev` says Node is too old | Install Node 20.9 or newer from [nodejs.org](https://nodejs.org). |
-| An example behaves strangely after lots of runs | Click **Reset** in the Workspace panel. |
+| An example behaves strangely after lots of runs | Click **Reset** in the Workspace panel (download a .zip first if you want to keep your work). |
+| Claude seems confused by an old conversation | Click **＋ New conversation**. |
 | "Nothing is listening on port 4100" | Click **Start server** in Run & test first. If another app uses port 4100, stop it. |
 | Your MCP server shows "failed" | Click **Check syntax** in Run & test, and make sure the code never uses `console.log` (stdout is the MCP channel). |
 | An MCP server shows "failed" | Use **Test connection** and read the hint. For stdio servers, check the command works in a terminal first. |

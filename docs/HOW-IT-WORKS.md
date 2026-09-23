@@ -113,6 +113,8 @@ sequenceDiagram
 
 **The timeline** (`src/components/Timeline.tsx`) turns raw messages into cards: `system/init` → **Session started**, `text` → 💬, `tool_use` → 🔧, `tool_result` → 📄, `result` → **Done** (turns, time, estimated cost, tokens). **Show raw messages** shows the exact JSON your own code would receive.
 
+**Follow-ups.** Every SDK message carries a `session_id`. The browser keeps the one from the first run, and each follow-up sends it back as `resumeSessionId`, which becomes the SDK's `resume` option: Claude Code reloads the earlier turns of that session, so Claude remembers the conversation. Settings can change between turns. **＋ New conversation** simply forgets the id; switching or resetting the workspace does too, because the old conversation was about other files. The page shows the conversation as turns (your prompt, then its timeline), and the Code tab adds `resume: "<id>"`. Runs also pass `settings: { autoMemoryEnabled: false }`, so Claude Code keeps no memory files between separate conversations.
+
 **Error results.** When a run hits the spending cap or the turn limit, the SDK sends a `result` with `error_max_budget_usd` / `error_max_turns` and then throws. `runAgent()` ignores that throw after a result has arrived, so you see one clear card instead of two.
 
 ---
@@ -202,7 +204,11 @@ The list lives in `src/lib/templates.ts`.
 
 **Why starters need no `npm install`.** `workspace/` sits inside the playground folder, so Node finds packages in the playground's `node_modules`: `@modelcontextprotocol/sdk`, `zod` and `@anthropic-ai/claude-agent-sdk`. Each starter's `CLAUDE.md` tells Claude not to install anything.
 
-**Switching and resetting.** `POST /api/workspace { template }` switches starter; `DELETE /api/workspace` resets to the current starter's original files. Both stop any running program first. An example that needs a particular starter (`template` in `src/lib/examples.ts`) shows a **Switch to …** banner when your workspace has a different one.
+**Switching keeps your work.** `POST /api/workspace { template }` moves the current `workspace/` into `.workspaces/<starter>/` (git-ignored) and moves the target starter's parked folder back, or creates it fresh the first time. Files and git history survive the round trip; `GET /api/workspace` lists parked starters so the picker can mark them "saved". `DELETE /api/workspace` **resets** the current starter to its original files, which is the one action that discards work. Both stop any running program first. An example that needs a particular starter (`template` in `src/lib/examples.ts`) shows a **Switch to …** banner when your workspace has a different one.
+
+**Changes** (`GET /api/workspace/diff`, `workspaceDiff()`): runs `git add --intent-to-add --all` (so new files show up) and `git diff HEAD` inside the workspace, splits the output per file, and the Changes tab colors added and removed lines.
+
+**Download** (`GET /api/workspace/download`): zips every file except `.git`, `node_modules` and the playground's marker, using a small built-in ZIP writer (`src/lib/zip.ts`, deflate via `node:zlib`, no extra packages).
 
 ---
 
@@ -252,6 +258,8 @@ Some preferences are kept in your browser's `localStorage`, for this browser onl
 | Examples you've run successfully (✓) | `claude-code-playground:tried:v1` | `src/lib/tried.ts` |
 | MCP servers you added | `claude-code-playground:mcp-servers:v1` | `src/lib/saved-mcp.ts` |
 
+The current conversation (its session id and turns) lives only in the page: reloading the page starts a new conversation. Claude Code itself keeps session transcripts in `~/.claude/projects/`, as it does in the terminal.
+
 If storage is blocked (private windows, strict settings), everything still works; these just aren't remembered.
 
 ---
@@ -268,6 +276,7 @@ If storage is blocked (private windows, strict settings), everything still works
 | Change hooks or subagents | `hooks`, `SUBAGENTS`, `TEAM` in `src/lib/run-agent.ts` |
 | Change how a message is displayed | `src/components/Timeline.tsx` |
 | Change the generated code in the Code tab | `src/components/CodePreview.tsx` |
+| Change the Changes diff view | `src/components/ChangesView.tsx`, `workspaceDiff()` in `src/lib/workspace.ts` |
 
 **Checks** (the same ones CI runs on every push, `.github/workflows/ci.yml`):
 

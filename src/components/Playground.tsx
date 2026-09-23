@@ -105,8 +105,8 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
             <>
               <h1 className="text-2xl font-semibold tracking-tight">Claude Code Playground</h1>
               <p className="max-w-2xl text-muted">
-                Ask Claude to do anything in the sample project, then change the tools, permissions, MCP servers and more to see what
-                changes. Or pick an example on the left.
+                Ask Claude to build or change something in your workspace, then keep the conversation going with follow-ups. Change the
+                tools, permissions and MCP servers to see what happens, or pick an example on the left.
               </p>
             </>
           )}

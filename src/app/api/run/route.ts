@@ -11,6 +11,7 @@ function parseConfig(body: unknown): RunConfig | string {
   if (typeof c.prompt !== "string" || !c.prompt.trim()) return "Write a prompt first.";
   if (!MODES.includes(c.permissionMode)) return "Unknown permission mode.";
   if (!Array.isArray(c.tools) || c.tools.some((t) => !BUILT_IN_TOOLS.includes(t))) return "Unknown tool.";
+  if (c.resumeSessionId !== undefined && !/^[0-9a-f-]{36}$/i.test(String(c.resumeSessionId))) return "Unknown conversation.";
   const mcpServers = validateMcpServers(c.mcpServers);
   if (typeof mcpServers === "string") return mcpServers;
   return { ...c, mcpServers };
