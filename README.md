@@ -12,6 +12,8 @@ Build a real REST API, MCP server or agent with Claude, then run and test it rig
 - **See the code.** The Code tab shows the Agent SDK call that matches your current settings.
 - **Runs on your computer.** Works on macOS, Linux and Windows.
 
+Curious how it works under the hood? Read **[How the playground works](docs/HOW-IT-WORKS.md)**.
+
 ## Before you start
 
 You need two things:
@@ -100,6 +102,9 @@ Only add servers you trust: a stdio server is a program running on your computer
 | Port 3000 is busy | `npm run dev -- --port 3001`, then open http://localhost:3001 |
 
 ## For contributors
+
+Start with [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) for the architecture, request flow and security model.
+
 
 - `src/lib/examples.ts`: the sidebar examples (the easiest place to add one)
 - `src/lib/run-agent.ts`: Agent SDK options, the permission callback and the hooks
