@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Starter projects and the sandbox are the user's code, not the playground's.
+    "templates/**",
+    "workspace/**",
   ]),
 ]);
 

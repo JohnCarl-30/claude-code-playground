@@ -40,5 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# playground sandbox (recreated from workspace-seed/)
+# playground sandbox (created from a starter in templates/)
 /workspace

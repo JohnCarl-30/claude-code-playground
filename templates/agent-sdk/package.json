@@ -1,0 +1,8 @@
+{
+  "name": "my-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node agent.mjs"
+  }
+}

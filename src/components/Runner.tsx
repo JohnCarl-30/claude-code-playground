@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_CONFIG, type CustomMcpServer, type RunConfig, type RunEvent } from "@/lib/run-types";
 import { loadSavedMcpServers, mergeServers, saveMcpServers } from "@/lib/saved-mcp";
+import { WORKSPACE_MCP_SERVER, findTemplate, type TemplateId } from "@/lib/templates";
 import { markTried } from "@/lib/tried";
 import { CodePreview } from "./CodePreview";
-import { FilesPanel } from "./FilesPanel";
 import { McpPanel } from "./McpPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { SetupBanner } from "./SetupStatus";
 import { Timeline, type Choice } from "./Timeline";
+import { WorkspacePanel, type WorkspaceSnapshot } from "./WorkspacePanel";
 
 type Status = "idle" | "running" | "done";
 type Tab = "settings" | "mcp" | "code";
@@ -17,9 +18,12 @@ type Tab = "settings" | "mcp" | "code";
 export function Runner({
   preset,
   exampleId,
+  template,
   showRawByDefault = false,
 }: {
   preset: Partial<RunConfig>;
+  /** The starter this example needs; offers to switch when the workspace has another one. */
+  template?: TemplateId;
   /** When set, a successful run marks this example as tried. */
   exampleId?: string;
   showRawByDefault?: boolean;
@@ -31,8 +35,33 @@ export function Runner({
   const [showRaw, setShowRaw] = useState(showRawByDefault);
   const [tab, setTab] = useState<Tab | null>(null);
   const [answered, setAnswered] = useState<Record<string, Choice>>({});
-  const [filesKey, setFilesKey] = useState(0);
+  const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
+  const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+
+  async function loadWorkspace(init?: RequestInit) {
+    const res = await fetch("/api/workspace", init).catch(() => null);
+    const data = (await res?.json().catch(() => null)) as (WorkspaceSnapshot & { error?: string }) | null;
+    if (data && !data.error) setWorkspace(data);
+  }
+
+  async function changeWorkspace(init: RequestInit) {
+    setWorkspaceBusy(true);
+    try {
+      await loadWorkspace(init);
+      setEvents([]);
+    } finally {
+      setWorkspaceBusy(false);
+    }
+  }
+
+  const switchTemplate = (id: TemplateId) =>
+    changeWorkspace({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template: id }) });
+
+  useEffect(() => {
+    loadWorkspace();
+  }, []);
 
   // MCP servers you added earlier come along to every example.
   useEffect(() => {
@@ -85,7 +114,7 @@ export function Runner({
       }
     } finally {
       setStatus("done");
-      setFilesKey((k) => k + 1);
+      loadWorkspace();
     }
   }
 
@@ -105,6 +134,22 @@ export function Runner({
     saveMcpServers(servers.filter((s) => !fromExample.has(s.name) || alreadySaved.has(s.name)));
   }
 
+  const mcpConnected = config.mcpServers.some((s) => s.name === WORKSPACE_MCP_SERVER.name);
+  function connectWorkspaceMcp() {
+    setConfig((c) => ({ ...c, mcpServers: mergeServers(c.mcpServers, [WORKSPACE_MCP_SERVER]) }));
+  }
+  function tryWorkspaceMcp() {
+    setConfig((c) => ({
+      ...c,
+      prompt: "List the tools you have from my-server, then try each one with a sensible example and show me the results.",
+    }));
+    promptRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    promptRef.current?.focus();
+  }
+
+  const needed = template ? findTemplate(template) : undefined;
+  const mismatch = needed && workspace && workspace.template !== needed.id;
+
   const mcpCount = config.mcpServers.length + (config.demoMcp ? 1 : 0);
   const tabs: { id: Tab; label: string }[] = [
     { id: "settings", label: "⚙ Settings" },
@@ -115,11 +160,28 @@ export function Runner({
   return (
     <div className="space-y-4">
       <SetupBanner />
+      {mismatch && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-info/30 bg-info-soft p-3 text-sm">
+          <p className="mr-auto">
+            This example uses the <strong>{needed.title}</strong> starter, but your workspace has{" "}
+            <strong>{findTemplate(workspace.template)?.title}</strong>.
+          </p>
+          <button
+            onClick={() => switchTemplate(needed.id)}
+            disabled={workspaceBusy || running}
+            className="rounded-md bg-info px-3 py-1.5 font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {workspaceBusy ? "Switching…" : `Switch to ${needed.title}`}
+          </button>
+          <span className="w-full text-xs text-muted">Switching replaces the files in your workspace.</span>
+        </div>
+      )}
       <section className="rounded-xl border border-line bg-surface p-4 shadow-sm">
         <label htmlFor="prompt" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted">
           Prompt
         </label>
         <textarea
+          ref={promptRef}
           id="prompt"
           value={config.prompt}
           onChange={(e) => setConfig({ ...config, prompt: e.target.value })}
@@ -198,7 +260,15 @@ export function Runner({
         </section>
       )}
 
-      <FilesPanel refreshKey={filesKey} disabled={running} />
+      <WorkspacePanel
+        workspace={workspace}
+        busy={workspaceBusy || running}
+        onSwitch={switchTemplate}
+        onReset={() => changeWorkspace({ method: "DELETE" })}
+        mcpConnected={mcpConnected}
+        onConnectMcp={connectWorkspaceMcp}
+        onTryMcp={tryWorkspaceMcp}
+      />
     </div>
   );
 }

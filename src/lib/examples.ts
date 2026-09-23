@@ -1,4 +1,5 @@
 import { MCP_PRESETS, type RunConfig } from "./run-types";
+import { WORKSPACE_MCP_SERVER, type TemplateId } from "./templates";
 
 export type Example = {
   /** "group/slug", also used in the URL (?example=...). */
@@ -8,21 +9,105 @@ export type Example = {
   /** One line shown in the sidebar and above the prompt. */
   blurb: string;
   config: Partial<RunConfig> & { prompt: string };
+  /** The starter project this example needs in the workspace (any, when unset). */
+  template?: TemplateId;
   /** Things worth noticing in the timeline. Supports **bold** and `code`. */
   notice: string[];
   showRaw?: boolean;
 };
 
-export const EXAMPLE_GROUPS = ["Claude Code", "Agent SDK", "Claude API", "MCP"] as const;
+export const EXAMPLE_GROUPS = ["Build", "Claude Code", "Agent SDK", "Claude API", "MCP"] as const;
 export type ExampleGroup = (typeof EXAMPLE_GROUPS)[number];
 
 const preset = (name: string) => MCP_PRESETS.find((p) => p.server.name === name)!.server;
 const READ_ONLY = ["Read", "Glob", "Grep"] as const;
+const BUILDER = { tools: ["Read", "Glob", "Grep", "Edit", "Write"], permissionMode: "acceptEdits", claudeMd: true, maxTurns: 25 } as const;
 
 export const EXAMPLES: Example[] = [
+  // Build: real projects you run and test yourself
+  {
+    id: "build/rest-api",
+    group: "Build",
+    title: "Build a REST API",
+    blurb: "Claude writes a todo API; you start it and send requests.",
+    template: "rest-api",
+    config: {
+      ...BUILDER,
+      tools: [...BUILDER.tools],
+      prompt:
+        'Build a todo list API in server.js: GET /todos, POST /todos (body: { "title": string }), GET /todos/:id, PATCH /todos/:id (title and/or done), DELETE /todos/:id. Store todos in memory. Return 400 for invalid input and 404 for unknown ids.',
+    },
+    notice: [
+      "Then open **Run & test** below, click **Start server**, and send `POST /todos` with a JSON body.",
+      "Try breaking it: send a POST without a title and check you get a 400.",
+    ],
+  },
+  {
+    id: "build/mcp-server",
+    group: "Build",
+    title: "Build an MCP server",
+    blurb: "Claude adds tools to your own MCP server.",
+    template: "mcp-server",
+    config: {
+      ...BUILDER,
+      tools: [...BUILDER.tools],
+      prompt:
+        "Add two tools to server.js: word_count (counts the words in a text) and convert_temperature (converts between Celsius and Fahrenheit). Keep the greet tool.",
+    },
+    notice: [
+      "Then open **Run & test** below and click **Connect to the playground**.",
+      "Next, try the **Use your MCP server** example, or ask Claude to use your tools yourself.",
+    ],
+  },
+  {
+    id: "build/use-mcp-server",
+    group: "Build",
+    title: "Use your MCP server",
+    blurb: "Claude calls the tools you built, over stdio.",
+    template: "mcp-server",
+    config: {
+      prompt: "List the tools you have from my-server, then try each one with a sensible example and show me the results.",
+      tools: [],
+      mcpServers: [WORKSPACE_MCP_SERVER],
+    },
+    notice: [
+      "Your server is started fresh for every run, so it always uses your latest code.",
+      "If `my-server` shows **failed** in the Session started card, check your code with **Run & test → Check syntax**.",
+    ],
+  },
+  {
+    id: "build/agent-tool",
+    group: "Build",
+    title: "Build an agent with a custom tool",
+    blurb: "Claude extends your Agent SDK script; you run it.",
+    template: "agent-sdk",
+    config: {
+      ...BUILDER,
+      tools: [...BUILDER.tools],
+      prompt:
+        "In agent.mjs, add a custom tool called get_time that returns the current date and time, using createSdkMcpServer and tool(). Allow it, and change the prompt so the agent is asked what time it is.",
+    },
+    notice: ["Then open **Run & test** below and click **Run agent.mjs** to watch your agent call your tool."],
+  },
+  {
+    id: "build/agent-files",
+    group: "Build",
+    title: "Give your agent file tools",
+    blurb: "Let your agent read the folder it runs in.",
+    template: "agent-sdk",
+    config: {
+      ...BUILDER,
+      tools: [...BUILDER.tools],
+      prompt:
+        "Change agent.mjs so the agent can use the Read and Glob tools without asking (allowedTools), and ask it to list the files in this folder and describe each in one line.",
+    },
+    notice: ["Run it from **Run & test**. The `→ tool` lines show your agent using its tools."],
+  },
+
   // Claude Code
   {
     id: "claude-code/explore",
+    template: "tiny-shop",
     group: "Claude Code",
     title: "Explore a project",
     blurb: "Watch the agent loop: look around, then answer.",
@@ -31,6 +116,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "claude-code/find-bug",
+    template: "tiny-shop",
     group: "Claude Code",
     title: "Find a bug (read-only)",
     blurb: "Claude only has read tools, so it can find but not fix.",
@@ -39,6 +125,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "claude-code/approve-edit",
+    template: "tiny-shop",
     group: "Claude Code",
     title: "Approve or deny an edit",
     blurb: "Edits wait for your Allow, just like the terminal.",
@@ -47,6 +134,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "claude-code/plan-mode",
+    template: "tiny-shop",
     group: "Claude Code",
     title: "Plan mode",
     blurb: "Claude plans the change but can't make it.",
@@ -55,6 +143,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "claude-code/claude-md",
+    template: "tiny-shop",
     group: "Claude Code",
     title: "Project memory (CLAUDE.md)",
     blurb: "Instructions Claude loads at the start of every session.",
@@ -63,6 +152,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "claude-code/hooks",
+    template: "tiny-shop",
     group: "Claude Code",
     title: "A hook blocks an edit",
     blurb: "Your code runs before every tool call and can say no.",
@@ -76,6 +166,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "claude-code/subagent",
+    template: "tiny-shop",
     group: "Claude Code",
     title: "Delegate to a subagent",
     blurb: "A helper with its own instructions and context.",
@@ -84,6 +175,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "claude-code/team",
+    template: "tiny-shop",
     group: "Claude Code",
     title: "Orchestrate a team",
     blurb: "Three specialists in parallel, one merged report.",
@@ -108,6 +200,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "agent-sdk/system-prompt",
+    template: "tiny-shop",
     group: "Agent SDK",
     title: "Change the system prompt",
     blurb: "Append your own rules to Claude Code's prompt.",
@@ -116,6 +209,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "agent-sdk/fix-and-test",
+    template: "tiny-shop",
     group: "Agent SDK",
     title: "Fix it and run the tests",
     blurb: "Edit + Bash, each approved through canUseTool.",
@@ -124,6 +218,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "agent-sdk/spending-cap",
+    template: "tiny-shop",
     group: "Agent SDK",
     title: "Hit the spending cap",
     blurb: "maxBudgetUsd stops a run that gets too expensive.",
@@ -148,6 +243,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "claude-api/content-blocks",
+    template: "tiny-shop",
     group: "Claude API",
     title: "tool_use and tool_result",
     blurb: "How Claude and your code take turns.",
@@ -157,6 +253,7 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "claude-api/tokens",
+    template: "tiny-shop",
     group: "Claude API",
     title: "Tokens, caching and cost",
     blurb: "Compare usage across turns and models.",

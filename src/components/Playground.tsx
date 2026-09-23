@@ -114,6 +114,7 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
         <Runner
           key={selectedId}
           exampleId={example?.id}
+          template={example?.template}
           preset={example?.config ?? BLANK}
           showRawByDefault={example?.showRaw}
         />

@@ -27,6 +27,7 @@ async function load(name) {
 
 const { EXAMPLES, EXAMPLE_GROUPS } = await load("examples");
 const { BUILT_IN_TOOLS, validateMcpServers } = await load("run-types");
+const { TEMPLATES } = await load("templates");
 
 const errors = [];
 const seen = new Set();
@@ -38,6 +39,7 @@ for (const ex of EXAMPLES) {
   if (!EXAMPLE_GROUPS.includes(ex.group)) errors.push(`${id}: unknown group "${ex.group}"`);
   if (!ex.title || !ex.blurb) errors.push(`${id}: needs a title and blurb`);
   if (!ex.config.prompt?.trim()) errors.push(`${id}: needs a prompt`);
+  if (ex.template && !TEMPLATES.some((t) => t.id === ex.template)) errors.push(`${id}: unknown starter "${ex.template}"`);
   if (!ex.notice?.length) errors.push(`${id}: needs at least one "notice" hint`);
   for (const t of ex.config.tools ?? []) if (!BUILT_IN_TOOLS.includes(t)) errors.push(`${id}: unknown tool "${t}"`);
   const servers = validateMcpServers(ex.config.mcpServers);

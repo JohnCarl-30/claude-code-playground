@@ -1,21 +1,30 @@
 import "server-only";
 import { execFile } from "node:child_process";
-import { cp, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { DEFAULT_TEMPLATE, findTemplate, type TemplateId } from "./templates";
 
 const run = promisify(execFile);
 
 const ROOT = process.cwd();
 export const WORKSPACE_DIR = path.join(ROOT, "workspace");
-const SEED_DIR = path.join(ROOT, "workspace-seed");
+const TEMPLATES_DIR = path.join(ROOT, "templates");
+// Remembers which starter the workspace was created from.
+const TEMPLATE_MARKER = path.join(WORKSPACE_DIR, ".playground-template");
 
-/** Copy the seed into a fresh workspace/. */
-async function createWorkspace() {
+/** Copy a starter into a fresh workspace/. */
+async function createWorkspace(template: TemplateId) {
   await rm(WORKSPACE_DIR, { recursive: true, force: true });
   await mkdir(WORKSPACE_DIR, { recursive: true });
-  await cp(SEED_DIR, WORKSPACE_DIR, { recursive: true });
+  await cp(path.join(TEMPLATES_DIR, template), WORKSPACE_DIR, { recursive: true });
+  await writeFile(TEMPLATE_MARKER, template);
   await initGit();
+}
+
+export async function currentTemplate(): Promise<TemplateId> {
+  const saved = await readFile(TEMPLATE_MARKER, "utf8").catch(() => "");
+  return findTemplate(saved.trim())?.id ?? DEFAULT_TEMPLATE;
 }
 
 /**
@@ -28,8 +37,9 @@ async function initGit() {
     run("git", ["-c", "user.name=Playground", "-c", "user.email=playground@localhost", ...args], { cwd: WORKSPACE_DIR });
   try {
     await git("init", "-q", "-b", "main");
+    await writeFile(path.join(WORKSPACE_DIR, ".gitignore"), ".playground-template\nnode_modules/\n");
     await git("add", "-A");
-    await git("commit", "-q", "-m", "Tiny Shop starting point");
+    await git("commit", "-q", "-m", "Starting point");
   } catch {
     // git isn't installed; everything still works, Claude just sees less context.
   }
@@ -42,14 +52,15 @@ async function exists(p: string) {
   );
 }
 
-/** Create workspace/ from workspace-seed/ the first time it's needed. */
+/** Create workspace/ from the default starter the first time it's needed. */
 export async function ensureWorkspace() {
-  if (!(await exists(WORKSPACE_DIR))) await createWorkspace();
+  if (!(await exists(WORKSPACE_DIR))) await createWorkspace(DEFAULT_TEMPLATE);
   else if (!(await exists(path.join(WORKSPACE_DIR, ".git")))) await initGit();
 }
 
-export async function resetWorkspace() {
-  await createWorkspace();
+/** Start over from a starter (the current one when none is given). */
+export async function resetWorkspace(template?: TemplateId) {
+  await createWorkspace(template ?? (await currentTemplate()));
 }
 
 /** True when `target` (absolute or workspace-relative) stays inside workspace/. */
