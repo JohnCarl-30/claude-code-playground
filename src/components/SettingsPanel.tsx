@@ -9,8 +9,7 @@ const MODES: { id: PlaygroundPermissionMode; label: string; hint: string }[] = [
   { id: "dontAsk", label: "dontAsk", hint: "Never ask; deny anything not pre-approved" },
 ];
 
-const TOGGLES: { key: "demoMcp" | "claudeMd" | "subagents" | "team" | "hooks"; label: string; hint: string }[] = [
-  { key: "demoMcp", label: "Demo MCP server", hint: "Dice, weather and notebook tools" },
+const TOGGLES: { key: "claudeMd" | "subagents" | "team" | "hooks"; label: string; hint: string }[] = [
   { key: "claudeMd", label: "Load CLAUDE.md", hint: "Project instructions from workspace/CLAUDE.md" },
   { key: "subagents", label: "code-reviewer subagent", hint: "A read-only helper on Haiku" },
   { key: "team", label: "Review team (3 subagents)", hint: "bug-hunter, readability-reviewer, test-designer" },

@@ -5,6 +5,9 @@ import type { RunEvent, SdkMessageLike } from "@/lib/run-types";
 
 type Block = { type: string; [key: string]: unknown };
 
+export type Choice = "allow" | "always" | "deny";
+const CHOICE_LABEL: Record<Choice, string> = { allow: "Allow", always: "Always allow", deny: "Deny" };
+
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
 /** Show paths relative to workspace/ so beginners aren't staring at /Users/... */
@@ -277,8 +280,8 @@ export function Timeline({
   events: RunEvent[];
   showRaw: boolean;
   running: boolean;
-  answered: Record<string, boolean>;
-  onDecide: (id: string, allow: boolean) => void;
+  answered: Record<string, Choice>;
+  onDecide: (id: string, choice: Choice) => void;
 }) {
   const workspace = events.find((e) => e.kind === "run")?.workspace ?? "";
   const agents = subagentsById(events);
@@ -297,17 +300,24 @@ export function Timeline({
                   {tidy(JSON.stringify(event.input, null, 2), workspace)}
                 </pre>
                 {decided ? (
-                  <p className="mt-2 text-sm text-muted">You chose {answered[event.id] ? "Allow" : "Deny"}.</p>
+                  <p className="mt-2 text-sm text-muted">You chose {CHOICE_LABEL[answered[event.id]]}.</p>
                 ) : running ? (
-                  <div className="mt-2 flex gap-2">
+                  <div className="mt-2 flex flex-wrap gap-2">
                     <button
-                      onClick={() => onDecide(event.id, true)}
+                      onClick={() => onDecide(event.id, "allow")}
                       className="rounded-md bg-ok px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
                     >
                       Allow
                     </button>
                     <button
-                      onClick={() => onDecide(event.id, false)}
+                      onClick={() => onDecide(event.id, "always")}
+                      title={`Allow ${event.tool} for the rest of this run`}
+                      className="rounded-md border border-ok/40 bg-surface px-3 py-1.5 text-sm font-medium text-ok hover:bg-ok-soft"
+                    >
+                      Always allow
+                    </button>
+                    <button
+                      onClick={() => onDecide(event.id, "deny")}
                       className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-2"
                     >
                       Deny

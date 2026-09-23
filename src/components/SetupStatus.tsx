@@ -50,15 +50,15 @@ export function SetupBanner() {
   );
 }
 
-/** Small "signed in" badge for the home page. */
+/** Small login status badge for the header. */
 export function SetupPill() {
   const status = useSetupStatus();
-  const base = "mb-3 inline-block rounded-full px-3 py-1 text-sm font-medium";
-  if (!status) return <p className={`${base} bg-surface-2 text-muted`}>Checking your Claude login…</p>;
-  if (!status.signedIn) return <p className={`${base} bg-warn-soft text-warn`}>Not signed in to Claude yet: see the steps below</p>;
+  const base = "hidden rounded-full px-2.5 py-0.5 text-xs font-medium sm:inline-block";
+  if (!status) return <span className={`${base} bg-surface-2 text-muted`}>Checking login…</span>;
+  if (!status.signedIn) return <span className={`${base} bg-warn-soft text-warn`}>Not signed in</span>;
   return (
-    <p className={`${base} bg-accent-soft text-accent`}>
-      ✓ Signed in{status.plan ? ` with ${status.plan}` : ""} · runs on your Claude login, no API key
-    </p>
+    <span className={`${base} bg-ok-soft text-ok`} title="Runs on your Claude Code login, no API key">
+      ✓ Signed in{status.plan ? ` · ${status.plan}` : ""}
+    </span>
   );
 }

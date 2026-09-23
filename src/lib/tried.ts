@@ -2,8 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 
-// Completed lessons are stored in this browser only, as "track/lesson" ids.
-const KEY = "claude-code-playground:progress:v1";
+// Examples you have run successfully, stored in this browser only.
+const KEY = "claude-code-playground:tried:v1";
 const EMPTY: readonly string[] = [];
 
 let cachedRaw: string | null = null;
@@ -47,23 +47,13 @@ function subscribe(listener: () => void) {
   };
 }
 
-export const lessonId = (track: string, lesson: string) => `${track}/${lesson}`;
-
-export function markLessonDone(id: string) {
+export function markTried(id: string) {
   const list = read();
   if (!list.includes(id)) write([...list, id]);
 }
 
-export function markLessonNotDone(id: string) {
-  write(read().filter((x) => x !== id));
-}
-
-export function resetProgress() {
-  write(EMPTY);
-}
-
-/** The set of completed lesson ids. Empty during server rendering. */
-export function useProgress(): ReadonlySet<string> {
+/** The set of example ids you've run successfully. Empty during server rendering. */
+export function useTried(): ReadonlySet<string> {
   const list = useSyncExternalStore(subscribe, read, () => EMPTY);
   return new Set(list);
 }

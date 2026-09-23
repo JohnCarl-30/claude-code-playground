@@ -1,5 +1,5 @@
 import { runAgent } from "@/lib/run-agent";
-import { BUILT_IN_TOOLS, DEFAULT_CONFIG, type RunConfig, type RunEvent } from "@/lib/run-types";
+import { BUILT_IN_TOOLS, DEFAULT_CONFIG, validateMcpServers, type RunConfig, type RunEvent } from "@/lib/run-types";
 import { rejectNonLocal } from "@/lib/local-only";
 import { WORKSPACE_DIR } from "@/lib/workspace";
 
@@ -11,7 +11,9 @@ function parseConfig(body: unknown): RunConfig | string {
   if (typeof c.prompt !== "string" || !c.prompt.trim()) return "Write a prompt first.";
   if (!MODES.includes(c.permissionMode)) return "Unknown permission mode.";
   if (!Array.isArray(c.tools) || c.tools.some((t) => !BUILT_IN_TOOLS.includes(t))) return "Unknown tool.";
-  return c;
+  const mcpServers = validateMcpServers(c.mcpServers);
+  if (typeof mcpServers === "string") return mcpServers;
+  return { ...c, mcpServers };
 }
 
 /** Runs one Agent SDK query and streams every event back as NDJSON. */

@@ -1,36 +1,44 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { markLessonDone } from "@/lib/progress";
-import { DEFAULT_CONFIG, type RunConfig, type RunEvent } from "@/lib/run-types";
+import { useEffect, useRef, useState } from "react";
+import { DEFAULT_CONFIG, type CustomMcpServer, type RunConfig, type RunEvent } from "@/lib/run-types";
+import { loadSavedMcpServers, mergeServers, saveMcpServers } from "@/lib/saved-mcp";
+import { markTried } from "@/lib/tried";
+import { CodePreview } from "./CodePreview";
 import { FilesPanel } from "./FilesPanel";
+import { McpPanel } from "./McpPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { SetupBanner } from "./SetupStatus";
-import { Timeline } from "./Timeline";
+import { Timeline, type Choice } from "./Timeline";
 
 type Status = "idle" | "running" | "done";
+type Tab = "settings" | "mcp" | "code";
 
 export function Runner({
   preset,
-  lessonId,
+  exampleId,
   showRawByDefault = false,
-  settingsOpenByDefault = false,
 }: {
   preset: Partial<RunConfig>;
-  /** When set, a successful run marks this lesson as completed. */
-  lessonId?: string;
+  /** When set, a successful run marks this example as tried. */
+  exampleId?: string;
   showRawByDefault?: boolean;
-  settingsOpenByDefault?: boolean;
 }) {
   const initial: RunConfig = { ...DEFAULT_CONFIG, ...preset };
   const [config, setConfig] = useState<RunConfig>(initial);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [showRaw, setShowRaw] = useState(showRawByDefault);
-  const [settingsOpen, setSettingsOpen] = useState(settingsOpenByDefault);
-  const [answered, setAnswered] = useState<Record<string, boolean>>({});
+  const [tab, setTab] = useState<Tab | null>(null);
+  const [answered, setAnswered] = useState<Record<string, Choice>>({});
   const [filesKey, setFilesKey] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
+
+  // MCP servers you added earlier come along to every example.
+  useEffect(() => {
+    const saved = loadSavedMcpServers();
+    if (saved.length) setConfig((c) => ({ ...c, mcpServers: mergeServers(saved, c.mcpServers) }));
+  }, []);
 
   const running = status === "running";
 
@@ -40,6 +48,7 @@ export function Runner({
     setEvents([]);
     setAnswered({});
     setStatus("running");
+    setTab(null);
 
     try {
       const res = await fetch("/api/run", {
@@ -66,7 +75,7 @@ export function Runner({
         const parsed = lines.filter(Boolean).map((l) => JSON.parse(l) as RunEvent);
         if (parsed.length) setEvents((prev) => [...prev, ...parsed]);
         const succeeded = parsed.some((e) => e.kind === "sdk" && e.message.type === "result" && e.message.subtype === "success");
-        if (lessonId && succeeded) markLessonDone(lessonId);
+        if (exampleId && succeeded) markTried(exampleId);
       }
     } catch (err) {
       if (!controller.signal.aborted) {
@@ -80,14 +89,28 @@ export function Runner({
     }
   }
 
-  async function decide(id: string, allow: boolean) {
-    setAnswered((prev) => ({ ...prev, [id]: allow }));
+  async function decide(id: string, choice: Choice) {
+    setAnswered((prev) => ({ ...prev, [id]: choice }));
     await fetch("/api/permission", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, allow }),
+      body: JSON.stringify({ id, allow: choice !== "deny", always: choice === "always" }),
     }).catch(() => {});
   }
+
+  /** Remember the servers you added yourself (not ones an example brought along). */
+  function rememberServers(servers: CustomMcpServer[]) {
+    const alreadySaved = new Set(loadSavedMcpServers().map((s) => s.name));
+    const fromExample = new Set((preset.mcpServers ?? []).map((s) => s.name));
+    saveMcpServers(servers.filter((s) => !fromExample.has(s.name) || alreadySaved.has(s.name)));
+  }
+
+  const mcpCount = config.mcpServers.length + (config.demoMcp ? 1 : 0);
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "settings", label: "⚙ Settings" },
+    { id: "mcp", label: `⌁ MCP servers${mcpCount ? ` (${mcpCount})` : ""}` },
+    { id: "code", label: "</> Code" },
+  ];
 
   return (
     <div className="space-y-4">
@@ -101,10 +124,11 @@ export function Runner({
           value={config.prompt}
           onChange={(e) => setConfig({ ...config, prompt: e.target.value })}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !running) run();
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !running && config.prompt.trim()) run();
           }}
           rows={3}
           disabled={running}
+          placeholder="Ask Claude to do something in the sample project…"
           className="w-full resize-y rounded-md border border-line bg-bg px-3 py-2 leading-relaxed disabled:opacity-60"
         />
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -119,33 +143,44 @@ export function Runner({
             <button
               onClick={run}
               disabled={!config.prompt.trim()}
+              title="Ctrl/⌘ + Enter"
               className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               ▶ Run {status === "done" ? "again" : ""}
             </button>
           )}
+          <div role="tablist" aria-label="Run options" className="flex flex-wrap gap-1">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => setTab((cur) => (cur === t.id ? null : t.id))}
+                className={`rounded-md border px-3 py-2 text-sm ${
+                  tab === t.id ? "border-accent bg-accent-soft text-accent" : "border-line hover:bg-surface-2"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
           <button
-            onClick={() => setSettingsOpen((o) => !o)}
-            aria-expanded={settingsOpen}
-            className="rounded-md border border-line px-3 py-2 text-sm hover:bg-surface-2"
-          >
-            ⚙ Settings {settingsOpen ? "▴" : "▾"}
-          </button>
-          <button
-            onClick={() => setConfig(initial)}
+            onClick={() => setConfig({ ...initial, mcpServers: mergeServers(loadSavedMcpServers(), initial.mcpServers) })}
             disabled={running}
             className="rounded-md px-3 py-2 text-sm text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-50"
           >
-            Restore example
+            Reset settings
           </button>
           <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-muted">
             <input type="checkbox" checked={showRaw} onChange={(e) => setShowRaw(e.target.checked)} className="accent-[var(--accent)]" />
             Show raw messages
           </label>
         </div>
-        {settingsOpen && (
-          <div className="mt-4 border-t border-line pt-4">
-            <SettingsPanel config={config} onChange={setConfig} disabled={running} />
+        {tab && (
+          <div role="tabpanel" className="mt-4 border-t border-line pt-4">
+            {tab === "settings" && <SettingsPanel config={config} onChange={setConfig} disabled={running} />}
+            {tab === "mcp" && <McpPanel config={config} onChange={setConfig} onServersChange={rememberServers} disabled={running} />}
+            {tab === "code" && <CodePreview config={config} />}
           </div>
         )}
       </section>

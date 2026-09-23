@@ -10,7 +10,7 @@ function inline(text: string): ReactNode[] {
   });
 }
 
-/** Tiny Markdown subset used by lesson text: paragraphs and "- " bullet lists. */
+/** Tiny Markdown subset used by example notes: paragraphs and "- " bullet lists. */
 export function Markdownish({ blocks, className = "" }: { blocks: string[]; className?: string }) {
   return (
     <div className={`prose-lite space-y-3 leading-relaxed ${className}`}>

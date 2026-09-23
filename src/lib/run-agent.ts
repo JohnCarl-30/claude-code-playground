@@ -6,24 +6,37 @@ import {
   type CanUseTool,
   type HookCallbackMatcher,
   type HookEvent,
+  type McpServerConfig,
   type Options,
 } from "@anthropic-ai/claude-agent-sdk";
 import { createDemoMcpServer, DEMO_MCP_TOOLS } from "./demo-mcp";
-import { BUDGET_LIMITS, type RunConfig, type RunEvent, type SdkMessageLike } from "./run-types";
+import { BUDGET_LIMITS, type CustomMcpServer, type RunConfig, type RunEvent, type SdkMessageLike } from "./run-types";
 import { WORKSPACE_DIR, ensureWorkspace, isInsideWorkspace } from "./workspace";
 
 // Permission prompts waiting for a click in the browser, keyed by request id.
 // Kept on globalThis so the /api/permission route sees the same map in dev.
-type Pending = { resolve: (allow: boolean) => void };
+type Decision = { allow: boolean; always: boolean };
+type Pending = { resolve: (decision: Decision) => void };
 const g = globalThis as unknown as { __pendingPermissions?: Map<string, Pending> };
 const pending = (g.__pendingPermissions ??= new Map());
 
-export function answerPermission(id: string, allow: boolean) {
+/** `always` = allow this tool for the rest of the run without asking again. */
+export function answerPermission(id: string, allow: boolean, always = false) {
   const entry = pending.get(id);
   if (!entry) return false;
   pending.delete(id);
-  entry.resolve(allow);
+  entry.resolve({ allow, always: allow && always });
   return true;
+}
+
+/** Turn the playground's server list into Agent SDK mcpServers config. */
+export function toSdkMcpServers(servers: CustomMcpServer[]): Record<string, McpServerConfig> {
+  return Object.fromEntries(
+    servers.map((s) => [
+      s.name,
+      s.type === "stdio" ? { type: "stdio" as const, command: s.command, args: s.args } : { type: "http" as const, url: s.url },
+    ]),
+  );
 }
 
 const READ_ONLY_TOOLS = new Set(["Read", "Glob", "Grep"]);
@@ -84,6 +97,8 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
   };
 
   const enabled = new Set<string>(config.tools);
+  // Tools the person chose "Always allow" for during this run.
+  const alwaysAllowed = new Set<string>();
 
   const canUseTool: CanUseTool = async (toolName, input, { signal: toolSignal }) => {
     const deny = (reason: string) => {
@@ -102,18 +117,24 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
       return { behavior: "allow" as const, updatedInput: input };
     }
 
-    // Anything else (Write, Edit, Bash, ...) is up to the person in the browser.
+    if (alwaysAllowed.has(toolName)) {
+      emit({ kind: "permission_decision", tool: toolName, allowed: true, reason: "You chose Always allow for this run", by: "playground" });
+      return { behavior: "allow" as const, updatedInput: input };
+    }
+
+    // Anything else (Write, Edit, Bash, MCP tools you added, ...) is up to the person in the browser.
     const id = crypto.randomUUID();
-    const allowed = await new Promise<boolean>((resolve) => {
+    const { allow: allowed, always } = await new Promise<Decision>((resolve) => {
       pending.set(id, { resolve });
       toolSignal.addEventListener("abort", () => answerPermission(id, false), { once: true });
       emit({ kind: "permission_request", id, tool: toolName, input });
     });
+    if (always) alwaysAllowed.add(toolName);
     emit({
       kind: "permission_decision",
       tool: toolName,
       allowed,
-      reason: allowed ? "You clicked Allow" : "You clicked Deny",
+      reason: always ? "You clicked Always allow" : allowed ? "You clicked Allow" : "You clicked Deny",
       by: "you",
     });
     return allowed
@@ -202,7 +223,10 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
     // (the SDK logs a CLAUDE_SDK_CAN_USE_TOOL_SHADOWED warning about this; expected).
     allowedTools: config.demoMcp ? DEMO_MCP_TOOLS : [],
     canUseTool,
-    mcpServers: config.demoMcp ? { demo: createDemoMcpServer() } : {},
+    mcpServers: {
+      ...(config.demoMcp ? { demo: createDemoMcpServer() } : {}),
+      ...toSdkMcpServers(config.mcpServers),
+    },
     // Ignore MCP servers from your own Claude Code config, so every run is reproducible.
     strictMcpConfig: true,
     // Ignore ~/.claude settings; only load the workspace's CLAUDE.md when asked.
