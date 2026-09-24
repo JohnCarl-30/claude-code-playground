@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Challenge, CheckResult } from "@/lib/challenges";
 import { markPassed } from "@/lib/tried";
 import { Markdownish } from "./Markdownish";
+import { useSetupStatus } from "./SetupStatus";
 
 /** A challenge's goal, requirements and hints, with "Check my work". */
 export function ChallengePanel({ challenge, passedBefore }: { challenge: Challenge; passedBefore: boolean }) {
@@ -11,6 +12,7 @@ export function ChallengePanel({ challenge, passedBefore }: { challenge: Challen
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const [hints, setHints] = useState(0);
+  const setup = useSetupStatus();
 
   async function check() {
     setChecking(true);
@@ -46,6 +48,13 @@ export function ChallengePanel({ challenge, passedBefore }: { challenge: Challen
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{challenge.title}</h1>
         <Markdownish blocks={[challenge.goal]} className="max-w-3xl text-ink/85" />
       </header>
+
+      {setup && !setup.ready && (
+        <p className="rounded-lg bg-info-soft px-3 py-2 text-sm text-info">
+          No Claude? You can still do this one yourself: write the code in the Workspace&apos;s <strong>Files</strong> tab, then click{" "}
+          <strong>Check my work</strong>.
+        </p>
+      )}
 
       <div>
         <p className="mb-2 flex items-center gap-2 text-sm font-medium">

@@ -5,7 +5,7 @@
 A local playground for building with **Claude Code**, the **Claude Agent SDK**, the **Claude API** and **MCP**.
 Build a real REST API, MCP server or agent with Claude, then run and test it right there. Or experiment with tools, permissions and MCP servers and watch every tool call, permission prompt and message as it happens.
 
-- **No API key.** It uses your own Claude login, the same one Claude Code uses.
+- **No API key needed.** It uses your own Claude login, the same one Claude Code uses. No subscription? Use an API key, a cloud provider, or practice mode (see below).
 - **Build real projects.** Start from a REST API, MCP server or Agent SDK starter; Claude writes the code, and you start the server, send requests, plug in your MCP server or run your agent.
 - **Configure Claude the real way.** Each starter has a `.claude/` folder: permission rules, hooks, slash commands, skills and subagents. Edit them in the playground and they load exactly as they would for `claude` in a terminal.
 - **Practice challenges.** Nine tasks (APIs, MCP servers, Claude Code config, debugging, the Agent SDK). You solve them with Claude, then **Check my work** tests your actual code and config and shows ✅ / ❌ per requirement, with the reason.
@@ -20,10 +20,18 @@ Curious how it works under the hood? Read **[How the playground works](docs/HOW-
 
 ## Before you start
 
-You need two things:
+You need **Node.js 20.9 or newer** ([download](https://nodejs.org)); check with `node --version`. Then pick how the playground talks to Claude:
 
-1. **Node.js 20.9 or newer** ([download](https://nodejs.org)). Check with `node --version`.
-2. **A Claude account signed in to Claude Code.** Install Claude Code from [claude.com/claude-code](https://claude.com/claude-code), then run `claude` in a terminal once and sign in. A Claude Pro or Max plan works.
+| Option | Who it's for | Setup | Cost |
+|---|---|---|---|
+| **Claude login** (default) | You have a Claude plan that includes Claude Code (Pro, Max, Team or Enterprise) | Install [Claude Code](https://claude.com/claude-code), run `claude` once and sign in | Uses your plan |
+| **API key** | No subscription, or you'd rather pay per use | Get a key from the [Claude Console](https://console.anthropic.com), copy `.env.example` to `.env.local` and set `PLAYGROUND_AUTH=api-key` and `ANTHROPIC_API_KEY=…` | Billed per use; each conversation is capped ($1 by default) |
+| **Cloud provider** | Your company uses Amazon Bedrock, Google Vertex AI or Microsoft Foundry | Set Claude Code's provider variables in `.env.local` (for example `CLAUDE_CODE_USE_BEDROCK=1` plus your AWS region and credentials; see Claude Code's docs for each provider) | Billed by your provider |
+| **Practice mode** | No Claude access at all | Nothing: it's what you get when Claude isn't connected | Free |
+
+In **practice mode** you can still write and run code in the Workspace (Files, Run & test, the request tester, Changes), edit Claude Code config, and use **Check my work** on challenges. Running prompts is switched off until Claude is connected. After setting something up, click **I've set it up: check again**.
+
+The API key is only used when you opt in with `PLAYGROUND_AUTH=api-key`: by default a key in your environment is ignored, so it's never billed by accident. With a wrong key, the playground tells you right away (it checks the key with a free call) instead of letting Claude Code retry for minutes.
 
 ## Start the playground
 
@@ -34,7 +42,7 @@ npm install
 npm run dev
 ```
 
-Before starting, `npm run dev` checks your setup:
+Before starting, `npm run dev` checks your setup (Claude login, API key or cloud provider):
 
 ```
 ✓ Node 22.11.0
@@ -131,7 +139,9 @@ Only add servers you trust: a stdio server is a program running on your computer
 
 | Problem | Fix |
 |---|---|
-| "Claude isn't ready yet" / "not signed in" | Run `claude` in a terminal, sign in, then reload the page. |
+| "Practice mode: Claude isn't connected" | Run `claude` in a terminal and sign in, or set up an API key or cloud provider (see Before you start), then click **I've set it up: check again**. |
+| "Your API key was rejected (401)" | Check `ANTHROPIC_API_KEY` in `.env.local` (no quotes or spaces), then restart `npm run dev`. |
+| My API key is ignored | Add `PLAYGROUND_AUTH=api-key` to `.env.local`: keys are only used when you opt in. |
 | `npm run dev` says Node is too old | Install Node 20.9 or newer from [nodejs.org](https://nodejs.org). |
 | An example behaves strangely after lots of runs | Click **Reset** in the Workspace panel (download a .zip first if you want to keep your work). |
 | Claude seems confused by an old conversation | Click **＋ New conversation**. |

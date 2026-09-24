@@ -1,5 +1,6 @@
 import "server-only";
 import { spawn, type ChildProcess } from "node:child_process";
+import { claudeEnv } from "./auth";
 import { API_PORT, findTemplate } from "./templates";
 import { WORKSPACE_DIR, currentTemplate, ensureWorkspace } from "./workspace";
 
@@ -61,9 +62,8 @@ export async function startProcess(scriptId: string): Promise<ProcessStatus | st
 
   await stopProcess();
 
-  const env: NodeJS.ProcessEnv = { ...process.env, PORT: String(API_PORT), FORCE_COLOR: "0" };
-  delete env.ANTHROPIC_API_KEY; // agent scripts use the Claude Code login
-  delete env.NODE_OPTIONS;
+  // Agent scripts sign in the same way the playground does (login, or your key if you opted in).
+  const env: NodeJS.ProcessEnv = { ...claudeEnv(), PORT: String(API_PORT), FORCE_COLOR: "0" };
 
   const [program, ...args] = script.command;
   const child = spawn(program === "node" ? process.execPath : program, args, { cwd: WORKSPACE_DIR, env });

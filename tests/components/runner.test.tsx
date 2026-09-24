@@ -2,6 +2,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Runner, toTurns } from "@/components/Runner";
+import { forgetSetupStatus } from "@/components/SetupStatus";
 import type { RunEvent, SessionEvent } from "@/lib/run-types";
 
 jest.mock("@/components/ClaudeText", () => ({ ClaudeText: ({ text }: { text: string }) => <p>{text}</p> }));
@@ -14,6 +15,7 @@ let stored: SessionEvent[];
 let streams: ReadableStreamDefaultController<Uint8Array>[];
 let answers: number;
 let workspaceTemplate: string;
+let status: Record<string, unknown>;
 const enc = new TextEncoder();
 
 function push(event: RunEvent) {
@@ -37,6 +39,8 @@ beforeEach(() => {
   streams = [];
   answers = 0;
   workspaceTemplate = "rest-api";
+  status = { ready: true, mode: "login", label: "Claude Max" };
+  forgetSetupStatus(); // each test is a fresh page load
   localStorage.clear();
   global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
     const body = init?.body ? JSON.parse(String(init.body)) : null;
@@ -99,7 +103,7 @@ beforeEach(() => {
         agents: [],
       });
     }
-    if (url === "/api/status") return json({ signedIn: true, plan: "Claude Max" });
+    if (url === "/api/status") return json(status);
     if (url === "/api/workspace") return json({ template: workspaceTemplate, files: [], parked: [] });
     return json({ script: null, running: false, exitCode: null, logs: [] });
   }) as unknown as typeof fetch;
@@ -222,6 +226,22 @@ describe("Runner: inside the session", () => {
     expect(screen.getByText("System tools")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Compact now/ }));
     await waitFor(() => expect(posted("/api/session/s1/message")).toContainEqual({ text: "/compact", how: "queue" }));
+  });
+});
+
+describe("Runner: practice mode (no Claude)", () => {
+  it("explains what still works and switches off only running prompts", async () => {
+    status = { ready: false, mode: "login", reason: "Claude Code is not signed in on this computer." };
+    const user = userEvent.setup();
+    render(<Runner preset={{ prompt: "Hello", tools: ["Read"] }} />);
+    expect(await screen.findByText(/Practice mode: Claude isn't connected/)).toBeInTheDocument();
+    expect(screen.getByText(/An Anthropic API key/)).toBeInTheDocument();
+    const run = screen.getByRole("button", { name: "▶ Run" });
+    expect(run).toBeDisabled();
+    await user.click(run);
+    expect(posted("/api/session")).toHaveLength(0);
+    // The Workspace (Run & test, Files, …) is still there.
+    expect(screen.getByRole("tab", { name: "Run & test" })).toBeInTheDocument();
   });
 });
 

@@ -1,7 +1,7 @@
 import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 
 const env = { ...process.env };
-delete env.ANTHROPIC_API_KEY;
+if (env.PLAYGROUND_AUTH !== "api-key") delete env.ANTHROPIC_API_KEY;
 
 const clock = createSdkMcpServer({
   name: "clock",

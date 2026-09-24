@@ -120,6 +120,16 @@ describe("Timeline", () => {
     expect(onAnswer).toHaveBeenLastCalledWith("p1", { allow: false, message: "Add a test too" }, "Keep planning: Add a test too");
   });
 
+  it("shows API retries, and error results with their message", () => {
+    const events: RunEvent[] = [
+      { kind: "sdk", message: { type: "system", subtype: "api_retry", attempt: 2, max_retries: 10, error_status: 529, error: "overloaded" } },
+      { kind: "sdk", message: { type: "result", subtype: "success", is_error: true, result: "Failed to authenticate. API Error: 401", num_turns: 1, duration_ms: 1, total_cost_usd: 0, usage: {} } },
+    ];
+    render(<Timeline events={events} {...props} />);
+    expect(screen.getByText(/answered 529 \(overloaded\); retrying, attempt 2 of 10/)).toBeInTheDocument();
+    expect(screen.getByText(/Stopped: Failed to authenticate/)).toBeInTheDocument();
+  });
+
   it("shows task tool calls as one-line notes and a compaction card", () => {
     const events: RunEvent[] = [
       { kind: "sdk", message: { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "tool_use", id: "t1", name: "TaskCreate", input: { subject: "Fix the bug" } }] } } },

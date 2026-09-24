@@ -46,21 +46,29 @@ flowchart LR
 
 ---
 
-## 1. No API key: how authentication works
+## 1. Signing in: login, API key, cloud provider or practice mode
 
-The Agent SDK does not call the Claude API itself. It starts the **Claude Code program** (a binary bundled with the SDK package) and talks to it over stdin/stdout. Claude Code signs in the same way it does in your terminal: with the login you created by running `claude` and signing in.
+The Agent SDK does not call the Claude API itself. It starts the **Claude Code program** (a binary bundled with the SDK package) and talks to it over stdin/stdout. Claude Code signs in the same way it does in your terminal. Everything that starts Claude Code or your agent scripts gets its environment from `claudeEnv()` in `src/lib/auth.ts`:
 
-The playground makes sure that login is used:
+| Mode | How you choose it | What Claude Code gets |
+|---|---|---|
+| **Login** (default) | nothing | your environment **without** `ANTHROPIC_API_KEY`, so Claude Code uses the `claude` login and a key in your shell is never billed by accident |
+| **API key** | `PLAYGROUND_AUTH=api-key` in `.env.local` | your environment **with** `ANTHROPIC_API_KEY` |
+| **Cloud provider** | Claude Code's provider variables (for example `CLAUDE_CODE_USE_BEDROCK=1`) | passed through as-is; Claude Code signs in with the provider's credentials |
+| **Practice mode** | none of the above works | the page switches off running prompts; everything else works |
 
-- It **removes `ANTHROPIC_API_KEY`** from the environment it passes to Claude Code (`src/lib/run-agent.ts`), so a key in your shell is never used by accident.
-- The **Session started** card shows the SDK's `apiKeySource`. `none` means "no API key; using your Claude login", and the card says so in plain words.
+The **Session started** card shows the SDK's `apiKeySource` (`none` means "no API key; using your Claude login").
 
-**Checking the login without spending anything.** `src/lib/account.ts` starts a query with a prompt stream that never sends a message, and asks Claude Code for `accountInfo()`. No model call happens, so it costs nothing. The result powers:
+**Failing fast.** With a bad key, Claude Code would retry the rejected request with backoff for about three minutes. So the playground checks keys up front with one free call (`models.list` through the official Anthropic SDK, no tokens), and a live session stops at the first `api_retry` whose error is `authentication_failed` (or status 401), with advice for the mode you're in (`signInHelp()`).
 
-- the **Signed in** badge in the header and the "Claude isn't ready yet" banner (`src/components/SetupStatus.tsx`, via `GET /api/status`)
+**Checking without spending anything.** `getAccountStatus()` in `src/lib/account.ts` returns `{ ready, mode, label }` or `{ ready: false, reason }`. In login mode it starts a query with a prompt stream that never sends a message and asks Claude Code for `accountInfo()` (a non-`firstParty` `apiProvider` means a cloud provider is set up). In API-key mode it lists models with the key. Neither uses tokens. The result powers:
+
+- the badge in the header and the **practice mode** banner, with **I've set it up: check again** (`src/components/SetupStatus.tsx`, via `GET /api/status`)
 - the check that runs before `npm run dev` (`scripts/check-setup.mjs`)
 
 > Signing in with your Claude account is fine for learning on your own computer. An app you build for other people should use its own API key.
+
+Checks for challenges (`challenge-checks.ts`) always run your programs without any key, because they never need Claude.
 
 ---
 
@@ -381,11 +389,14 @@ npm run build
 | `examples.test.ts` | every sidebar example is well-formed |
 | `code-preview.test.ts` | the Code tab mirrors settings, shows the live-session pattern, wraps long prompts |
 | `challenges.test.ts` | every challenge's checker: the untouched starter fails, the reference solution in `tests/fixtures/challenges/` passes every requirement, a crashing server is explained, and the wrong starter is refused |
+| `auth.test.ts`, `account.test.ts` | which credentials Claude Code gets in each mode, and the status for a subscription, a cloud provider, no login, a working, rejected, missing or unverifiable API key |
 | `harness.test.ts` | rebuilding the task list from tool calls, and checking card answers (questions, plan reviews) |
 | `live-session.test.ts` | the session manager with a fake Claude Code: context usage (and none once closed), queue vs steer, stop only while working, live model and mode changes, replay after reconnect, closing, idle cleanup, the three-session limit |
 | `components/*.test.tsx` | the UI in a simulated browser: the challenge panel (results, reasons, completion, hints), timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner against a fake live session (follow-ups, Steer / Queue / Stop, live model and mode changes, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
 
 The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something answers on port 4100 (for example your own API server).
+
+**Practice mode end to end** (`tests/e2e/practice-mode.e2e.test.ts`, part of `npm run test:e2e`, free): a separate server in API-key mode with a **fake** key reports the rejected key right away, stops a run within seconds with advice, and still runs code and checks challenges.
 
 **Real-Claude end-to-end tests** (`npm run test:e2e`, `tests/e2e/`): builds the app, starts a separate production server on a free port with `PLAYGROUND_ROOT` pointing at a temporary folder, and refuses to run unless it can prove the server answering is that one (its workspace appears in the temporary folder). Then it drives it over HTTP with real Claude calls on Haiku (a few cents): a deny rule keeps `.env` private, an allow rule skips the question, `/add-route` edits the API and the `settings.json` hook checks it, settings edits always ask, follow-ups go into the same live session, steering mid-task switches Claude to your new message, Stop interrupts a turn while the session continues on a new model, Claude asks a question and uses your answer, plan mode (keep planning with feedback, then approve with auto-accept edits), the task list, context usage plus `/compact`, and two challenges solved by Claude and confirmed by **Check my work**. They are not part of `npm test` or CI.
 

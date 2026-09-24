@@ -47,3 +47,6 @@ next-env.d.ts
 # Starter projects ship these on purpose (demo secret, personal-settings example).
 !templates/**/.env
 !templates/**/.claude/settings.local.json
+
+# The example env file is safe to share (no secrets).
+!.env.example

@@ -319,7 +319,13 @@ function SdkMessage({
       ["Cache reads", String(usage.cache_read_input_tokens ?? 0)],
     ];
     return (
-      <Card tone={tone} icon={ok ? "✅" : stoppedByYou ? "■" : "⛔"} title={ok ? "Done" : stoppedByYou ? "Stopped by you" : (STOP_REASONS[String(message.subtype)] ?? `Stopped: ${message.subtype}`)}>
+      <Card tone={tone} icon={ok ? "✅" : stoppedByYou ? "■" : "⛔"} title={
+          ok
+            ? "Done"
+            : stoppedByYou
+              ? "Stopped by you"
+              : (STOP_REASONS[String(message.subtype)] ?? (str(message.result) ? `Stopped: ${str(message.result).slice(0, 160)}` : `Stopped: ${message.subtype}`))
+        }>
         <dl className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-5">
           {stats.map(([k, v]) => (
             <div key={k}>
@@ -361,6 +367,16 @@ function SdkMessage({
     );
   }
   if (message.type === "system" && (message.subtype === "hook_started" || message.subtype === "hook_progress") && !showRaw) return null;
+
+  // Claude's API is busy or failed a request: Claude Code retries by itself.
+  if (message.type === "system" && message.subtype === "api_retry" && !showRaw) {
+    return (
+      <li className="pl-3 text-xs text-warn">
+        ↻ Claude&apos;s API {message.error_status ? `answered ${String(message.error_status)}` : "had a problem"} ({str(message.error) || "error"}); retrying,
+        attempt {String(message.attempt ?? "?")} of {String(message.max_retries ?? "?")}
+      </li>
+    );
+  }
 
   // Status pings, rate-limit info and other bookkeeping messages.
   if (!showRaw) return null;

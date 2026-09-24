@@ -11,7 +11,7 @@ import { CodePreview } from "./CodePreview";
 import { ContextMeter, type ContextUsage } from "./ContextMeter";
 import { McpPanel } from "./McpPanel";
 import { SettingsPanel } from "./SettingsPanel";
-import { SetupBanner } from "./SetupStatus";
+import { SetupBanner, useSetupStatus } from "./SetupStatus";
 import { TaskListPanel } from "./TaskListPanel";
 import { CHOICE_LABEL, Timeline, type Choice } from "./Timeline";
 import { useLiveSession } from "./useLiveSession";
@@ -71,6 +71,9 @@ export function Runner({
   const [claudeConfig, setClaudeConfig] = useState<ClaudeConfig | null>(null);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  // Practice mode: Claude isn't connected, so only the Claude parts are switched off.
+  const setup = useSetupStatus();
+  const noClaude = setup !== null && !setup.ready;
 
   const live = useLiveSession({
     onResult: (success, sessionId) => {
@@ -161,7 +164,7 @@ export function Runner({
    */
   async function submit(how: "steer" | "queue" = "queue") {
     const text = config.prompt.trim();
-    if (!text || starting) return;
+    if (!text || starting || noClaude) return;
     setSendError("");
     if (!live.active) {
       setStarting(true);
@@ -358,7 +361,9 @@ export function Runner({
           rows={3}
           disabled={starting}
           placeholder={
-            live.working
+            noClaude
+              ? "Claude isn't connected (see above). You can still use the Workspace below: edit files, run and test your code, and check challenges."
+              : live.working
               ? "Claude is working… type to steer it (⇧⌘/Ctrl + Enter) or queue a message for when it's done."
               : live.active
                 ? "Ask a follow-up… this is the same live session, so Claude remembers everything."
@@ -446,8 +451,8 @@ export function Runner({
                 <kbd className="hidden font-sans text-xs text-muted md:inline">⌘/Ctrl + Enter</kbd>
                 <button
                   onClick={() => void submit()}
-                  disabled={!config.prompt.trim() || starting}
-                  title="Ctrl/⌘ + Enter"
+                  disabled={!config.prompt.trim() || starting || noClaude}
+                  title={noClaude ? "Connect Claude to run prompts (see the banner above)" : "Ctrl/⌘ + Enter"}
                   aria-label={live.active ? "▶ Send follow-up" : "▶ Run"}
                   className="h-9 rounded-lg bg-accent px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
                 >

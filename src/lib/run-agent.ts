@@ -11,6 +11,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { createDemoMcpServer, DEMO_MCP_TOOLS } from "./demo-mcp";
 import { BUDGET_LIMITS, HARNESS_TOOLS, type Answer, type CustomMcpServer, type Question, type RunConfig, type RunEvent } from "./run-types";
+import { claudeEnv } from "./auth";
 import { guardTool, pathsIn, precheckTool } from "./permissions";
 import { WORKSPACE_DIR, ensureWorkspace } from "./workspace";
 
@@ -253,9 +254,8 @@ export async function buildOptions(config: RunConfig, emit: (event: RunEvent) =>
     PreToolUse: [workspaceGuard, ...(useAgents ? [foregroundSubagents] : []), ...(config.hooks ? hooks.PreToolUse ?? [] : [])],
   };
 
-  // Drop ANTHROPIC_API_KEY so the SDK uses your Claude Code login rather than a key.
-  const env = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
+  // Your Claude Code login by default; an API key only when you opted in (PLAYGROUND_AUTH=api-key).
+  const env = claudeEnv();
 
   return {
     cwd: WORKSPACE_DIR,

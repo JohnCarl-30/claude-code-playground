@@ -158,6 +158,16 @@ describe("LiveSession", () => {
     expect(fake.getContextUsage).toHaveBeenCalledTimes(1);
   });
 
+  it("stops at the first sign-in failure instead of retrying for minutes", async () => {
+    const { session, fake, events } = await startSession();
+    fake.emit({ type: "system", subtype: "api_retry", attempt: 1, max_retries: 10, error_status: 401, error: "authentication_failed" });
+    await tick();
+    expect(events.find((e) => e.kind === "error")).toMatchObject({ message: expect.stringMatching(/sign in|API key/i) });
+    expect(events.at(-1)).toMatchObject({ kind: "closed", reason: "Claude couldn't sign in." });
+    expect(session.closed).toBe(true);
+    expect(fake.close).toHaveBeenCalled();
+  });
+
   it("closing ends the session for everyone", async () => {
     const { session, fake, events } = await startSession();
     session.close("bye");

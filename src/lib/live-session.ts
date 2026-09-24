@@ -1,5 +1,6 @@
 import "server-only";
 import { query as sdkQuery, type Query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import { signInHelp } from "./auth";
 import { buildOptions } from "./run-agent";
 import type { PlaygroundPermissionMode, RunConfig, RunEvent, SdkMessageLike, SessionEvent } from "./run-types";
 import { WORKSPACE_DIR } from "./workspace";
@@ -70,6 +71,13 @@ export class LiveSession {
       for await (const message of this.query!) {
         if (message.type === "result") this.results++;
         this.emit({ kind: "sdk", message: message as unknown as SdkMessageLike });
+        // A sign-in failure would otherwise be retried for minutes: stop and say what to fix.
+        const m = message as { type: string; subtype?: string; error?: string; error_status?: number | null };
+        if (m.type === "system" && m.subtype === "api_retry" && (m.error === "authentication_failed" || m.error_status === 401)) {
+          this.emit({ kind: "error", message: signInHelp() });
+          this.close("Claude couldn't sign in.");
+          return;
+        }
       }
       if (!this.closed) this.close("Claude Code ended the session.");
     } catch (err) {
