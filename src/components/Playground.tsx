@@ -2,24 +2,35 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { CHALLENGES, findChallenge } from "@/lib/challenges";
 import { BLANK_EXAMPLE_ID, EXAMPLES, EXAMPLE_GROUPS, findExample } from "@/lib/examples";
 import type { RunConfig } from "@/lib/run-types";
-import { useTried } from "@/lib/tried";
+import { usePassed, useTried } from "@/lib/tried";
+import { ChallengePanel } from "./ChallengePanel";
 import { Markdownish } from "./Markdownish";
 import { Runner } from "./Runner";
 
 const BLANK: Partial<RunConfig> = { prompt: "", tools: ["Read", "Glob", "Grep", "Edit"], demoMcp: true };
 
-export function Playground({ initialExampleId }: { initialExampleId?: string }) {
+// Challenges share the sidebar with examples; their ids carry this prefix.
+const CHALLENGE = "challenge:";
+
+export function Playground({ initialExampleId, initialChallengeId }: { initialExampleId?: string; initialChallengeId?: string }) {
   const router = useRouter();
   const tried = useTried();
-  const [selectedId, setSelectedId] = useState(findExample(initialExampleId)?.id ?? BLANK_EXAMPLE_ID);
+  const passed = usePassed();
+  const [selectedId, setSelectedId] = useState(
+    findChallenge(initialChallengeId) ? CHALLENGE + initialChallengeId : (findExample(initialExampleId)?.id ?? BLANK_EXAMPLE_ID),
+  );
   const example = findExample(selectedId);
+  const challenge = selectedId.startsWith(CHALLENGE) ? findChallenge(selectedId.slice(CHALLENGE.length)) : undefined;
   const doneCount = EXAMPLES.filter((e) => tried.has(e.id)).length;
+  const passedCount = CHALLENGES.filter((c) => passed.has(c.id)).length;
 
   function select(id: string) {
     setSelectedId(id);
-    router.replace(id === BLANK_EXAMPLE_ID ? "/" : `/?example=${encodeURIComponent(id)}`, { scroll: false });
+    const url = id === BLANK_EXAMPLE_ID ? "/" : id.startsWith(CHALLENGE) ? `/?challenge=${encodeURIComponent(id.slice(CHALLENGE.length))}` : `/?example=${encodeURIComponent(id)}`;
+    router.replace(url, { scroll: false });
   }
 
   return (
@@ -36,6 +47,14 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
             className="h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm"
           >
             <option value={BLANK_EXAMPLE_ID}>Blank: write your own prompt</option>
+            <optgroup label={`Challenges · ${passedCount}/${CHALLENGES.length} passed`}>
+              {CHALLENGES.map((c) => (
+                <option key={c.id} value={CHALLENGE + c.id}>
+                  {passed.has(c.id) ? "🏆 " : ""}
+                  {c.title}
+                </option>
+              ))}
+            </optgroup>
             {EXAMPLE_GROUPS.map((group) => (
               <optgroup key={group} label={group}>
                 {EXAMPLES.filter((e) => e.group === group).map((e) => (
@@ -77,6 +96,39 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
               <span className="block text-xs text-muted">Write your own prompt</span>
             </span>
           </button>
+
+          <div>
+            <div className="mb-2 flex items-baseline justify-between px-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">Challenges</p>
+              <p className={`text-xs tabular-nums ${passedCount === CHALLENGES.length ? "text-ok" : "text-muted"}`}>
+                {passedCount}/{CHALLENGES.length}
+              </p>
+            </div>
+            <ul className="space-y-0.5">
+              {CHALLENGES.map((c) => {
+                const active = selectedId === CHALLENGE + c.id;
+                const isPassed = passed.has(c.id);
+                return (
+                  <li key={c.id}>
+                    <button
+                      onClick={() => select(CHALLENGE + c.id)}
+                      aria-current={active ? "true" : undefined}
+                      title={`${c.area} · ${c.level}`}
+                      className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+                        active ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
+                      }`}
+                    >
+                      <span aria-label={isPassed ? "passed" : undefined} className="w-4 shrink-0 text-center text-xs leading-none">
+                        {isPassed ? "🏆" : "◇"}
+                      </span>
+                      <span className="min-w-0 flex-1">{c.title}</span>
+                      <span className="shrink-0 text-[10px] text-muted">{c.level === "Beginner" ? "B" : "I"}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
 
           {EXAMPLE_GROUPS.map((group) => {
             const items = EXAMPLES.filter((e) => e.group === group);
@@ -124,23 +176,27 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
       </aside>
 
       <main className="min-w-0 space-y-6">
-        <header className="space-y-2">
-          {example ? (
-            <>
-              <p className="text-xs font-medium uppercase tracking-wide text-accent">{example.group}</p>
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{example.title}</h1>
-              <p className="max-w-2xl text-muted">{example.blurb}</p>
-            </>
-          ) : (
-            <>
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">What should Claude build?</h1>
-              <p className="max-w-2xl text-muted">
-                Ask Claude to build or change something in your workspace, then keep the conversation going with follow-ups. Change the
-                tools, permissions and MCP servers to see what happens, or pick an example.
-              </p>
-            </>
-          )}
-        </header>
+        {challenge ? (
+          <ChallengePanel key={challenge.id} challenge={challenge} passedBefore={passed.has(challenge.id)} />
+        ) : (
+          <header className="space-y-2">
+            {example ? (
+              <>
+                <p className="text-xs font-medium uppercase tracking-wide text-accent">{example.group}</p>
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{example.title}</h1>
+                <p className="max-w-2xl text-muted">{example.blurb}</p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">What should Claude build?</h1>
+                <p className="max-w-2xl text-muted">
+                  Ask Claude to build or change something in your workspace, then keep the conversation going with follow-ups. Change the
+                  tools, permissions and MCP servers to see what happens, or pick an example.
+                </p>
+              </>
+            )}
+          </header>
+        )}
         {example && (
           <aside aria-label="What to notice" className="rounded-xl border border-line bg-surface-2/60 px-4 py-3 text-sm">
             <p className="mb-1 font-medium">What to notice</p>
@@ -150,8 +206,8 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
         <Runner
           key={selectedId}
           exampleId={example?.id}
-          template={example?.template}
-          preset={example?.config ?? BLANK}
+          template={challenge?.template ?? example?.template}
+          preset={challenge ? { ...challenge.config, prompt: "" } : (example?.config ?? BLANK)}
           showRawByDefault={example?.showRaw}
         />
       </main>

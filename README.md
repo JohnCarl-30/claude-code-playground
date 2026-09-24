@@ -8,6 +8,7 @@ Build a real REST API, MCP server or agent with Claude, then run and test it rig
 - **No API key.** It uses your own Claude login, the same one Claude Code uses.
 - **Build real projects.** Start from a REST API, MCP server or Agent SDK starter; Claude writes the code, and you start the server, send requests, plug in your MCP server or run your agent.
 - **Configure Claude the real way.** Each starter has a `.claude/` folder: permission rules, hooks, slash commands, skills and subagents. Edit them in the playground and they load exactly as they would for `claude` in a terminal.
+- **Practice challenges.** Nine tasks (APIs, MCP servers, Claude Code config, debugging, the Agent SDK). You solve them with Claude, then **Check my work** tests your actual code and config and shows ✅ / ❌ per requirement, with the reason.
 - **See inside the harness.** A context-window meter with **Compact now**, Claude's live task list, multiple-choice questions from Claude, and plan-mode reviews where you approve the plan or send it back.
 - **A live session, like the terminal.** Replies stream in word by word. While Claude works you can **Steer** it (switch to a new message now), **Queue** a message for when it's done, or **Stop** the turn, and you can change the model or permission mode mid-conversation. See every change as a diff, and download your project as a .zip.
 - **Plug in any MCP server.** Add a local program (stdio) or a remote URL (HTTP), test the connection, and let Claude use it.
@@ -75,6 +76,20 @@ Turn on **Project config** (in Settings, or in the Workspace panel's **Claude co
 - `.claude/agents/*.md`: **subagents**
 
 The **Claude config** tab shows all of it, and **＋ New command / skill / subagent** creates a file you edit and save in the Files tab. The **Claude Code config** examples in the sidebar try each piece. Whatever the rules say, Claude stays inside the workspace, and changes to settings files always ask you first.
+
+## Practice challenges
+
+Pick a challenge in the **Challenges** section of the sidebar. Each one has a goal, a starter project and a list of requirements. Solve it however you like (usually by prompting Claude), then click **✓ Check my work**:
+
+| Area | Challenges | How it's checked |
+|---|---|---|
+| REST API | A todo API · Filter and search | starts your `server.js` on its own port and sends real requests |
+| MCP | Text tools over MCP · Tools that handle bad input | connects to your server over stdio like Claude Code and calls your tools |
+| Claude Code config | Your own slash command · Guardrails for Tiny Shop · A read-only specialist | reads your `.claude/` files |
+| Debugging | Fix the discount bug | runs your `cart.js` and your tests |
+| Agent SDK | An agent with a custom tool | checks `agent.mjs` and its syntax |
+
+Checking never calls Claude, so it's free and gives the same answer every time. Hints unlock one at a time, and passed challenges get a 🏆 in the sidebar (saved in your browser).
 
 ## What you can try
 

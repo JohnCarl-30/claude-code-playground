@@ -2,58 +2,68 @@
 
 import { useSyncExternalStore } from "react";
 
-// Examples you have run successfully, stored in this browser only.
-const KEY = "claude-code-playground:tried:v1";
+// Small sets of ids remembered in this browser only: examples you've run, challenges you've passed.
 const EMPTY: readonly string[] = [];
 
-let cachedRaw: string | null = null;
-let cachedList: readonly string[] = EMPTY;
-const listeners = new Set<() => void>();
+function idSetStore(key: string) {
+  let cachedRaw: string | null = null;
+  let cachedList: readonly string[] = EMPTY;
+  const listeners = new Set<() => void>();
 
-function read(): readonly string[] {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(KEY);
-  } catch {
-    // Storage blocked (private window, strict settings): progress just isn't kept.
-  }
-  if (raw !== cachedRaw) {
-    cachedRaw = raw;
+  function read(): readonly string[] {
+    let raw: string | null = null;
     try {
-      const parsed: unknown = raw ? JSON.parse(raw) : [];
-      cachedList = Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : EMPTY;
+      raw = localStorage.getItem(key);
     } catch {
-      cachedList = EMPTY;
+      // Storage blocked (private window, strict settings): progress just isn't kept.
     }
+    if (raw !== cachedRaw) {
+      cachedRaw = raw;
+      try {
+        const parsed: unknown = raw ? JSON.parse(raw) : [];
+        cachedList = Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : EMPTY;
+      } catch {
+        cachedList = EMPTY;
+      }
+    }
+    return cachedList;
   }
-  return cachedList;
-}
 
-function write(list: readonly string[]) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list));
-  } catch {}
-  listeners.forEach((l) => l());
-}
+  function subscribe(listener: () => void) {
+    listeners.add(listener);
+    // Keep other tabs in sync.
+    const onStorage = (e: StorageEvent) => e.key === key && listener();
+    window.addEventListener("storage", onStorage);
+    return () => {
+      listeners.delete(listener);
+      window.removeEventListener("storage", onStorage);
+    };
+  }
 
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  // Keep other tabs in sync.
-  const onStorage = (e: StorageEvent) => e.key === KEY && listener();
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
+  return {
+    add(id: string) {
+      const list = read();
+      if (list.includes(id)) return;
+      try {
+        localStorage.setItem(key, JSON.stringify([...list, id]));
+      } catch {}
+      listeners.forEach((l) => l());
+    },
+    /** Empty during server rendering. */
+    useSet(): ReadonlySet<string> {
+      const list = useSyncExternalStore(subscribe, read, () => EMPTY);
+      return new Set(list);
+    },
   };
 }
 
-export function markTried(id: string) {
-  const list = read();
-  if (!list.includes(id)) write([...list, id]);
-}
+const tried = idSetStore("claude-code-playground:tried:v1");
+const passed = idSetStore("claude-code-playground:challenges-passed:v1");
 
-/** The set of example ids you've run successfully. Empty during server rendering. */
-export function useTried(): ReadonlySet<string> {
-  const list = useSyncExternalStore(subscribe, read, () => EMPTY);
-  return new Set(list);
-}
+/** An example you've run successfully. */
+export const markTried = (id: string) => tried.add(id);
+export const useTried = () => tried.useSet();
+
+/** A challenge whose checks all passed. */
+export const markPassed = (id: string) => passed.add(id);
+export const usePassed = () => passed.useSet();

@@ -223,6 +223,22 @@ The **Claude config** tab (`src/components/ClaudeConfigPanel.tsx`) reads the fol
 
 ---
 
+### Practice challenges
+
+A challenge (`src/lib/challenges.ts`) is a goal, a starter (`template`), requirements and hints. **Check my work** calls `POST /api/challenges/<id>/check`, which runs `runChallengeChecks()` in `src/lib/challenge-checks.ts` against the current workspace. It refuses if the workspace has a different starter. Checks never call Claude:
+
+- **REST API**: starts `server.js` on a free port of its own (so it never clashes with Run & test on 4100), sends real HTTP requests, then kills it. A crash is reported with its error line (`crashSummary()`), not Node's stack trace.
+- **MCP**: connects with the MCP SDK's `Client` + `StdioClientTransport` (`node server.js` in the workspace, like Claude Code) and lists and calls the tools.
+- **Claude Code config**: `readClaudeConfig()` and the files' frontmatter.
+- **Debugging**: imports `src/cart.js` in a child process and runs `node --test`.
+- **Agent SDK**: `node --check` plus a few patterns in `agent.mjs`.
+
+Your programs run without `ANTHROPIC_API_KEY` or `NODE_OPTIONS`, with timeouts. Passed challenges are remembered in the browser (`markPassed()` in `src/lib/tried.ts`).
+
+**Adding a challenge:** add it to `CHALLENGES`, write its checker in `CHECKERS`, and put a reference solution in `tests/fixtures/challenges/`. `tests/challenges.test.ts` then proves the untouched starter fails and the reference solution passes every requirement.
+
+---
+
 ## 6. MCP servers
 
 A run can connect to three kinds of MCP servers at once:
@@ -333,6 +349,7 @@ If storage is blocked (private windows, strict settings), everything still works
 | Change what's allowed without asking | `canUseTool` in `src/lib/run-agent.ts` |
 | Change hooks or subagents | `hooks`, `SUBAGENTS`, `TEAM` in `src/lib/run-agent.ts` |
 | Change how a message is displayed | `src/components/Timeline.tsx` |
+| Add or change a practice challenge | `src/lib/challenges.ts`, `src/lib/challenge-checks.ts`, `tests/fixtures/challenges/` |
 | Change the question / plan cards, task list or context meter | `Timeline.tsx` (`QuestionCard`, `PlanCard`), `TaskListPanel.tsx`, `ContextMeter.tsx` |
 | Change the generated code in the Code tab | `src/components/CodePreview.tsx` |
 | Change a starter's Claude Code config | `templates/<starter>/.claude/` |
@@ -363,11 +380,12 @@ npm run build
 | `processes.test.ts` | Run & test: only declared scripts run, the API server starts, answers and stops quickly |
 | `examples.test.ts` | every sidebar example is well-formed |
 | `code-preview.test.ts` | the Code tab mirrors settings, shows the live-session pattern, wraps long prompts |
+| `challenges.test.ts` | every challenge's checker: the untouched starter fails, the reference solution in `tests/fixtures/challenges/` passes every requirement, a crashing server is explained, and the wrong starter is refused |
 | `harness.test.ts` | rebuilding the task list from tool calls, and checking card answers (questions, plan reviews) |
 | `live-session.test.ts` | the session manager with a fake Claude Code: context usage (and none once closed), queue vs steer, stop only while working, live model and mode changes, replay after reconnect, closing, idle cleanup, the three-session limit |
-| `components/*.test.tsx` | the UI in a simulated browser: timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner against a fake live session (follow-ups, Steer / Queue / Stop, live model and mode changes, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
+| `components/*.test.tsx` | the UI in a simulated browser: the challenge panel (results, reasons, completion, hints), timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner against a fake live session (follow-ups, Steer / Queue / Stop, live model and mode changes, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
 
 The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something answers on port 4100 (for example your own API server).
 
-**Real-Claude end-to-end tests** (`npm run test:e2e`, `tests/e2e/`): builds the app, starts a separate production server on a free port with `PLAYGROUND_ROOT` pointing at a temporary folder, and refuses to run unless it can prove the server answering is that one (its workspace appears in the temporary folder). Then it drives it over HTTP with real Claude calls on Haiku (a few cents): a deny rule keeps `.env` private, an allow rule skips the question, `/add-route` edits the API and the `settings.json` hook checks it, settings edits always ask, follow-ups go into the same live session, steering mid-task switches Claude to your new message, Stop interrupts a turn while the session continues on a new model, Claude asks a question and uses your answer, plan mode (keep planning with feedback, then approve with auto-accept edits), the task list, and context usage plus `/compact`. They are not part of `npm test` or CI.
+**Real-Claude end-to-end tests** (`npm run test:e2e`, `tests/e2e/`): builds the app, starts a separate production server on a free port with `PLAYGROUND_ROOT` pointing at a temporary folder, and refuses to run unless it can prove the server answering is that one (its workspace appears in the temporary folder). Then it drives it over HTTP with real Claude calls on Haiku (a few cents): a deny rule keeps `.env` private, an allow rule skips the question, `/add-route` edits the API and the `settings.json` hook checks it, settings edits always ask, follow-ups go into the same live session, steering mid-task switches Claude to your new message, Stop interrupts a turn while the session continues on a new model, Claude asks a question and uses your answer, plan mode (keep planning with feedback, then approve with auto-accept edits), the task list, context usage plus `/compact`, and two challenges solved by Claude and confirmed by **Check my work**. They are not part of `npm test` or CI.
 

@@ -299,3 +299,34 @@ describe("inside the session (real Claude)", () => {
     await session.close();
   });
 });
+
+describe("challenges solved by real Claude, then checked", () => {
+  const check = async (id: string) => (await api(`/api/challenges/${id}/check`, { method: "POST", body: "{}" })) as { results?: { id: string; pass: boolean; detail?: string }[]; error?: string };
+
+  it("config-command: Claude writes the slash command and every check passes", async () => {
+    await api("/api/workspace", { method: "POST", body: JSON.stringify({ template: "rest-api" }) });
+    const before = await check("config-command");
+    expect(before.results?.every((r) => r.pass)).toBe(false);
+    await run({
+      prompt:
+        "Create a slash command at .claude/commands/add-test.md. Give it frontmatter with a description, and a prompt that asks Claude to write a node:test test for the route given in $ARGUMENTS.",
+      tools: ["Read", "Glob", "Write", "Edit"],
+      permissionMode: "acceptEdits",
+    });
+    const after = await check("config-command");
+    expect(after.results?.filter((r) => !r.pass)).toEqual([]);
+  });
+
+  it("debug-discount: Claude fixes the bug and adds a test, and the checks prove it", async () => {
+    await api("/api/workspace", { method: "POST", body: JSON.stringify({ template: "tiny-shop" }) });
+    await api("/api/workspace", { method: "DELETE" }); // fresh Tiny Shop
+    await run({
+      prompt: "Fix the discount code bug in src/cart.js, and add a test to src/cart.test.js that checks applyDiscount(80, \"HALFOFF\") is 40. Then run the tests with node --test.",
+      tools: ["Read", "Glob", "Grep", "Edit", "Bash"],
+      permissionMode: "acceptEdits",
+      maxTurns: 25,
+    });
+    const after = await check("debug-discount");
+    expect(after.results?.filter((r) => !r.pass)).toEqual([]);
+  });
+});
