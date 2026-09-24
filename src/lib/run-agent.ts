@@ -1,7 +1,6 @@
 import "server-only";
 import path from "node:path";
 import {
-  query,
   type AgentDefinition,
   type CanUseTool,
   type HookCallbackMatcher,
@@ -10,7 +9,7 @@ import {
   type Options,
 } from "@anthropic-ai/claude-agent-sdk";
 import { createDemoMcpServer, DEMO_MCP_TOOLS } from "./demo-mcp";
-import { BUDGET_LIMITS, type CustomMcpServer, type RunConfig, type RunEvent, type SdkMessageLike } from "./run-types";
+import { BUDGET_LIMITS, type CustomMcpServer, type RunConfig, type RunEvent } from "./run-types";
 import { guardTool, pathsIn, precheckTool } from "./permissions";
 import { WORKSPACE_DIR, ensureWorkspace } from "./workspace";
 
@@ -79,17 +78,14 @@ function clampBudget(value: unknown) {
   return Math.min(Math.max(n, BUDGET_LIMITS.min), BUDGET_LIMITS.max);
 }
 
-export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGenerator<RunEvent> {
+/**
+ * The Agent SDK options for a playground conversation: tools, permissions
+ * (canUseTool + the always-on workspace guard), hooks, MCP servers, subagents
+ * and project config. `emit` receives events produced inside callbacks
+ * (permission prompts, decisions, hooks) so they can join the timeline.
+ */
+export async function buildOptions(config: RunConfig, emit: (event: RunEvent) => void, abortController: AbortController): Promise<Options> {
   await ensureWorkspace();
-
-  // Events produced by callbacks (permissions, hooks) are queued here and
-  // flushed between SDK messages, so everything arrives in one ordered stream.
-  const sideEvents: RunEvent[] = [];
-  let wake: (() => void) | null = null;
-  const emit = (event: RunEvent) => {
-    sideEvents.push(event);
-    wake?.();
-  };
 
   const useAgents = config.subagents || config.team || config.projectConfig;
   // Project config brings slash commands, skills and subagents, which need these tools.
@@ -213,10 +209,7 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
   const env = { ...process.env };
   delete env.ANTHROPIC_API_KEY;
 
-  const abortController = new AbortController();
-  signal.addEventListener("abort", () => abortController.abort(), { once: true });
-
-  const options: Options = {
+  return {
     cwd: WORKSPACE_DIR,
     env,
     abortController,
@@ -249,43 +242,9 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
     maxTurns: Math.min(Math.max(config.maxTurns, 1), 40),
     // Spending cap: the SDK stops the run with an error_max_budget_usd result.
     maxBudgetUsd: clampBudget(config.maxBudgetUsd),
-    // Follow-ups: Claude Code reloads the earlier turns of this session.
-    resume: config.resumeSessionId,
+    // Word-by-word replies: stream_event messages with text deltas.
+    includePartialMessages: true,
     // No cross-session memory files: a conversation remembers only its own turns.
     settings: { autoMemoryEnabled: false },
   };
-
-  const flush = function* () {
-    while (sideEvents.length) yield sideEvents.shift()!;
-  };
-
-  // query() yields SDK messages; permission/hook callbacks may fire while it
-  // is waiting, so race the next message against new side events.
-  const iterator = query({ prompt: config.prompt, options })[Symbol.asyncIterator]();
-  let next = iterator.next();
-  // After an error result (spending cap, max turns) the SDK also throws. The
-  // result card already explains what happened, so that throw is ignored.
-  let sawResult = false;
-  try {
-    while (true) {
-      const sideEvent = new Promise<"side">((resolve) => (wake = () => resolve("side")));
-      if (sideEvents.length) wake!();
-      let winner: Awaited<typeof next> | "side";
-      try {
-        winner = await Promise.race([next, sideEvent]);
-      } catch (err) {
-        if (sawResult) break;
-        throw err;
-      }
-      wake = null;
-      yield* flush();
-      if (winner === "side") continue;
-      if (winner.done) break;
-      if (winner.value.type === "result") sawResult = true;
-      yield { kind: "sdk", message: winner.value as unknown as SdkMessageLike };
-      next = iterator.next();
-    }
-  } finally {
-    yield* flush();
-  }
 }

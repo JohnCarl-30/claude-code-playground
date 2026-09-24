@@ -59,7 +59,7 @@ export function SettingsPanel({
           />
         </label>
         <label>
-          <span className={label}>Spending cap per run</span>
+          <span className={label}>Spending cap per conversation</span>
           <span className="flex items-center gap-1">
             $
             <input
@@ -73,7 +73,7 @@ export function SettingsPanel({
             />
           </span>
           <span className="mt-1 block text-xs text-muted">
-            Stops the run at this estimated cost (${BUDGET_LIMITS.min}–${BUDGET_LIMITS.max})
+            Stops Claude at this estimated cost for the whole conversation (${BUDGET_LIMITS.min}–${BUDGET_LIMITS.max})
           </span>
         </label>
       </div>

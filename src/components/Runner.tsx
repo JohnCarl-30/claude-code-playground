@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ClaudeConfig } from "@/lib/claude-config";
-import { DEFAULT_CONFIG, type CustomMcpServer, type RunConfig, type RunEvent } from "@/lib/run-types";
+import { DEFAULT_CONFIG, type CustomMcpServer, type RunConfig, type SessionEvent } from "@/lib/run-types";
 import { loadSavedMcpServers, mergeServers, saveMcpServers, useSavedMcpServers } from "@/lib/saved-mcp";
 import { WORKSPACE_MCP_SERVER, findTemplate, type TemplateId } from "@/lib/templates";
 import { markTried } from "@/lib/tried";
@@ -11,12 +11,35 @@ import { McpPanel } from "./McpPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { SetupBanner } from "./SetupStatus";
 import { Timeline, type Choice } from "./Timeline";
+import { useLiveSession } from "./useLiveSession";
 import { WorkspacePanel, type WorkspaceSnapshot } from "./WorkspacePanel";
 
-type Status = "idle" | "running" | "done";
-/** One prompt you sent and everything that happened in response. */
-type Turn = { prompt: string; events: RunEvent[] };
+/** One message you sent and everything that happened in response. */
+type Turn = { prompt: string; mode: "start" | "steer" | "queue"; events: SessionEvent[] };
 type Tab = "settings" | "mcp" | "code";
+
+// Settings that are fixed when a session starts; the rest (model, permission mode) change live.
+const RESTART_FIELDS = ["tools", "demoMcp", "mcpServers", "projectConfig", "subagents", "team", "hooks", "appendSystemPrompt", "maxTurns", "maxBudgetUsd"] as const;
+
+/** Split the session's events into turns, one per message you sent. */
+export function toTurns(events: SessionEvent[]): Turn[] {
+  const turns: Turn[] = [];
+  const before: SessionEvent[] = [];
+  // After you steer, the interrupted task still reports a result: it belongs to the turn before.
+  let owedToPrevious = 0;
+  for (const e of events) {
+    if (e.kind === "user_prompt") {
+      if (e.mode === "steer" && turns.length) owedToPrevious++;
+      turns.push({ prompt: e.text, mode: e.mode, events: [] });
+    } else if (owedToPrevious && e.kind === "sdk" && e.message.type === "result" && turns.length > 1) {
+      owedToPrevious--;
+      turns[turns.length - 2].events.push({ kind: "control", note: "You steered Claude to your next message.", seq: -1 }, e);
+    } else if (turns.length) turns[turns.length - 1].events.push(e);
+    else before.push(e);
+  }
+  if (turns.length) turns[0].events.unshift(...before);
+  return turns;
+}
 
 export function Runner({
   preset,
@@ -33,18 +56,27 @@ export function Runner({
 }) {
   const initial: RunConfig = { ...DEFAULT_CONFIG, ...preset };
   const [config, setConfig] = useState<RunConfig>(initial);
-  const [turns, setTurns] = useState<Turn[]>([]);
-  // Set after the first run: follow-ups resume this Claude Code session.
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [status, setStatus] = useState<Status>("idle");
+  // The settings the live session started with, to spot changes that need a new one.
+  const [sessionConfig, setSessionConfig] = useState<RunConfig | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [sendError, setSendError] = useState("");
   const [showRaw, setShowRaw] = useState(showRawByDefault);
   const [tab, setTab] = useState<Tab | null>(null);
   const [answered, setAnswered] = useState<Record<string, Choice>>({});
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
   const [claudeConfig, setClaudeConfig] = useState<ClaudeConfig | null>(null);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
+
+  const live = useLiveSession({
+    onResult: (success) => {
+      if (success && exampleId) markTried(exampleId);
+      void loadWorkspace(); // Claude may have changed files
+    },
+  });
+  const turns = toTurns(live.events);
+  const running = live.working || starting;
+  const workspacePath = live.events.find((e) => e.kind === "session")?.workspace;
 
   async function loadWorkspace(init?: RequestInit) {
     const res = await fetch("/api/workspace", init).catch(() => null);
@@ -59,14 +91,10 @@ export function Runner({
     if (data && !data.error) setClaudeConfig(data.config ?? data);
   }
 
-  /** Append events to the turn that's running. */
-  function addEvents(events: RunEvent[]) {
-    setTurns((ts) => (ts.length ? [...ts.slice(0, -1), { ...ts[ts.length - 1], events: [...ts[ts.length - 1].events, ...events] }] : ts));
-  }
-
   function newConversation(prompt = initial.prompt) {
-    setTurns([]);
-    setSessionId(null);
+    live.end();
+    setSessionConfig(null);
+    setSendError("");
     setConfig((c) => ({ ...c, prompt }));
   }
 
@@ -107,57 +135,38 @@ export function Runner({
   const savedServers = useSavedMcpServers();
   const effective: RunConfig = { ...config, mcpServers: mergeServers(savedServers, config.mcpServers) };
 
-  const running = status === "running";
-
-  async function run() {
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setTurns((ts) => [...ts, { prompt: config.prompt, events: [] }]);
-    setStatus("running");
-    setTab(null);
-    let succeeded = false;
-
-    try {
-      const res = await fetch("/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...effective, resumeSessionId: sessionId ?? undefined }),
-        signal: controller.signal,
-      });
-      if (!res.ok || !res.body) {
-        const { error } = await res.json().catch(() => ({ error: `Request failed (${res.status})` }));
-        addEvents([{ kind: "error", message: error }]);
-        return;
-      }
-
-      // The route streams one JSON event per line.
-      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-      let buffer = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += value;
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        const parsed = lines.filter(Boolean).map((l) => JSON.parse(l) as RunEvent);
-        if (parsed.length) addEvents(parsed);
-        for (const e of parsed) {
-          if (e.kind !== "sdk") continue;
-          if (typeof e.message.session_id === "string") setSessionId(e.message.session_id);
-          if (e.message.type === "result" && e.message.subtype === "success") succeeded = true;
-        }
-      }
-    } catch (err) {
-      addEvents([{ kind: "error", message: controller.signal.aborted ? "Stopped." : err instanceof Error ? err.message : String(err) }]);
-    } finally {
-      setStatus("done");
-      loadWorkspace();
-      if (succeeded) {
-        if (exampleId) markTried(exampleId);
-        setConfig((c) => ({ ...c, prompt: "" })); // ready for a follow-up
-      }
+  /**
+   * Send what's in the prompt box. With no live session this starts one; during
+   * a session it's a follow-up, and while Claude works you choose to steer or queue.
+   */
+  async function submit(how: "steer" | "queue" = "queue") {
+    const text = config.prompt.trim();
+    if (!text || starting) return;
+    setSendError("");
+    if (!live.active) {
+      setStarting(true);
+      setTab(null);
+      const error = await live.start({ ...effective, prompt: text });
+      setStarting(false);
+      if (error) return setSendError(error);
+      setSessionConfig(effective);
+    } else {
+      const error = await live.send(text, how);
+      if (error) return setSendError(error);
     }
+    setConfig((c) => ({ ...c, prompt: "" }));
   }
+
+  /** Settings changes: model and permission mode apply to the live session right away. */
+  function changeSettings(next: RunConfig) {
+    if (live.active) {
+      if (next.permissionMode !== config.permissionMode) void live.control("permissionMode", next.permissionMode);
+      if (next.model !== config.model) void live.control("model", next.model);
+    }
+    setConfig(next);
+  }
+  const restartNeeded =
+    live.active && !!sessionConfig && RESTART_FIELDS.some((k) => JSON.stringify(sessionConfig[k]) !== JSON.stringify(effective[k]));
 
   async function decide(id: string, choice: Choice) {
     setAnswered((prev) => ({ ...prev, [id]: choice }));
@@ -234,7 +243,7 @@ export function Runner({
           </div>
           <button
             onClick={() => switchTemplate(needed.id)}
-            disabled={workspaceBusy || running}
+            disabled={workspaceBusy || live.working}
             className="h-9 shrink-0 rounded-lg bg-info px-4 font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {workspaceBusy ? "Switching…" : `Switch to ${needed.title}`}
@@ -245,35 +254,53 @@ export function Runner({
         <section aria-label="Conversation" className="space-y-4">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line pb-3">
             <h2 className="mr-auto text-sm font-medium">
-              Conversation <span className="font-normal text-muted">· {turns.length} {turns.length === 1 ? "turn" : "turns"}</span>
+              Conversation <span className="font-normal text-muted">· {turns.length} {turns.length === 1 ? "message" : "messages"}</span>
+              {live.active && (
+                <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-normal ${live.working ? "bg-accent-soft text-accent" : "bg-ok-soft text-ok"}`}>
+                  {live.working ? "● Claude is working" : "● live session"}
+                </span>
+              )}
             </h2>
             <label className="flex h-8 cursor-pointer items-center gap-2 text-sm text-muted hover:text-ink">
               <input type="checkbox" checked={showRaw} onChange={(e) => setShowRaw(e.target.checked)} className="accent-[var(--accent)]" />
               Show raw messages
             </label>
-            {!running && (
-              <button
-                onClick={() => newConversation("")}
-                title="Forget this conversation and start over (your files stay as they are)"
-                className="h-8 rounded-lg border border-line bg-surface px-3 text-sm hover:bg-surface-2"
-              >
-                ＋ New conversation
-              </button>
-            )}
+            <button
+              onClick={() => newConversation("")}
+              title="End this Claude Code session and start over (your files stay as they are)"
+              className="h-8 rounded-lg border border-line bg-surface px-3 text-sm hover:bg-surface-2"
+            >
+              ＋ New conversation
+            </button>
           </div>
           <div className="space-y-8">
             {turns.map((turn, i) => {
               const last = i === turns.length - 1;
               return (
                 <div key={i} className="space-y-3">
-                  <div className="flex justify-end">
+                  <div className="flex flex-col items-end gap-1">
                     <p className="max-w-[85%] rounded-2xl rounded-br-md bg-accent px-4 py-2.5 whitespace-pre-wrap text-white">{turn.prompt}</p>
+                    {turn.mode !== "start" && (
+                      <span className="text-xs text-muted">
+                        {turn.mode === "steer" ? "↪ sent while Claude was working: it switched to this" : "⏎ queued until Claude finished"}
+                      </span>
+                    )}
                   </div>
-                  <Timeline followUp={i > 0} project={projectNames} events={turn.events} showRaw={showRaw} running={running && last} answered={answered} onDecide={decide} />
-                  {running && last && (
+                  <Timeline
+                    followUp={i > 0}
+                    project={projectNames}
+                    workspacePath={workspacePath}
+                    events={turn.events}
+                    streamingText={last ? live.streaming : ""}
+                    showRaw={showRaw}
+                    running={live.working && last}
+                    answered={answered}
+                    onDecide={decide}
+                  />
+                  {live.working && last && (
                     <p className="flex items-center gap-2 text-sm text-muted">
                       <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden />
-                      {turn.events.length <= 1 ? "Starting Claude Code… the first run can take a few seconds." : "Working…"}
+                      {turn.events.length <= 2 ? "Starting Claude Code… the first message can take a few seconds." : "Working… you can type a message to steer or queue."}
                     </p>
                   )}
                 </div>
@@ -295,14 +322,19 @@ export function Runner({
           value={config.prompt}
           onChange={(e) => setConfig({ ...config, prompt: e.target.value })}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !running && config.prompt.trim()) run();
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void submit(e.shiftKey ? "steer" : "queue");
+            }
           }}
           rows={3}
-          disabled={running}
+          disabled={starting}
           placeholder={
-            sessionId
-              ? "Ask a follow-up… Claude remembers this conversation."
-              : "Ask Claude to do something in your workspace… (type / for your project's commands)"
+            live.working
+              ? "Claude is working… type to steer it (⇧⌘/Ctrl + Enter) or queue a message for when it's done."
+              : live.active
+                ? "Ask a follow-up… this is the same live session, so Claude remembers everything."
+                : "Ask Claude to do something in your workspace… (type / for your project's commands)"
           }
           className="field-sizing-content block max-h-80 min-h-28 w-full resize-none bg-transparent px-4 pt-4 pb-2 leading-relaxed placeholder:text-muted/80 focus:outline-none focus-visible:outline-none disabled:opacity-60"
         />
@@ -327,6 +359,15 @@ export function Runner({
             </button>
           </p>
         )}
+        {restartNeeded && (
+          <p className="mx-3 mb-1 flex flex-wrap items-center gap-2 rounded-lg bg-info-soft px-3 py-1.5 text-xs text-info">
+            Tools, MCP servers, project config and similar settings are fixed when a session starts. Model and permission mode change live.
+            <button onClick={() => newConversation(config.prompt)} className="font-medium underline">
+              Start a new conversation to apply
+            </button>
+          </p>
+        )}
+        {sendError && <p className="mx-3 mb-1 rounded-lg bg-danger-soft px-3 py-1.5 text-xs text-danger">{sendError}</p>}
         <div className="flex flex-wrap items-center gap-2 px-3 pt-1 pb-3">
           <div role="tablist" aria-label="Run options" className="flex min-w-0 flex-wrap items-center gap-1.5">
             {tabs.map((t) => (
@@ -345,31 +386,54 @@ export function Runner({
               </button>
             ))}
           </div>
-          <div className="ml-auto flex items-center gap-3">
-            <kbd className="hidden font-sans text-xs text-muted md:inline">⌘/Ctrl + Enter</kbd>
-            {running ? (
-              <button
-                onClick={() => abortRef.current?.abort()}
-                className="h-9 rounded-lg bg-danger px-4 text-sm font-medium text-white hover:opacity-90"
-              >
-                ■ Stop
-              </button>
+          <div className="ml-auto flex items-center gap-2">
+            {live.working ? (
+              <>
+                <button
+                  onClick={() => void live.control("interrupt")}
+                  title="Stop the current turn (like Esc). The session stays open."
+                  className="h-9 rounded-lg bg-danger px-3 text-sm font-medium text-white hover:opacity-90"
+                >
+                  ■ Stop
+                </button>
+                <button
+                  onClick={() => void submit("steer")}
+                  disabled={!config.prompt.trim()}
+                  title="Send now: Claude drops the current task and answers this (⇧⌘/Ctrl + Enter)"
+                  className="h-9 rounded-lg border border-accent px-3 text-sm font-medium text-accent hover:bg-accent-soft disabled:opacity-40"
+                >
+                  ↪ Steer
+                </button>
+                <button
+                  onClick={() => void submit("queue")}
+                  disabled={!config.prompt.trim()}
+                  title="Send when Claude finishes the current task (⌘/Ctrl + Enter)"
+                  className="h-9 rounded-lg bg-accent px-3 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+                >
+                  ⏎ Queue
+                </button>
+              </>
             ) : (
-              <button
-                onClick={run}
-                disabled={!config.prompt.trim()}
-                title="Ctrl/⌘ + Enter"
-                aria-label={sessionId ? "▶ Send follow-up" : "▶ Run"}
-                className="h-9 rounded-lg bg-accent px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
-              >
-                {sessionId ? (
-                  <>
-                    ▶ Send<span className="hidden sm:inline"> follow-up</span>
-                  </>
-                ) : (
-                  "▶ Run"
-                )}
-              </button>
+              <>
+                <kbd className="hidden font-sans text-xs text-muted md:inline">⌘/Ctrl + Enter</kbd>
+                <button
+                  onClick={() => void submit()}
+                  disabled={!config.prompt.trim() || starting}
+                  title="Ctrl/⌘ + Enter"
+                  aria-label={live.active ? "▶ Send follow-up" : "▶ Run"}
+                  className="h-9 rounded-lg bg-accent px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+                >
+                  {starting ? (
+                    "Starting…"
+                  ) : live.active ? (
+                    <>
+                      ▶ Send<span className="hidden sm:inline"> follow-up</span>
+                    </>
+                  ) : (
+                    "▶ Run"
+                  )}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -379,8 +443,8 @@ export function Runner({
               <h3 className="mr-auto text-sm font-medium">{TAB_TITLE[tab]}</h3>
               {tab === "settings" && (
                 <button
-                  onClick={() => setConfig({ ...initial, prompt: config.prompt })}
-                  disabled={running}
+                  onClick={() => changeSettings({ ...initial, prompt: config.prompt })}
+                  disabled={starting}
                   className="h-8 rounded-lg px-3 text-sm text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-50"
                 >
                   Reset settings
@@ -394,9 +458,9 @@ export function Runner({
                 ✕
               </button>
             </div>
-            {tab === "settings" && <SettingsPanel config={config} onChange={setConfig} disabled={running} />}
-            {tab === "mcp" && <McpPanel config={effective} onChange={setConfig} onServersChange={rememberServers} disabled={running} />}
-            {tab === "code" && <CodePreview config={effective} sessionId={sessionId} />}
+            {tab === "settings" && <SettingsPanel config={config} onChange={changeSettings} disabled={starting} />}
+            {tab === "mcp" && <McpPanel config={effective} onChange={setConfig} onServersChange={rememberServers} disabled={starting} />}
+            {tab === "code" && <CodePreview config={effective} />}
           </div>
         )}
       </section>

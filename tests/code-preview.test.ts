@@ -18,8 +18,13 @@ describe("sdkCodeFor (Code tab)", () => {
     expect(code).not.toContain("resume:");
   });
 
-  it("adds resume during a conversation", () => {
-    expect(sdkCodeFor({ ...DEFAULT_CONFIG, prompt: "next" }, "abc-123")).toContain('resume: "abc-123"');
+  it("shows a live session: a message stream, interrupt and live model changes", () => {
+    const code = sdkCodeFor({ ...DEFAULT_CONFIG, prompt: "next" });
+    expect(code).toContain("async function* yourMessages()");
+    expect(code).toContain("prompt: yourMessages()");
+    expect(code).toContain("includePartialMessages: true");
+    expect(code).toContain("session.interrupt()");
+    expect(code).toContain('priority: "now"');
   });
 
   it("splits long prompts over several lines", () => {

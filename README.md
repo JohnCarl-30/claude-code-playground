@@ -8,7 +8,7 @@ Build a real REST API, MCP server or agent with Claude, then run and test it rig
 - **No API key.** It uses your own Claude login, the same one Claude Code uses.
 - **Build real projects.** Start from a REST API, MCP server or Agent SDK starter; Claude writes the code, and you start the server, send requests, plug in your MCP server or run your agent.
 - **Configure Claude the real way.** Each starter has a `.claude/` folder: permission rules, hooks, slash commands, skills and subagents. Edit them in the playground and they load exactly as they would for `claude` in a terminal.
-- **Keep the conversation going.** Follow-ups continue the same Claude Code session, so Claude remembers what it just did. See every change as a diff, and download your project as a .zip.
+- **A live session, like the terminal.** Replies stream in word by word. While Claude works you can **Steer** it (switch to a new message now), **Queue** a message for when it's done, or **Stop** the turn, and you can change the model or permission mode mid-conversation. See every change as a diff, and download your project as a .zip.
 - **Plug in any MCP server.** Add a local program (stdio) or a remote URL (HTTP), test the connection, and let Claude use it.
 - **Safe to experiment.** Claude only works inside a small sample project, and it asks you before it edits a file, runs a command or calls a tool from a server you added.
 - **See the code.** The Code tab shows the Agent SDK call that matches your current settings.
@@ -54,7 +54,7 @@ The **Workspace** panel under the prompt holds the project Claude works on. Pick
 
 A typical loop: pick **Build a REST API** in the sidebar → **Run** → **Start server** → send `POST /todos` → **Send follow-up** ("now add pagination") → check the **Changes** tab → **⤓ .zip** to keep it.
 
-- **Follow-ups:** after a run, the prompt box becomes a follow-up box and Claude remembers the conversation. **＋ New conversation** starts fresh (your files stay as they are).
+- **A live session:** your first message starts one Claude Code session; everything after goes into it, and Claude remembers the whole conversation. While Claude works, type and press **↪ Steer** (switch now, ⇧⌘/Ctrl + Enter) or **⏎ Queue** (after it's done, ⌘/Ctrl + Enter), or **■ Stop** the turn. Model and permission mode change live; other settings apply to your next conversation. **＋ New conversation** starts fresh (your files stay as they are).
 - **Changes:** a colored diff of everything changed since the starter's starting point.
 - **Your work is kept:** switching starters parks the current workspace (files and git history) and brings it back when you switch back; the starter list marks those as "saved". **Reset** is the only thing that throws work away.
 - **⤓ .zip:** download the current project to keep or open elsewhere.
@@ -102,7 +102,7 @@ Only add servers you trust: a stdio server is a program running on your computer
 ## Good to know
 
 - **Usage:** each run uses your Claude plan's usage, just like using Claude Code in the terminal. The examples use small prompts, and you can pick the fast Haiku model under **Settings**.
-- **Spending cap:** every run stops once its estimated cost reaches $1.00. Change it per run under **Settings** (from $0.05 to $5).
+- **Spending cap:** a conversation stops once its estimated cost reaches $1.00. Change it under **Settings** (from $0.05 to $5).
 - **Tried examples** get a ✓ in the sidebar. This is saved in your browser only.
 - **The workspace:** Claude works in `workspace/`, created from the starter you pick. **Reset** restores the starter's original files at any time.
 - **Running your code:** the Run & test panel only runs the scripts each starter defines (like `node server.js`), and your API server listens on `localhost:4100`.
@@ -134,7 +134,8 @@ Start with [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) for the architecture, re
 - `src/lib/demo-mcp.ts`: the demo MCP server (dice, weather, notes)
 - `src/components/McpPanel.tsx`, `src/lib/mcp-test.ts`: adding and testing your own MCP servers
 - `src/lib/local-only.ts`: the localhost-only request guard
-- `src/app/api/run/route.ts`: streams SDK messages to the browser as NDJSON
+- `src/lib/live-session.ts`, `src/app/api/session/`: live Claude Code sessions (start, events as NDJSON, messages, stop/model/mode, close)
+- `src/components/useLiveSession.ts`: the browser side of a live session (streaming, reconnect, steer/queue)
 - `src/components/Runner.tsx`, `Timeline.tsx`: the prompt box and the live timeline
 - `templates/`: the starter projects `workspace/` is created from; `src/lib/templates.ts` lists them and their scripts
 - `src/lib/processes.ts`, `src/components/RunPanel.tsx`: running a starter's scripts and the request tester

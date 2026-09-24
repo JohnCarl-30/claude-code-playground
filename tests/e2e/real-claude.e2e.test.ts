@@ -43,31 +43,63 @@ async function api(pathname: string, init?: RequestInit) {
   return res.json();
 }
 
-/** POST /api/run and collect every event; `answer` decides permission cards. */
-async function run(config: Record<string, unknown>, answer: (e: Event) => "allow" | "deny" = () => "allow") {
-  const res = await fetch(`${BASE}/api/run`, {
+/**
+ * A live session driven over HTTP like the browser does: POST /api/session, read
+ * the NDJSON event stream, send messages and controls. `answer` decides permission cards.
+ */
+async function openSession(config: Record<string, unknown>, answer: (e: Event) => "allow" | "deny" = () => "allow") {
+  const created = await api("/api/session", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: "claude-haiku-4-5", maxBudgetUsd: 0.5, ...config }),
   });
+  if (!created.id) throw new Error(created.error ?? "no session");
+  const id = created.id as string;
   const events: Event[] = [];
-  let buffer = "";
+  const res = await fetch(`${BASE}/api/session/${id}/events?from=0`);
   const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += value;
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines.filter(Boolean)) {
-      const event = JSON.parse(line) as Event;
-      events.push(event);
-      if (event.kind === "permission_request") {
-        await api("/api/permission", { method: "POST", body: JSON.stringify({ id: event.id, allow: answer(event) === "allow" }) });
+  void (async () => {
+    let buffer = "";
+    while (true) {
+      const { value, done } = await reader.read().catch(() => ({ value: undefined, done: true }));
+      if (done) return;
+      buffer += value;
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines.filter(Boolean)) {
+        const event = JSON.parse(line) as Event;
+        if (event.kind === "sdk" && (event.message as { type: string }).type === "stream_event") continue;
+        events.push(event);
+        if (event.kind === "permission_request") {
+          await api("/api/permission", { method: "POST", body: JSON.stringify({ id: event.id, allow: answer(event) === "allow" }) });
+        }
       }
     }
-  }
-  return events;
+  })();
+  const results = () => sdk(events).filter((m) => m.type === "result");
+  return {
+    events,
+    results,
+    /** Wait until Claude has finished `n` messages in this session. */
+    async untilResults(n: number) {
+      for (let i = 0; i < 1200 && results().length < n; i++) await new Promise((r) => setTimeout(r, 200));
+      if (results().length < n) throw new Error(`timed out waiting for ${n} results`);
+    },
+    async until(check: () => boolean) {
+      for (let i = 0; i < 1200 && !check(); i++) await new Promise((r) => setTimeout(r, 200));
+      if (!check()) throw new Error("timed out");
+    },
+    send: (text: string, how: "queue" | "steer" = "queue") => api(`/api/session/${id}/message`, { method: "POST", body: JSON.stringify({ text, how }) }),
+    control: (action: string, value?: string) => api(`/api/session/${id}/control`, { method: "POST", body: JSON.stringify({ action, value }) }),
+    close: () => fetch(`${BASE}/api/session/${id}`, { method: "DELETE" }),
+  };
+}
+
+/** One message in a fresh session, then close it. */
+async function run(config: Record<string, unknown>, answer?: (e: Event) => "allow" | "deny") {
+  const session = await openSession(config, answer);
+  await session.untilResults(1);
+  await session.close();
+  return session.events;
 }
 
 beforeAll(async () => {
@@ -159,11 +191,37 @@ describe("real Claude through the playground", () => {
     expect(workspaceFile(".claude/settings.local.json")).toBe(before);
   });
 
-  it("follow-ups continue the same conversation", async () => {
-    const first = await run({ prompt: "Remember the code word PINEAPPLE. Reply with just OK.", tools: [] });
-    const sessionId = sdk(first).find((m) => typeof m.session_id === "string")?.session_id;
-    expect(sessionId).toBeTruthy();
-    const second = await run({ prompt: "What was the code word? Reply with just the word.", tools: [], resumeSessionId: sessionId });
-    expect(allText(second)).toContain("PINEAPPLE");
+  it("follow-ups go into the same live session and remember it", async () => {
+    const session = await openSession({ prompt: "Remember the code word PINEAPPLE. Reply with just OK.", tools: [] });
+    await session.untilResults(1);
+    await session.send("What was the code word? Reply with just the word.");
+    await session.untilResults(2);
+    await session.close();
+    expect(JSON.stringify(sdk(session.events).filter((m) => m.type === "assistant").at(-1))).toContain("PINEAPPLE");
   });
+
+  it("steering mid-task makes Claude switch to your new message", async () => {
+    const session = await openSession({ prompt: "Read every file in this project one by one and describe each in detail.", tools: ["Read", "Glob"] });
+    await session.until(() => toolUses(session.events).length > 0);
+    await session.send("Stop that. Reply with just the word MANGO.", "steer");
+    await session.untilResults(2);
+    await session.close();
+    expect(session.events.some((e) => e.kind === "user_prompt" && e.mode === "steer")).toBe(true);
+    expect(JSON.stringify(sdk(session.events).filter((m) => m.type === "assistant").at(-1))).toContain("MANGO");
+  });
+
+  it("stop interrupts the turn, and the session continues on a new model", async () => {
+    const session = await openSession({ prompt: "Describe every file in this project in great detail, one by one.", tools: ["Read", "Glob"] });
+    await session.until(() => toolUses(session.events).length > 0);
+    await session.control("interrupt");
+    await session.untilResults(1);
+    expect(session.results()[0].subtype).toBe("error_during_execution");
+    await session.control("model", "claude-sonnet-5");
+    await session.send("Reply with just your model id.");
+    await session.untilResults(2);
+    await session.close();
+    const inits = sdk(session.events).filter((m) => m.subtype === "init");
+    expect(inits.at(-1)?.model).toBe("claude-sonnet-5");
+  });
+
 });

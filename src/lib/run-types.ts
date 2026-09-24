@@ -1,4 +1,4 @@
-// Types shared by the browser and the /api/run route.
+// Types shared by the browser and the /api/session routes.
 
 export type PlaygroundPermissionMode = "default" | "acceptEdits" | "plan" | "dontAsk";
 
@@ -88,8 +88,6 @@ export type RunConfig = {
   maxTurns: number;
   /** Stop the run once its estimated cost passes this many US dollars. */
   maxBudgetUsd: number;
-  /** Continue an earlier conversation (its session_id) instead of starting a new one. */
-  resumeSessionId?: string;
 };
 
 export const BUDGET_LIMITS = { min: 0.05, max: 5, default: 1 };
@@ -117,16 +115,39 @@ export const MODEL_CHOICES = [
   { id: "claude-opus-5", label: "Opus 5" },
 ];
 
-/** One line of the NDJSON stream sent from /api/run to the browser. */
+/** One event in a live session's stream (NDJSON from /api/session/<id>/events). */
 export type RunEvent =
-  | { kind: "run"; runId: string; workspace: string }
+  /** The session started; `workspace` lets the timeline show short paths. */
+  | { kind: "session"; sessionId: string; workspace: string }
+  /** You sent a message. `mode` says how it was delivered while Claude was working. */
+  | { kind: "user_prompt"; text: string; mode: "start" | "steer" | "queue" }
+  /** A mid-session change, like switching the model or permission mode. */
+  | { kind: "control"; note: string }
   /** A raw message from the Agent SDK, exactly as query() yielded it. */
   | { kind: "sdk"; message: SdkMessageLike }
   | { kind: "permission_request"; id: string; tool: string; input: unknown }
   | { kind: "permission_decision"; tool: string; allowed: boolean; reason: string; by: "playground" | "you" }
   | { kind: "hook"; event: string; tool: string; note: string }
   | { kind: "error"; message: string }
-  | { kind: "done" };
+  /** The session ended (New conversation, idle timeout, or an error). */
+  | { kind: "closed"; reason: string };
+
+/** Stored events carry a sequence number so a browser can reconnect and replay. */
+export type SessionEvent = RunEvent & { seq: number };
+
+export const PERMISSION_MODES = ["default", "acceptEdits", "plan", "dontAsk"] as const;
+
+/** Validates settings sent from the browser. Returns an error message, or the clean config. */
+export function parseRunConfig(body: unknown): RunConfig | string {
+  if (!body || typeof body !== "object") return "Expected a JSON body.";
+  const c = { ...DEFAULT_CONFIG, ...(body as Partial<RunConfig>) };
+  if (typeof c.prompt !== "string" || !c.prompt.trim()) return "Write a prompt first.";
+  if (!(PERMISSION_MODES as readonly string[]).includes(c.permissionMode)) return "Unknown permission mode.";
+  if (!Array.isArray(c.tools) || c.tools.some((t) => !BUILT_IN_TOOLS.includes(t))) return "Unknown tool.";
+  const mcpServers = validateMcpServers(c.mcpServers);
+  if (typeof mcpServers === "string") return mcpServers;
+  return { ...c, mcpServers };
+}
 
 // Loose view of SDKMessage for the client, which never imports the SDK.
 export type SdkMessageLike = { type: string; subtype?: string; [key: string]: unknown };

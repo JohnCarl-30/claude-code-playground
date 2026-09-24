@@ -17,7 +17,7 @@ flowchart LR
     end
 
     subgraph Server["Next.js server (your computer)"]
-        Routes["API routes<br/>/api/run · /api/permission<br/>/api/workspace · /api/process"]
+        Routes["API routes<br/>/api/session · /api/permission<br/>/api/workspace · /api/process"]
         SDK["Claude Agent SDK<br/>query()"]
         Procs["Run & test<br/>(node server.js, …)"]
     end
@@ -64,58 +64,63 @@ The playground makes sure that login is used:
 
 ---
 
-## 2. What happens when you click Run
+## 2. Live sessions: what happens when you click Run
+
+Each conversation is **one live Claude Code session**, like a terminal session. The first **Run** starts it; after that you can send messages at any time, even while Claude is working, stop the current turn, and change the model or permission mode without restarting.
 
 ```mermaid
 sequenceDiagram
-    participant B as Browser (Runner)
-    participant R as /api/run
-    participant A as runAgent()
+    participant B as Browser (useLiveSession)
+    participant S as /api/session
+    participant L as LiveSession
     participant C as Claude Code
     participant M as Claude
 
-    B->>R: POST settings (prompt, tools, mode, MCP servers…)
-    R->>R: validate settings
-    R->>A: runAgent(config, request.signal)
-    A->>C: query({ prompt, options })
-    C->>M: request (system prompt + tools + prompt)
-    M-->>C: assistant message (text / tool_use)
-    C-->>A: SDK message
-    A-->>R: event
-    R-->>B: one JSON line per event
-    Note over C,M: loop: run tool → send result → next turn
-    C-->>A: result (turns, cost, tokens)
-    R-->>B: {"kind":"done"}
+    B->>S: POST settings + first message
+    S->>L: createSession(config)
+    L->>C: query({ prompt: yourMessages(), options })
+    B->>S: GET /api/session/<id>/events (NDJSON, stays open)
+    C->>M: request
+    M-->>C: reply streams (text deltas, tool_use)
+    C-->>L: SDK messages
+    L-->>B: one JSON line per event
+    Note over B,L: meanwhile: POST .../message (queue or steer),<br/>POST .../control (interrupt, model, permission mode)
+    B->>S: DELETE .../<id> (New conversation)
+    L->>C: close()
 ```
 
-1. **The browser sends your settings.** `Runner.tsx` posts the whole `RunConfig` (see `src/lib/run-types.ts`) to `/api/run`.
-2. **The route validates them.** Unknown tools, permission modes or bad MCP server entries are rejected with a 400 (`src/app/api/run/route.ts`).
-3. **`runAgent()` builds the SDK options** (`src/lib/run-agent.ts`):
+1. **Starting.** `POST /api/session` validates your settings (`parseRunConfig()` in `src/lib/run-types.ts`) and calls `createSession()` (`src/lib/live-session.ts`). The session builds the SDK options with `buildOptions()` (`src/lib/run-agent.ts`) and starts `query()` in **streaming-input mode**: the prompt is an async generator of your messages, so the session stays open between them.
 
-   | Setting in the UI | Agent SDK option |
-   |---|---|
-   | Model | `model` |
-   | Permission mode | `permissionMode` |
-   | Built-in tools | `tools` (only these tools exist for the run) |
-   | Max turns / Spending cap | `maxTurns` / `maxBudgetUsd` |
-   | Append to system prompt | `systemPrompt: { type: "preset", preset: "claude_code", append }` |
-   | Load CLAUDE.md | `settingSources: ["project"]` (otherwise `[]`) |
-   | MCP servers | `mcpServers` (+ `strictMcpConfig: true`) |
-   | Subagents / review team | `agents` (+ the `Agent` tool) |
-   | Hooks | `hooks` |
-   | Allow / Deny cards | `canUseTool` |
+   | Setting in the UI | Agent SDK option | Changes mid-session? |
+   |---|---|---|
+   | Model | `model` | yes: `query.setModel()` |
+   | Permission mode | `permissionMode` | yes: `query.setPermissionMode()` |
+   | Built-in tools | `tools` (only these tools exist) | new conversation |
+   | Max turns / Spending cap | `maxTurns` / `maxBudgetUsd` (for the whole conversation) | new conversation |
+   | Append to system prompt | `systemPrompt: { type: "preset", preset: "claude_code", append }` | new conversation |
+   | Project config | `settingSources: ["project", "local"]` (otherwise `[]`) | new conversation |
+   | MCP servers | `mcpServers` (+ `strictMcpConfig: true`) | new conversation |
+   | Subagents / review team | `agents` (+ the `Agent` tool) | new conversation |
+   | Hooks | `hooks` | new conversation |
+   | Allow / Deny cards | `canUseTool` | |
 
-   It always sets `cwd` to `workspace/`, `settingSources: []` unless you ask for CLAUDE.md, and `strictMcpConfig: true`. Together these mean your personal `~/.claude` settings and MCP servers never leak into a run, so everyone gets the same results.
+   It always sets `cwd` to `workspace/`, `strictMcpConfig: true`, `includePartialMessages: true` (word-by-word replies) and `includeHookEvents: true`. When you change a "new conversation" setting during a session, the composer says so and offers to start one.
 
-4. **Messages stream back as NDJSON.** `query()` yields SDK messages (`system` init, `assistant`, `user` tool results, `result`, and some bookkeeping). The route wraps each one as `{"kind":"sdk","message":…}` and writes one JSON object per line. The browser reads the stream line by line and appends each event to the timeline.
-5. **Side events are merged into the same stream.** Permission prompts, auto-decisions and hook calls happen inside callbacks, not as SDK messages. `runAgent()` queues them and races the next SDK message against new side events, so everything arrives in order in one stream.
-6. **Stopping.** The **Stop** button aborts the browser's fetch. The route's `request.signal` fires, which aborts the SDK's `AbortController` and shuts Claude Code down.
+2. **Events.** `GET /api/session/<id>/events?from=<seq>` streams NDJSON. Every stored event has a `seq` number; if the connection drops, the browser (`src/components/useLiveSession.ts`) reconnects with the next `seq` and the server replays what it missed. Word-by-word `stream_event` deltas are sent live only (not stored), because the full message follows. Events include the SDK's own messages (`{"kind":"sdk"}`), your messages (`user_prompt`), permission cards and decisions, hooks, control notes (`control`) and `closed`.
 
-**The timeline** (`src/components/Timeline.tsx`) turns raw messages into cards: `system/init` → **Session started**, `text` → 💬, `tool_use` → 🔧, `tool_result` → 📄, `result` → **Done** (turns, time, estimated cost, tokens). **Show raw messages** shows the exact JSON your own code would receive.
+3. **Sending while Claude works.** `POST /api/session/<id>/message { text, how }` adds your message to the input stream:
+   - **Queue** (default): it waits until the current task finishes, then runs.
+   - **Steer**: it is sent with `priority: "now"`, so Claude Code ends the current task and answers this instead. The page files the interrupted task's result under the turn it belongs to.
 
-**Follow-ups.** Every SDK message carries a `session_id`. The browser keeps the one from the first run, and each follow-up sends it back as `resumeSessionId`, which becomes the SDK's `resume` option: Claude Code reloads the earlier turns of that session, so Claude remembers the conversation. Settings can change between turns. **＋ New conversation** simply forgets the id; switching or resetting the workspace does too, because the old conversation was about other files. The page shows the conversation as turns (your prompt, then its timeline), and the Code tab adds `resume: "<id>"`. Runs also pass `settings: { autoMemoryEnabled: false }`, so Claude Code keeps no memory files between separate conversations.
+4. **Stop** (`POST .../control { action: "interrupt" }`) calls `query.interrupt()`: the current turn ends with an `error_during_execution` result (shown as **Stopped by you**) and the session stays open for your next message, like pressing Esc in the terminal.
 
-**Error results.** When a run hits the spending cap or the turn limit, the SDK sends a `result` with `error_max_budget_usd` / `error_max_turns` and then throws. `runAgent()` ignores that throw after a result has arrived, so you see one clear card instead of two.
+5. **Ending.** **＋ New conversation**, switching or resetting the workspace, leaving the example, or closing the tab (`navigator.sendBeacon` to `.../close`) closes the session and its Claude Code process. The server also closes sessions nobody is watching once nothing has happened for 15 minutes, and keeps at most three sessions at a time, closing the oldest.
+
+**Why "Claude is working"?** The page counts your messages against `result` messages: while some message has no result yet, Claude is working. The SDK marks each finished message with a `result`, including interrupted and steered ones.
+
+**The timeline** (`src/components/Timeline.tsx`) turns raw messages into cards: `system/init` → **Session started** (a one-line note on later messages), streaming text → a live 💬 card, `text` → 💬, `tool_use` → 🔧, `tool_result` → 📄, `result` → **Done** (turns, time, estimated cost, tokens). **Show raw messages** shows the exact JSON your own code would receive.
+
+**No memory files.** Sessions pass `settings: { autoMemoryEnabled: false }`, so Claude Code keeps no memory between separate conversations: a conversation remembers only its own messages.
 
 ---
 
@@ -340,10 +345,11 @@ npm run build
 | `workspace.test.ts` | creating, diffing, switching (work kept), exporting, resetting, file editing limits, adding starter config, symlink-aware path checks |
 | `processes.test.ts` | Run & test: only declared scripts run, the API server starts, answers and stops quickly |
 | `examples.test.ts` | every sidebar example is well-formed |
-| `code-preview.test.ts` | the Code tab mirrors settings, adds `resume`, wraps long prompts |
-| `components/*.test.tsx` | the UI in a simulated browser: timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner (follow-ups send the session id, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
+| `code-preview.test.ts` | the Code tab mirrors settings, shows the live-session pattern, wraps long prompts |
+| `live-session.test.ts` | the session manager with a fake Claude Code: queue vs steer, stop only while working, live model and mode changes, replay after reconnect, closing, idle cleanup, the three-session limit |
+| `components/*.test.tsx` | the UI in a simulated browser: timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner against a fake live session (follow-ups, Steer / Queue / Stop, live model and mode changes, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
 
 The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something answers on port 4100 (for example your own API server).
 
-**Real-Claude end-to-end tests** (`npm run test:e2e`, `tests/e2e/`): builds the app, starts a separate production server on a free port with `PLAYGROUND_ROOT` pointing at a temporary folder, and refuses to run unless it can prove the server answering is that one (its workspace appears in the temporary folder). Then it drives it over HTTP with real Claude calls on Haiku (a few cents): a deny rule keeps `.env` private, an allow rule skips the question, `/add-route` edits the API and the `settings.json` hook checks it, settings edits always ask, and follow-ups remember the conversation. They are not part of `npm test` or CI.
+**Real-Claude end-to-end tests** (`npm run test:e2e`, `tests/e2e/`): builds the app, starts a separate production server on a free port with `PLAYGROUND_ROOT` pointing at a temporary folder, and refuses to run unless it can prove the server answering is that one (its workspace appears in the temporary folder). Then it drives it over HTTP with real Claude calls on Haiku (a few cents): a deny rule keeps `.env` private, an allow rule skips the question, `/add-route` edits the API and the `settings.json` hook checks it, settings edits always ask, follow-ups go into the same live session, steering mid-task switches Claude to your new message, and Stop interrupts a turn while the session continues on a new model. They are not part of `npm test` or CI.
 

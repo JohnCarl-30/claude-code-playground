@@ -121,7 +121,10 @@ function SdkMessage({
   agents,
   followUp,
   project,
+  stoppedByYou,
 }: {
+  /** This result came right after you pressed Stop (or steered). */
+  stoppedByYou?: boolean;
   message: SdkMessageLike;
   workspace: string;
   showRaw: boolean;
@@ -283,6 +286,7 @@ function SdkMessage({
     };
     const usage = (message.usage ?? {}) as Record<string, number>;
     const ok = message.subtype === "success" && !message.is_error;
+    const tone = ok ? "ok" : stoppedByYou ? "info" : "danger";
     const stats = [
       ["Turns", String(message.num_turns)],
       ["Time", `${((Number(message.duration_ms) || 0) / 1000).toFixed(1)}s`],
@@ -291,7 +295,7 @@ function SdkMessage({
       ["Cache reads", String(usage.cache_read_input_tokens ?? 0)],
     ];
     return (
-      <Card tone={ok ? "ok" : "danger"} icon={ok ? "✅" : "⛔"} title={ok ? "Done" : (STOP_REASONS[String(message.subtype)] ?? `Stopped: ${message.subtype}`)}>
+      <Card tone={tone} icon={ok ? "✅" : stoppedByYou ? "■" : "⛔"} title={ok ? "Done" : stoppedByYou ? "Stopped by you" : (STOP_REASONS[String(message.subtype)] ?? `Stopped: ${message.subtype}`)}>
         <dl className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-5">
           {stats.map(([k, v]) => (
             <div key={k}>
@@ -336,7 +340,13 @@ export function Timeline({
   onDecide,
   followUp,
   project,
+  workspacePath,
+  streamingText = "",
 }: {
+  /** The workspace folder, so paths can be shown relative to it. */
+  workspacePath?: string;
+  /** Claude's reply as it streams in, word by word, before the full message arrives. */
+  streamingText?: string;
   followUp?: boolean;
   project?: ProjectNames;
   events: RunEvent[];
@@ -345,7 +355,7 @@ export function Timeline({
   answered: Record<string, Choice>;
   onDecide: (id: string, choice: Choice) => void;
 }) {
-  const workspace = events.find((e) => e.kind === "run")?.workspace ?? "";
+  const workspace = workspacePath ?? "";
   const agents = subagentsById(events);
 
   return (
@@ -353,7 +363,15 @@ export function Timeline({
       {events.map((event, i) => {
         switch (event.kind) {
           case "sdk":
-            return <SdkMessage key={i} message={event.message} workspace={workspace} showRaw={showRaw} agents={agents} followUp={followUp} project={project} />;
+            return <SdkMessage key={i} message={event.message} workspace={workspace} showRaw={showRaw}
+                agents={agents}
+                followUp={followUp}
+                project={project}
+                stoppedByYou={
+                  event.message.type === "result" &&
+                  events.slice(Math.max(0, i - 3), i).some((p) => p.kind === "control" && /stopped|steered/i.test(p.note))
+                }
+              />;
           case "permission_request": {
             const decided = event.id in answered;
             return (
@@ -404,6 +422,18 @@ export function Timeline({
                 <p className="text-sm">{event.note}</p>
               </Card>
             );
+          case "control":
+            return (
+              <li key={i} className="pl-3 text-xs text-info">
+                ⚙ {event.note}
+              </li>
+            );
+          case "closed":
+            return (
+              <li key={i} className="pl-3 text-xs text-muted">
+                ■ Session ended: {event.reason}
+              </li>
+            );
           case "error":
             return (
               <Card key={i} tone="danger" icon="⛔" title="Something went wrong">
@@ -414,6 +444,11 @@ export function Timeline({
             return null;
         }
       })}
+      {streamingText && (
+        <Card icon="💬" title={<span className="flex items-center gap-2">Claude <span className="text-xs font-normal text-muted">typing…</span></span>}>
+          <ClaudeText text={streamingText + " ▍"} />
+        </Card>
+      )}
     </ol>
   );
 }

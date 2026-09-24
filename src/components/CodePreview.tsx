@@ -22,13 +22,13 @@ function wrapped(s: string, indent: string, width = 72) {
 }
 
 /** The Agent SDK code that matches the current settings. */
-export function sdkCodeFor(config: RunConfig, sessionId?: string | null) {
+/** The Agent SDK code for a live session with the current settings. */
+export function sdkCodeFor(config: RunConfig) {
   const tools = [...config.tools, ...(config.subagents || config.team ? ["Agent"] : [])];
   const lines: string[] = [];
   const opt = (line: string) => lines.push(`    ${line}`);
 
   opt(`cwd: "./workspace",`);
-  if (sessionId) opt(`resume: ${q(sessionId)}, // continue this conversation`);
   if (config.model) opt(`model: ${q(config.model)},`);
   opt(`permissionMode: ${q(config.permissionMode)},`);
   opt(`tools: ${JSON.stringify(tools)},`);
@@ -57,29 +57,43 @@ export function sdkCodeFor(config: RunConfig, sessionId?: string | null) {
   if (agents.length) opt(`agents: { /* ${agents.join(", ")}: { description, prompt, tools, model } */ },`);
   if (config.hooks) opt("hooks: { PreToolUse: [...], PostToolUse: [...] }, // log calls, protect README.md");
   opt("canUseTool: askInTheBrowser, // shows the Allow / Deny cards");
+  opt("includePartialMessages: true, // stream replies word by word");
 
+  const first = config.prompt || "What does this project do?";
   return [
     'import { query } from "@anthropic-ai/claude-agent-sdk";',
     "",
-    "for await (const message of query({",
-    `  prompt: ${wrapped(config.prompt, "    ")},`,
+    `const firstMessage =\n  ${wrapped(first, "  ")};`,
+    "",
+    "// A live session: the prompt is a stream of your messages, so it stays open.",
+    "async function* yourMessages() {",
+    '  yield { type: "user", message: { role: "user", content: firstMessage } };',
+    "  // ...yield more whenever you type. Add priority: \"now\" to steer mid-task.",
+    "}",
+    "",
+    "const session = query({",
+    "  prompt: yourMessages(),",
     "  options: {",
     ...lines,
     "  },",
-    "})) {",
+    "});",
+    "",
+    "// While it runs: session.interrupt(), session.setModel(\"claude-sonnet-5\"),",
+    "// session.setPermissionMode(\"plan\")",
+    "for await (const message of session) {",
     "  console.log(message.type, message);",
     "}",
   ].join("\n");
 }
 
-export function CodePreview({ config, sessionId }: { config: RunConfig; sessionId?: string | null }) {
+export function CodePreview({ config }: { config: RunConfig }) {
   return (
     <div className="space-y-2 text-sm">
       <p className="text-muted">
         The Claude Agent SDK call that matches your current settings. It updates as you change them. Install with{" "}
         <code className="font-mono whitespace-nowrap">npm install @anthropic-ai/claude-agent-sdk</code>.
       </p>
-      <CodeBlock label="run.mjs" source={sdkCodeFor(config, sessionId)} />
+      <CodeBlock label="run.mjs" source={sdkCodeFor(config)} />
     </div>
   );
 }
