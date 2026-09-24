@@ -15,6 +15,7 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
   const tried = useTried();
   const [selectedId, setSelectedId] = useState(findExample(initialExampleId)?.id ?? BLANK_EXAMPLE_ID);
   const example = findExample(selectedId);
+  const doneCount = EXAMPLES.filter((e) => tried.has(e.id)).length;
 
   function select(id: string) {
     setSelectedId(id);
@@ -22,15 +23,17 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
   }
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[260px_1fr]">
-      <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+    <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[272px_1fr] lg:gap-10 lg:py-8">
+      <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto lg:pr-2">
         {/* Phones: a compact picker. */}
         <label className="block lg:hidden">
-          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">Example</span>
+          <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-muted">
+            Example · {doneCount}/{EXAMPLES.length} tried
+          </span>
           <select
             value={selectedId}
             onChange={(e) => select(e.target.value)}
-            className="w-full rounded-md border border-line bg-surface px-2 py-2 text-sm"
+            className="h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm"
           >
             <option value={BLANK_EXAMPLE_ID}>Blank: write your own prompt</option>
             {EXAMPLE_GROUPS.map((group) => (
@@ -46,71 +49,104 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
           </select>
         </label>
 
-        <nav aria-label="Examples" className="hidden space-y-5 text-sm lg:block">
+        <nav aria-label="Examples" className="hidden space-y-6 text-sm lg:block">
+          <div className="px-2">
+            <div className="mb-2 flex items-baseline justify-between">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">Your progress</p>
+              <p className="text-xs tabular-nums text-muted">
+                {doneCount}/{EXAMPLES.length}
+              </p>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
+              <div className="h-full rounded-full bg-ok transition-[width]" style={{ width: `${(doneCount / EXAMPLES.length) * 100}%` }} />
+            </div>
+          </div>
+
           <button
             onClick={() => select(BLANK_EXAMPLE_ID)}
             aria-current={selectedId === BLANK_EXAMPLE_ID ? "true" : undefined}
-            className={`w-full rounded-md border border-dashed px-3 py-2 text-left ${
-              selectedId === BLANK_EXAMPLE_ID ? "border-accent bg-accent-soft text-accent" : "border-line hover:bg-surface-2"
+            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+              selectedId === BLANK_EXAMPLE_ID ? "border-accent bg-accent-soft" : "border-line bg-surface hover:bg-surface-2"
             }`}
           >
-            <span className="font-medium">＋ Blank</span>
-            <span className="block text-xs text-muted">Write your own prompt</span>
+            <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-md bg-accent text-base leading-none text-white">
+              +
+            </span>
+            <span className="min-w-0">
+              <span className={`block font-medium ${selectedId === BLANK_EXAMPLE_ID ? "text-accent" : ""}`}>Blank</span>
+              <span className="block text-xs text-muted">Write your own prompt</span>
+            </span>
           </button>
-          {EXAMPLE_GROUPS.map((group) => (
-            <div key={group}>
-              <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted">{group}</p>
-              <ul className="space-y-0.5">
-                {EXAMPLES.filter((e) => e.group === group).map((e) => {
-                  const active = e.id === selectedId;
-                  return (
-                    <li key={e.id}>
-                      <button
-                        onClick={() => select(e.id)}
-                        aria-current={active ? "true" : undefined}
-                        title={e.blurb}
-                        className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left ${
-                          active ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
-                        }`}
-                      >
-                        <span className="min-w-0 flex-1">{e.title}</span>
-                        {tried.has(e.id) && (
-                          <span className="text-xs leading-5 text-ok" aria-label="tried">
-                            ✓
+
+          {EXAMPLE_GROUPS.map((group) => {
+            const items = EXAMPLES.filter((e) => e.group === group);
+            const done = items.filter((e) => tried.has(e.id)).length;
+            return (
+              <div key={group}>
+                <div className="mb-2 flex items-baseline justify-between px-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted">{group}</p>
+                  <p className={`text-xs tabular-nums ${done === items.length ? "text-ok" : "text-muted"}`}>
+                    {done}/{items.length}
+                  </p>
+                </div>
+                <ul className="space-y-0.5">
+                  {items.map((e) => {
+                    const active = e.id === selectedId;
+                    const isDone = tried.has(e.id);
+                    return (
+                      <li key={e.id}>
+                        <button
+                          onClick={() => select(e.id)}
+                          aria-current={active ? "true" : undefined}
+                          title={e.blurb}
+                          className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+                            active ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
+                          }`}
+                        >
+                          <span
+                            aria-label={isDone ? "tried" : undefined}
+                            className={`grid size-4 shrink-0 place-items-center rounded-full border text-[10px] leading-none ${
+                              isDone ? "border-ok bg-ok text-white" : active ? "border-accent" : "border-line"
+                            }`}
+                          >
+                            {isDone ? "✓" : ""}
                           </span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+                          <span className="min-w-0 flex-1">{e.title}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
         </nav>
       </aside>
 
-      <main className="min-w-0">
-        <header className="mb-4">
+      <main className="min-w-0 space-y-6">
+        <header className="space-y-2">
           {example ? (
             <>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted">{example.group}</p>
-              <h1 className="text-2xl font-semibold tracking-tight">{example.title}</h1>
-              <p className="text-muted">{example.blurb}</p>
-              <details className="mt-2 text-sm">
-                <summary className="cursor-pointer text-muted hover:text-ink">What to notice</summary>
-                <Markdownish blocks={[example.notice.map((n) => `- ${n}`).join("\n")]} className="mt-1" />
-              </details>
+              <p className="text-xs font-medium uppercase tracking-wide text-accent">{example.group}</p>
+              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{example.title}</h1>
+              <p className="max-w-2xl text-muted">{example.blurb}</p>
             </>
           ) : (
             <>
-              <h1 className="text-2xl font-semibold tracking-tight">Claude Code Playground</h1>
+              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">What should Claude build?</h1>
               <p className="max-w-2xl text-muted">
                 Ask Claude to build or change something in your workspace, then keep the conversation going with follow-ups. Change the
-                tools, permissions and MCP servers to see what happens, or pick an example on the left.
+                tools, permissions and MCP servers to see what happens, or pick an example.
               </p>
             </>
           )}
         </header>
+        {example && (
+          <aside aria-label="What to notice" className="rounded-xl border border-line bg-surface-2/60 px-4 py-3 text-sm">
+            <p className="mb-1 font-medium">What to notice</p>
+            <Markdownish blocks={[example.notice.map((n) => `- ${n}`).join("\n")]} className="text-ink/85" />
+          </aside>
+        )}
         <Runner
           key={selectedId}
           exampleId={example?.id}

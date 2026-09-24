@@ -177,54 +177,80 @@ export function Runner({
   const mismatch = needed && workspace && workspace.template !== needed.id;
 
   const mcpCount = effective.mcpServers.length + (config.demoMcp ? 1 : 0);
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "settings", label: "⚙ Settings" },
-    { id: "mcp", label: `⌁ MCP servers${mcpCount ? ` (${mcpCount})` : ""}` },
-    { id: "code", label: "</> Code" },
+  const tabs: { id: Tab; label: string; hint: string }[] = [
+    { id: "settings", label: "Settings", hint: `${config.permissionMode} · ${config.tools.length} tools` },
+    { id: "mcp", label: "MCP", hint: mcpCount ? `${mcpCount} server${mcpCount === 1 ? "" : "s"}` : "none" },
+    { id: "code", label: "Code", hint: "SDK call" },
   ];
+  const TAB_TITLE: Record<Tab, string> = { settings: "Run settings", mcp: "MCP servers", code: "The same run in code" };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <SetupBanner />
-      {turns.length > 0 && (
-        <section aria-label="Conversation" className="space-y-6">
-          {turns.map((turn, i) => {
-            const last = i === turns.length - 1;
-            return (
-              <div key={i}>
-                <div className="mb-2 flex justify-end">
-                  <p className="max-w-[85%] rounded-2xl rounded-br-sm bg-accent px-4 py-2 whitespace-pre-wrap text-white">{turn.prompt}</p>
-                </div>
-                <Timeline followUp={i > 0} events={turn.events} showRaw={showRaw} running={running && last} answered={answered} onDecide={decide} />
-                {running && last && (
-                  <p className="mt-2 flex items-center gap-2 text-sm text-muted">
-                    <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden />
-                    {turn.events.length <= 1 ? "Starting Claude Code… the first run can take a few seconds." : "Working…"}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </section>
-      )}
       {mismatch && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-info/30 bg-info-soft p-3 text-sm">
-          <p className="mr-auto">
-            This example uses the <strong>{needed.title}</strong> starter, but your workspace has{" "}
-            <strong>{findTemplate(workspace.template)?.title}</strong>.
-          </p>
+        <div className="flex flex-col gap-3 rounded-xl border border-info/30 bg-info-soft p-4 text-sm sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1 space-y-1">
+            <p>
+              This example uses the <strong>{needed.title}</strong> starter, but your workspace has{" "}
+              <strong>{findTemplate(workspace.template)?.title}</strong>.
+            </p>
+            <p className="text-xs text-muted">Your current files are kept and come back when you switch back.</p>
+          </div>
           <button
             onClick={() => switchTemplate(needed.id)}
             disabled={workspaceBusy || running}
-            className="rounded-md bg-info px-3 py-1.5 font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="h-9 shrink-0 rounded-lg bg-info px-4 font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {workspaceBusy ? "Switching…" : `Switch to ${needed.title}`}
           </button>
-          <span className="w-full text-xs text-muted">Your current files are kept and come back when you switch back.</span>
         </div>
       )}
-      <section className="rounded-xl border border-line bg-surface p-4 shadow-sm">
-        <label htmlFor="prompt" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted">
+      {turns.length > 0 && (
+        <section aria-label="Conversation" className="space-y-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line pb-3">
+            <h2 className="mr-auto text-sm font-medium">
+              Conversation <span className="font-normal text-muted">· {turns.length} {turns.length === 1 ? "turn" : "turns"}</span>
+            </h2>
+            <label className="flex h-8 cursor-pointer items-center gap-2 text-sm text-muted hover:text-ink">
+              <input type="checkbox" checked={showRaw} onChange={(e) => setShowRaw(e.target.checked)} className="accent-[var(--accent)]" />
+              Show raw messages
+            </label>
+            {!running && (
+              <button
+                onClick={() => newConversation("")}
+                title="Forget this conversation and start over (your files stay as they are)"
+                className="h-8 rounded-lg border border-line bg-surface px-3 text-sm hover:bg-surface-2"
+              >
+                ＋ New conversation
+              </button>
+            )}
+          </div>
+          <div className="space-y-8">
+            {turns.map((turn, i) => {
+              const last = i === turns.length - 1;
+              return (
+                <div key={i} className="space-y-3">
+                  <div className="flex justify-end">
+                    <p className="max-w-[85%] rounded-2xl rounded-br-md bg-accent px-4 py-2.5 whitespace-pre-wrap text-white">{turn.prompt}</p>
+                  </div>
+                  <Timeline followUp={i > 0} events={turn.events} showRaw={showRaw} running={running && last} answered={answered} onDecide={decide} />
+                  {running && last && (
+                    <p className="flex items-center gap-2 text-sm text-muted">
+                      <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden />
+                      {turn.events.length <= 1 ? "Starting Claude Code… the first run can take a few seconds." : "Working…"}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      <section
+        aria-label="Composer"
+        className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm transition-shadow focus-within:border-accent/50 focus-within:shadow-md"
+      >
+        <label htmlFor="prompt" className="sr-only">
           Prompt
         </label>
         <textarea
@@ -238,71 +264,81 @@ export function Runner({
           rows={3}
           disabled={running}
           placeholder={sessionId ? "Ask a follow-up… Claude remembers this conversation." : "Ask Claude to do something in your workspace…"}
-          className="field-sizing-content max-h-80 min-h-24 w-full resize-y rounded-md border border-line bg-bg px-3 py-2 leading-relaxed disabled:opacity-60"
+          className="field-sizing-content block max-h-80 min-h-28 w-full resize-none bg-transparent px-4 pt-4 pb-2 leading-relaxed placeholder:text-muted/80 focus:outline-none focus-visible:outline-none disabled:opacity-60"
         />
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {running ? (
-            <button
-              onClick={() => abortRef.current?.abort()}
-              className="rounded-md bg-danger px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-            >
-              Stop
-            </button>
-          ) : (
-            <button
-              onClick={run}
-              disabled={!config.prompt.trim()}
-              title="Ctrl/⌘ + Enter"
-              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
-              {sessionId ? "▶ Send follow-up" : "▶ Run"}
-            </button>
-          )}
-          {turns.length > 0 && !running && (
-            <button
-              onClick={() => newConversation("")}
-              title="Forget this conversation and start over (your files stay as they are)"
-              className="rounded-md border border-line px-3 py-2 text-sm hover:bg-surface-2"
-            >
-              ＋ New conversation
-            </button>
-          )}
-          <div role="tablist" aria-label="Run options" className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-2 px-3 pt-1 pb-3">
+          <div role="tablist" aria-label="Run options" className="flex min-w-0 flex-wrap items-center gap-1.5">
             {tabs.map((t) => (
               <button
                 key={t.id}
                 role="tab"
                 aria-selected={tab === t.id}
+                aria-controls="run-options-panel"
                 onClick={() => setTab((cur) => (cur === t.id ? null : t.id))}
-                className={`rounded-md border px-3 py-2 text-sm ${
-                  tab === t.id ? "border-accent bg-accent-soft text-accent" : "border-line hover:bg-surface-2"
+                className={`flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors ${
+                  tab === t.id ? "border-accent bg-accent-soft text-accent" : "border-line text-ink/85 hover:bg-surface-2"
                 }`}
               >
-                {t.label}
+                <span className="font-medium">{t.label}</span>
+                <span className={`hidden text-xs sm:inline ${tab === t.id ? "text-accent/80" : "text-muted"}`}>{t.hint}</span>
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setConfig({ ...initial, prompt: config.prompt })}
-            disabled={running}
-            className="rounded-md px-3 py-2 text-sm text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-50"
-          >
-            Reset settings
-          </button>
-          <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-muted">
-            <input type="checkbox" checked={showRaw} onChange={(e) => setShowRaw(e.target.checked)} className="accent-[var(--accent)]" />
-            Show raw messages
-          </label>
+          <div className="ml-auto flex items-center gap-3">
+            <kbd className="hidden font-sans text-xs text-muted md:inline">⌘/Ctrl + Enter</kbd>
+            {running ? (
+              <button
+                onClick={() => abortRef.current?.abort()}
+                className="h-9 rounded-lg bg-danger px-4 text-sm font-medium text-white hover:opacity-90"
+              >
+                ■ Stop
+              </button>
+            ) : (
+              <button
+                onClick={run}
+                disabled={!config.prompt.trim()}
+                title="Ctrl/⌘ + Enter"
+                aria-label={sessionId ? "▶ Send follow-up" : "▶ Run"}
+                className="h-9 rounded-lg bg-accent px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+              >
+                {sessionId ? (
+                  <>
+                    ▶ Send<span className="hidden sm:inline"> follow-up</span>
+                  </>
+                ) : (
+                  "▶ Run"
+                )}
+              </button>
+            )}
+          </div>
         </div>
         {tab && (
-          <div role="tabpanel" className="mt-4 border-t border-line pt-4">
+          <div id="run-options-panel" role="tabpanel" aria-label={TAB_TITLE[tab]} className="border-t border-line bg-bg/40 p-4 sm:p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <h3 className="mr-auto text-sm font-medium">{TAB_TITLE[tab]}</h3>
+              {tab === "settings" && (
+                <button
+                  onClick={() => setConfig({ ...initial, prompt: config.prompt })}
+                  disabled={running}
+                  className="h-8 rounded-lg px-3 text-sm text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-50"
+                >
+                  Reset settings
+                </button>
+              )}
+              <button
+                onClick={() => setTab(null)}
+                aria-label="Close panel"
+                className="grid size-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink"
+              >
+                ✕
+              </button>
+            </div>
             {tab === "settings" && <SettingsPanel config={config} onChange={setConfig} disabled={running} />}
             {tab === "mcp" && <McpPanel config={effective} onChange={setConfig} onServersChange={rememberServers} disabled={running} />}
             {tab === "code" && <CodePreview config={effective} sessionId={sessionId} />}
           </div>
         )}
       </section>
-
 
       <WorkspacePanel
         workspace={workspace}

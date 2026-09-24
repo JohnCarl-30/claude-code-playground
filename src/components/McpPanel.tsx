@@ -5,7 +5,7 @@ import { MCP_PRESETS, type CustomMcpServer, type RunConfig } from "@/lib/run-typ
 
 type TestResult = { name: string; status: string; error?: string; tools: { name: string; description?: string }[] };
 
-const input = "w-full rounded-md border border-line bg-surface px-2 py-1.5 font-mono text-[13px]";
+const input = "h-9 w-full rounded-lg border border-line bg-surface px-2 font-mono text-[13px]";
 const label = "mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted";
 
 /** Split a command line on spaces, keeping "quoted parts" together. */
@@ -92,8 +92,8 @@ export function McpPanel({
   }
 
   return (
-    <fieldset disabled={disabled} className="space-y-5 text-sm disabled:opacity-60">
-      <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-line bg-surface px-3 py-2">
+    <fieldset disabled={disabled} className="space-y-6 text-sm disabled:opacity-60">
+      <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-line bg-surface px-3 py-2.5">
         <input
           type="checkbox"
           className="mt-0.5 accent-[var(--accent)]"
@@ -115,7 +115,7 @@ export function McpPanel({
             {servers.map((s) => {
               const result = results?.find((r) => r.name === s.name);
               return (
-                <li key={s.name} className="rounded-md border border-line bg-surface px-3 py-2">
+                <li key={s.name} className="rounded-lg border border-line bg-surface px-3 py-2">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-medium">{s.name}</span>
                     <span className="rounded bg-surface-2 px-1.5 text-[11px] uppercase text-muted">{s.type}</span>
@@ -131,7 +131,7 @@ export function McpPanel({
                     <button
                       type="button"
                       onClick={() => setServers(servers.filter((x) => x.name !== s.name))}
-                      className="ml-auto rounded px-2 text-muted hover:bg-surface-2 hover:text-danger"
+                      className="ml-auto h-8 rounded-md px-2 text-muted hover:bg-surface-2 hover:text-danger"
                       aria-label={`Remove ${s.name}`}
                     >
                       Remove
@@ -163,7 +163,7 @@ export function McpPanel({
               type="button"
               onClick={test}
               disabled={testing}
-              className="rounded-md border border-line px-3 py-1.5 font-medium hover:bg-surface-2 disabled:opacity-50"
+              className="h-9 rounded-lg border border-line px-3 font-medium hover:bg-surface-2 disabled:opacity-50"
             >
               {testing ? "Connecting…" : "Test connection"}
             </button>
@@ -184,7 +184,7 @@ export function McpPanel({
                 type="button"
                 onClick={() => add(p.server)}
                 disabled={added}
-                className="rounded-md border border-line bg-surface px-3 py-2 text-left hover:bg-surface-2 disabled:cursor-default disabled:opacity-60"
+                className="rounded-lg border border-line bg-surface px-3 py-2.5 text-left hover:bg-surface-2 disabled:cursor-default disabled:opacity-60"
               >
                 <span className="flex items-center justify-between font-medium">
                   {p.title}
@@ -203,7 +203,7 @@ export function McpPanel({
           {(["stdio", "http"] as const).map((t) => (
             <label
               key={t}
-              className={`cursor-pointer rounded-full border px-3 py-1 text-[13px] ${
+              className={`flex h-8 cursor-pointer items-center rounded-full border px-3 text-[13px] ${
                 type === t ? "border-accent bg-accent-soft text-accent" : "border-line bg-surface text-muted"
               }`}
             >
@@ -221,12 +221,12 @@ export function McpPanel({
             aria-label={type === "stdio" ? "Command" : "URL"}
             className={input}
           />
-          <button type="submit" className="rounded-md bg-accent px-3 py-1.5 font-medium text-white hover:opacity-90">
+          <button type="submit" className="h-9 rounded-lg bg-accent px-4 font-medium text-white hover:opacity-90">
             Add
           </button>
         </div>
         {formError && <p className="mt-1 text-xs text-danger">{formError}</p>}
-        <p className="mt-2 rounded-md bg-warn-soft px-3 py-2 text-xs text-warn">
+        <p className="mt-3 rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">
           A stdio server is a program that runs on your computer, so only add servers you trust. Tools from servers you add ask for
           your Allow before each call (or choose Always allow).
         </p>
