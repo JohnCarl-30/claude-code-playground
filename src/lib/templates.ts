@@ -25,7 +25,7 @@ export type TemplateInfo = {
   mcpServer?: boolean;
 };
 
-const CLAUDE_API_FILES = ["ask", "tools", "extract", "faq", "batch", "errors", "stream", "workflow"];
+const CLAUDE_API_FILES = ["ask", "tools", "extract", "faq", "batch", "errors", "stream", "workflow", "route", "think", "budget", "cost"];
 
 export const API_PORT = 4100;
 

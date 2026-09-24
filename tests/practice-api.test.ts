@@ -131,6 +131,38 @@ describe("practice API with the real SDK", () => {
     expect(results.b).toContain("second");
   });
 
+  it("knows which models support which settings, like the real API", async () => {
+    const ask = (extra: Record<string, unknown>) => client.messages.create({ ...base, max_tokens: 8000, messages: [{ role: "user", content: "hi" }], ...extra } as never);
+    await expect(ask({ model: "claude-3-haiku" })).rejects.toBeInstanceOf(Anthropic.NotFoundError);
+    await expect(ask({ output_config: { effort: "low" } })).rejects.toThrow(/claude-haiku-4-5 doesn't support the effort parameter/);
+    await expect(ask({ thinking: { type: "adaptive" } })).rejects.toThrow(/adaptive\\?" isn't supported on claude-haiku-4-5/);
+    await expect(ask({ model: "claude-sonnet-5", thinking: { type: "enabled", budget_tokens: 2000 } })).rejects.toThrow(/enabled\\?" isn't supported on claude-sonnet-5/);
+    await expect(ask({ thinking: { type: "enabled", budget_tokens: 9000 } })).rejects.toThrow(/less than max_tokens/);
+    await expect(ask({ model: "claude-sonnet-5", output_config: { effort: "extreme" } })).rejects.toThrow(/must be one of/);
+    // Allowed: extended thinking on Haiku 4.5; effort and adaptive thinking on Sonnet 5.
+    await expect(ask({ thinking: { type: "enabled", budget_tokens: 2000 } })).resolves.toMatchObject({ content: [{ type: "thinking" }, { type: "text" }] });
+    const deep = await ask({ model: "claude-sonnet-5", output_config: { effort: "high" }, thinking: { type: "adaptive", display: "summarized" } });
+    expect(deep.content[0]).toMatchObject({ type: "thinking", thinking: expect.stringContaining("summary") });
+  });
+
+  it("streams thinking blocks", async () => {
+    const stream = client.messages.stream({
+      ...base,
+      model: "claude-sonnet-5",
+      thinking: { type: "adaptive", display: "summarized" },
+      messages: [{ role: "user", content: "Think it over" }],
+    });
+    const final = await stream.finalMessage();
+    expect(final.content[0]).toMatchObject({ type: "thinking", thinking: expect.stringContaining("summary"), signature: "practice-signature" });
+    expect(final.content[1]).toMatchObject({ type: "text" });
+  });
+
+  it("counts tokens, and checks the model there too", async () => {
+    const counted = await client.messages.countTokens({ model: "claude-haiku-4-5", messages: [{ role: "user", content: "Count me" }] });
+    expect(counted.input_tokens).toBeGreaterThan(0);
+    await expect(client.messages.countTokens({ model: "haiku", messages: [{ role: "user", content: "x" }] })).rejects.toBeInstanceOf(Anthropic.NotFoundError);
+  });
+
   it("answers unknown endpoints with a 404 not_found_error", async () => {
     await expect(client.models.retrieve("claude-haiku-4-5")).rejects.toBeInstanceOf(Anthropic.NotFoundError);
   });
@@ -162,7 +194,7 @@ describe("the claude-api starter's run.mjs", () => {
   const temp = createTempPlaygroundRoot();
   afterAll(() => temp.cleanup());
 
-  it.each(["ask", "tools", "extract", "faq", "batch", "errors", "stream", "workflow"])(
+  it.each(["ask", "tools", "extract", "faq", "batch", "errors", "stream", "workflow", "route", "think", "budget", "cost"])(
     "runs %s.mjs (reference solution) against the practice API",
     async (name) => {
       const dir = path.join(temp.root, "claude-api");

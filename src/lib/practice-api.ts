@@ -80,6 +80,10 @@ export function sseFor(msg: Json, chunks = 4) {
       for (let i = 0; i < text.length; i += size) {
         events.push(["content_block_delta", { type: "content_block_delta", index, delta: { type: "text_delta", text: text.slice(i, i + size) } }]);
       }
+    } else if (block.type === "thinking") {
+      events.push(["content_block_start", { type: "content_block_start", index, content_block: { type: "thinking", thinking: "", signature: "" } }]);
+      if (block.thinking) events.push(["content_block_delta", { type: "content_block_delta", index, delta: { type: "thinking_delta", thinking: block.thinking } }]);
+      events.push(["content_block_delta", { type: "content_block_delta", index, delta: { type: "signature_delta", signature: block.signature } }]);
     } else if (block.type === "tool_use") {
       events.push(["content_block_start", { type: "content_block_start", index, content_block: { ...block, input: {} } }]);
       events.push([
@@ -216,6 +220,54 @@ function lastUserText(messages: Json[]) {
 
 const hasCacheControl = (body: Json) => "cache_control" in body || JSON.stringify([body.system, body.tools, body.messages]).includes('"cache_control"');
 
+// Which models accept which thinking and effort settings, from the per-model tables in
+// https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting and /effort.
+const MODEL_ID = /^claude-(fable|mythos|opus|sonnet|haiku)-[a-z0-9.-]+$/;
+const EFFORT_MODELS = /^claude-(fable-5|mythos-(5|preview)|opus-(5|4-[5-8])|sonnet-(5|4-6))/;
+const ADAPTIVE_MODELS = /^claude-(fable|mythos|opus-(5|4-[6-8])|sonnet-(5|4-6))/;
+const BUDGET_REJECTED = /^claude-(fable|mythos-5|opus-(5|4-[78])|sonnet-5)/;
+const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
+
+/** Looks like a Claude model ID the API would recognize (the practice API answers anything else with a 404). */
+export const isModelId = (id: string) => MODEL_ID.test(id);
+
+/** What the API says about the model and its thinking/effort settings, if it would reject them. */
+export function modelProblem(body: Json): MockReply | null {
+  const model = String(body.model);
+  if (!MODEL_ID.test(model)) return apiError(404, "not_found_error", `model: ${model}`);
+  const effort = isObj(body.output_config) ? body.output_config.effort : undefined;
+  if (effort !== undefined) {
+    if (!EFFORT_LEVELS.includes(String(effort))) return apiError(400, "invalid_request_error", `output_config.effort: must be one of ${EFFORT_LEVELS.join(", ")}`);
+    if (!EFFORT_MODELS.test(model)) return apiError(400, "invalid_request_error", `output_config.effort: ${model} doesn't support the effort parameter`);
+  }
+  const thinking = isObj(body.thinking) ? body.thinking : null;
+  if (thinking?.type === "adaptive" && !ADAPTIVE_MODELS.test(model)) {
+    return apiError(400, "invalid_request_error", `thinking.type: "adaptive" isn't supported on ${model}. It supports extended thinking: { type: "enabled", budget_tokens }.`);
+  }
+  if (thinking?.type === "enabled") {
+    if (BUDGET_REJECTED.test(model)) {
+      return apiError(400, "invalid_request_error", `thinking.type: "enabled" isn't supported on ${model}. Use { type: "adaptive" } and set depth with output_config.effort.`);
+    }
+    const budget = Number(thinking.budget_tokens);
+    if (!Number.isFinite(budget) || budget < 1024) return apiError(400, "invalid_request_error", "thinking.budget_tokens: must be at least 1024");
+    if (typeof body.max_tokens === "number" && budget >= body.max_tokens) {
+      return apiError(400, "invalid_request_error", "thinking.budget_tokens: must be less than max_tokens");
+    }
+  }
+  return null;
+}
+
+/** The API's answer to a request it would reject (bad shape, unknown model, unsupported settings), or null. */
+export function rejectRequest(body: Json | null, { counting = false } = {}): MockReply | null {
+  const invalid = counting
+    ? !body || typeof body.model !== "string" || !Array.isArray(body.messages)
+      ? "Send a JSON body with model and messages."
+      : toolPairingError(body.messages as Json[])
+    : invalidMessagesRequest(body);
+  if (invalid) return apiError(400, "invalid_request_error", invalid);
+  return modelProblem(body!);
+}
+
 /** Checks every Messages API request body the way the real API would reject it. */
 export function invalidMessagesRequest(body: Json | null): string | null {
   if (!body) return "Send a JSON body with model, max_tokens and messages.";
@@ -261,6 +313,16 @@ export function toolPairingError(messages: Json[]): string | null {
     }
   }
   return null;
+}
+
+export const thinkingBlock = (thinking: string): Json => ({ type: "thinking", thinking, signature: "practice-signature" });
+
+/** A thinking block when the request asks to see thinking (summarized display, or extended thinking). */
+function thinkingFor(body: Json): Json[] {
+  const thinking = isObj(body.thinking) ? body.thinking : null;
+  if (!thinking || thinking.type === "disabled") return [];
+  const visible = thinking.display === "summarized" || (thinking.type === "enabled" && thinking.display !== "omitted");
+  return [thinkingBlock(visible ? "(practice API) A summary of Claude's reasoning would appear here." : "")];
 }
 
 /** Answers like a very predictable Claude. One per practice server, so caching looks real across runs. */
@@ -315,7 +377,7 @@ export function practiceResponder(): Responder {
     }
     const asked = lastUserText(messages).replace(/\s+/g, " ").trim();
     const text = `(practice API) This is a canned reply, not Claude. You asked: "${asked.length > 120 ? asked.slice(0, 117) + "…" : asked}"`;
-    return message([textBlock(text)], "end_turn", { ...usage, output_tokens: approxTokens(text) }, model);
+    return message([...thinkingFor(body), textBlock(text)], "end_turn", { ...usage, output_tokens: approxTokens(text) }, model);
   }
 
   function batchObject(id: string, url: string) {
@@ -339,13 +401,15 @@ export function practiceResponder(): Responder {
   return (req, { url }) => {
     const { method, path, body } = req;
     if (method === "POST" && path === "/v1/messages") {
-      const invalid = invalidMessagesRequest(body);
-      if (invalid) return apiError(400, "invalid_request_error", invalid);
+      const rejected = rejectRequest(body);
+      if (rejected) return rejected;
       const msg = reply(body!);
       return body!.stream === true ? { sse: sseFor(msg) } : { json: msg };
     }
     if (method === "POST" && path === "/v1/messages/count_tokens") {
-      return { json: { input_tokens: approxTokens([body?.system, body?.tools, body?.messages]) } };
+      const rejected = rejectRequest(body, { counting: true });
+      if (rejected) return rejected;
+      return { json: { input_tokens: approxTokens([body!.system, body!.tools, body!.messages]) } };
     }
     if (method === "POST" && path === "/v1/messages/batches") {
       const requests = Array.isArray(body?.requests) ? (body.requests as Json[]) : [];
@@ -354,6 +418,8 @@ export function practiceResponder(): Responder {
         if (typeof r.custom_id !== "string") return apiError(400, "invalid_request_error", "requests: every request needs a custom_id");
         const invalid = invalidMessagesRequest(isObj(r.params) ? r.params : null);
         if (invalid) return apiError(400, "invalid_request_error", `requests.${r.custom_id}.params: ${invalid}`);
+        const problem = modelProblem(r.params as Json);
+        if (problem) return problem;
       }
       const id = `msgbatch_practice_${batches.size + 1}`;
       batches.set(id, { requests, polls: -1, created: new Date().toISOString() });

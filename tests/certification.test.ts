@@ -71,6 +71,23 @@ describe("quizzes", () => {
     expect(q.explain.length).toBeGreaterThan(20);
   });
 
+  // A known flaw of AI-drafted practice exams: the right answer is often the longest one,
+  // so "pick the longest" passes. Keep answer length from giving the answer away (random is 25%).
+  it("doesn't give answers away by their length", () => {
+    const singles = all.filter(({ q }) => q.answer.length === 1).map(({ q }) => ({ q, lens: q.options.map((o) => o.length) }));
+    const longest = singles.filter(({ q, lens }) => lens[q.answer[0]] === Math.max(...lens)).length;
+    const shortest = singles.filter(({ q, lens }) => lens[q.answer[0]] === Math.min(...lens)).length;
+    expect(longest / singles.length).toBeLessThanOrEqual(0.35);
+    expect(shortest / singles.length).toBeLessThanOrEqual(0.35);
+    // "Choose 2": the right pair shouldn't just be the two longest options.
+    const multis = all.filter(({ q }) => q.answer.length > 1);
+    const topN = multis.filter(({ q }) => {
+      const byLength = q.options.map((o, i) => [o.length, i]).sort((a, b) => b[0] - a[0]).slice(0, q.answer.length).map(([, i]) => i);
+      return q.answer.every((i) => byLength.includes(i));
+    }).length;
+    expect(topN / multis.length).toBeLessThanOrEqual(0.4);
+  });
+
   it("uses unique question ids", () => {
     const ids = all.map(({ q }) => q.id);
     expect(new Set(ids).size).toBe(ids.length);

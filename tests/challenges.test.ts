@@ -36,6 +36,10 @@ const SOLUTION: Record<string, string> = {
   "api-errors": "claude-api",
   "api-streaming": "claude-api",
   "api-workflow": "claude-api",
+  "api-model-routing": "claude-api",
+  "api-thinking": "claude-api",
+  "api-token-budget": "claude-api",
+  "api-cost": "claude-api",
 };
 
 async function freshStarter(template: string) {

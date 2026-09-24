@@ -16,6 +16,19 @@ const demos = {
   errors: async (m) => m.safeAsk("Say hello."),
   stream: async (m) => m.streamAnswer("Explain streaming in one sentence.", (chunk) => process.stdout.write(`[${chunk}]`)),
   workflow: async (m) => m.summarizeThenTranslate("The Message Batches API processes large jobs asynchronously at half the price.", "French"),
+  route: async (m) => ({
+    models: Object.fromEntries(Object.keys(m.TASKS).map((id) => [id, m.chooseModel(id)])),
+    answer: await m.runTask("tag-ticket", "I was charged twice for order 1042."),
+  }),
+  think: async (m) => ({ quick: await m.solve("What is 17 × 3?", "quick"), deep: await m.solve("Should a small shop use batches or streaming for nightly reports?", "deep") }),
+  budget: async (m) => {
+    const doc = "Tiny Shop's returns policy: unused items can be returned within 30 days. ".repeat(40);
+    return { withinBudget: await m.askWithinBudget(doc, "How long do I have to return a mug?", 5000), tooBig: await m.askWithinBudget(doc, "How long?", 50) };
+  },
+  cost: async (m) => ({
+    example: m.costOf({ input_tokens: 1200, output_tokens: 300, cache_read_input_tokens: 20000 }, "claude-haiku-4-5"),
+    live: await m.askWithCost("In one sentence, what is prompt caching?"),
+  }),
 };
 
 const name = process.argv[2];

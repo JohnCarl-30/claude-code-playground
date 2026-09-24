@@ -7,10 +7,14 @@ import {
   invalidMessagesRequest,
   message,
   mockApiEnv,
+  modelProblem,
+  rejectRequest,
   sseFor,
   startMockApi,
   textBlock,
+  thinkingBlock,
   toolUseBlock,
+  isModelId,
   type MockApi,
   type MockReply,
   type RecordedRequest,
@@ -25,30 +29,44 @@ type Json = Record<string, unknown>;
 type Scenario = (req: RecordedRequest, call: number) => MockReply;
 type CallResult = { value?: unknown; thrown?: string; chunks?: string[]; crash?: string; missing?: string };
 
-// Imports one workspace file, calls one exported function and prints the outcome on a marked line.
+// Imports one workspace file, calls exported functions one after another, and prints the outcomes on a marked line.
 const HARNESS = `
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-const call = JSON.parse(process.env.PLAYGROUND_CALL);
-const out = (r) => { process.stdout.write("\\n@@PLAYGROUND_RESULT@@" + JSON.stringify(r) + "\\n", () => process.exit(0)); };
+const { file, calls } = JSON.parse(process.env.PLAYGROUND_CALL);
 let mod;
-try { mod = await import(pathToFileURL(path.resolve(call.file)).href); }
+try { mod = await import(pathToFileURL(path.resolve(file)).href); }
 catch (e) { process.stderr.write(String(e?.stack ?? e)); process.exit(1); }
-if (typeof mod[call.name] !== "function") out({ missing: call.file + " doesn't export a function called " + call.name + "." });
-else {
+const results = [];
+for (const call of calls) {
+  if (call.read) { results.push(call.name in mod ? { value: mod[call.name] } : { missing: file + " doesn't export " + call.name + "." }); continue; }
+  if (typeof mod[call.name] !== "function") { results.push({ missing: file + " doesn't export a function called " + call.name + "." }); continue; }
   const chunks = [];
   const args = call.args.map((a, i) => (i === call.collectAt ? (t) => chunks.push(String(t)) : a));
-  try { const value = await mod[call.name](...args); out({ value: value === undefined ? null : value, chunks }); }
-  catch (e) { out({ thrown: String(e?.message ?? e), chunks }); }
+  try { const value = await mod[call.name](...args); results.push({ value: value === undefined ? null : value, chunks }); }
+  catch (e) { results.push({ thrown: String(e?.message ?? e), chunks }); }
 }
+process.stdout.write("\\n@@PLAYGROUND_RESULT@@" + JSON.stringify(results) + "\\n", () => process.exit(0));
 `;
 
-/** Run `name(...args)` from a workspace file, with the SDK pointed at `api`. */
-function callExport(file: string, name: string, args: unknown[], api: MockApi, opts: { collectAt?: number; env?: Record<string, string> } = {}) {
-  return new Promise<CallResult>((resolve) => {
+/** Call an exported function, or with `read`, just read an exported value. */
+type Call = { name: string; args: unknown[]; collectAt?: number; read?: boolean };
+
+/** Run several exported functions from one workspace file, in order, with the SDK pointed at `api`. */
+async function callExports(file: string, calls: Call[], api: MockApi, opts: { env?: Record<string, string> } = {}): Promise<CallResult[]> {
+  if ((await readText(file)) === null) {
+    // Workspaces created before a challenge existed don't have its file.
+    const missing = `${file} is missing. Create it (Claude can), or Reset the workspace to get the latest starter files (Reset discards your changes).`;
+    return calls.map(() => ({ missing }));
+  }
+  const results = await new Promise<CallResult[] | CallResult>((resolve) => {
     const child = spawn(process.execPath, ["--input-type=module", "-e", HARNESS], {
       cwd: WORKSPACE_DIR,
-      env: childEnv({ ...mockApiEnv(api.url), ...opts.env, PLAYGROUND_CALL: JSON.stringify({ file, name, args, collectAt: opts.collectAt ?? -1 }) }),
+      env: childEnv({
+        ...mockApiEnv(api.url),
+        ...opts.env,
+        PLAYGROUND_CALL: JSON.stringify({ file, calls: calls.map((c) => ({ ...c, collectAt: c.collectAt ?? -1 })) }),
+      }),
     });
     let stdout = "";
     let stderr = "";
@@ -58,11 +76,18 @@ function callExport(file: string, name: string, args: unknown[], api: MockApi, o
     child.once("close", (code, signal) => {
       clearTimeout(timer);
       const marked = stdout.split("\n").find((l) => l.startsWith("@@PLAYGROUND_RESULT@@"));
-      if (marked) return resolve(JSON.parse(marked.slice("@@PLAYGROUND_RESULT@@".length)) as CallResult);
+      if (marked) return resolve(JSON.parse(marked.slice("@@PLAYGROUND_RESULT@@".length)) as CallResult[]);
       if (signal) return resolve({ crash: `${file} didn't finish within 20 seconds. Is it waiting forever?` });
       resolve({ crash: `${file} crashed${code === null ? "" : ` (exit code ${code})`}: ${crashSummary(stderr)}` });
     });
   });
+  return Array.isArray(results) ? results : calls.map(() => results);
+}
+
+/** Run `name(...args)` from a workspace file, with the SDK pointed at `api`. */
+async function callExport(file: string, name: string, args: unknown[], api: MockApi, opts: { collectAt?: number; env?: Record<string, string> } = {}) {
+  const [result] = await callExports(file, [{ name, args, collectAt: opts.collectAt }], api, { env: opts.env });
+  return result;
 }
 
 /** Start a mock API playing `scenario`, run `fn`, then stop it. Requests that the real API would reject get its 400. */
@@ -70,8 +95,12 @@ async function withScenario<T>(scenario: Scenario, fn: (api: MockApi) => Promise
   let calls = 0;
   const api = await startMockApi((req) => {
     if (req.method === "POST" && req.path === "/v1/messages") {
-      const invalid = invalidMessagesRequest(req.body);
-      if (invalid) return apiError(400, "invalid_request_error", invalid);
+      const rejected = rejectRequest(req.body);
+      if (rejected) return rejected;
+    }
+    if (req.method === "POST" && req.path === "/v1/messages/count_tokens") {
+      const rejected = rejectRequest(req.body, { counting: true });
+      if (rejected) return rejected;
     }
     return scenario(req, calls++);
   });
@@ -85,11 +114,22 @@ async function withScenario<T>(scenario: Scenario, fn: (api: MockApi) => Promise
 const body = (r: RecordedRequest) => r.body ?? {};
 const messageRequests = (api: MockApi) => api.requests.filter((r) => r.method === "POST" && r.path === "/v1/messages");
 
+/** The SDK's API errors read "400 {json body}"; show them as "400 invalid_request_error: message". */
+function readableError(message: string) {
+  const m = /^(\d{3}) (\{[\s\S]*\})$/.exec(message);
+  if (!m) return message;
+  try {
+    const body = JSON.parse(m[2]) as { error?: { type?: string; message?: string } };
+    if (body.error?.message) return `${m[1]} ${body.error.type}: ${body.error.message}`;
+  } catch {}
+  return message;
+}
+
 /** Why a call didn't produce a value, if it didn't. */
 function problem(r: CallResult): string | null {
   if (r.missing) return r.missing;
   if (r.crash) return r.crash;
-  if (r.thrown !== undefined) return `It threw: ${r.thrown}`;
+  if (r.thrown !== undefined) return `It threw: ${readableError(r.thrown)}`;
   return null;
 }
 
@@ -326,6 +366,8 @@ async function checkBatch(): Promise<Results> {
       for (const r of requests) {
         const invalid = invalidMessagesRequest(isObj(r.params) ? r.params : null);
         if (invalid) return apiError(400, "invalid_request_error", `requests.${String(r.custom_id)}.params: ${invalid}`);
+        const problem = modelProblem(r.params as Json);
+        if (problem) return problem;
       }
       return { json: batchObject(url, false) };
     }
@@ -518,7 +560,225 @@ async function checkWorkflow(): Promise<Results> {
   };
 }
 
+// ---------- Choosing a model ----------
+
+async function checkRouting(): Promise<Results> {
+  const R: Results = {};
+  const TASK_IDS = ["tag-ticket", "extract-order", "plan-migration", "review-design"];
+  const run = await withScenario(
+    () => ({ json: message([textBlock("done")], "end_turn") }),
+    async (api) => ({
+      picks: await callExports(
+        "route.mjs",
+        [...TASK_IDS.map((id) => ({ name: "chooseModel", args: [id] })), { name: "chooseModel", args: ["write-a-poem"] }],
+        api,
+      ),
+      runs: await callExports("route.mjs", [
+        { name: "runTask", args: ["tag-ticket", "RUN-INPUT-1: I was charged twice."] },
+        { name: "runTask", args: ["plan-migration", "RUN-INPUT-2: move users to a new table."] },
+      ], api),
+      requests: messageRequests(api),
+    }),
+  );
+  const picks = Object.fromEntries(TASK_IDS.map((id, i) => [id, run.picks[i]]));
+  const model = (id: string) => (typeof picks[id].value === "string" ? (picks[id].value as string) : null);
+  const firstProblem = TASK_IDS.map((id) => problem(picks[id])).find(Boolean);
+
+  const simple = ["tag-ticket", "extract-order"];
+  const complex = ["plan-migration", "review-design"];
+  R.simple = firstProblem
+    ? fail(firstProblem)
+    : simple.every((id) => /haiku/.test(model(id) ?? ""))
+      ? ok()
+      : fail(`Simple, high-volume tasks fit Haiku. Got: ${simple.map((id) => `${id} → ${model(id)}`).join(", ")}`);
+  R.complex = firstProblem
+    ? fail(firstProblem)
+    : complex.every((id) => /^claude-(sonnet|opus|fable)-/.test(model(id) ?? ""))
+      ? ok()
+      : fail(`Tasks that need reasoning fit Sonnet, Opus or Fable. Got: ${complex.map((id) => `${id} → ${model(id)}`).join(", ")}`);
+  const unknownIds = TASK_IDS.map(model).filter((m): m is string => !!m && !isModelId(m));
+  const rejected = run.runs.map(problem).find((p) => p && /not_found_error/.test(p));
+  R.valid = firstProblem
+    ? fail(firstProblem)
+    : unknownIds.length
+      ? fail(`The API doesn't know these model IDs: ${unknownIds.join(", ")}. See the models overview for current IDs.`)
+      : rejected
+        ? fail(rejected)
+        : ok();
+
+  const [a, b] = run.requests;
+  const sentFor = (req: RecordedRequest | undefined, input: string) => !!req && JSON.stringify(req.body?.messages ?? "").includes(input);
+  const whyRun = run.runs.map(problem).find(Boolean);
+  R.used =
+    a && b && a.body?.model === model("tag-ticket") && b.body?.model === model("plan-migration") && sentFor(a, "RUN-INPUT-1") && sentFor(b, "RUN-INPUT-2")
+      ? ok()
+      : fail(
+          whyRun ??
+            `runTask should send chooseModel's pick and the input. Sent: ${run.requests.map((r) => r.body?.model).join(", ") || "nothing"} (picked ${model("tag-ticket")}, ${model("plan-migration")})`,
+        );
+  const unknown = run.picks[TASK_IDS.length];
+  R.unknown =
+    unknown.thrown !== undefined
+      ? ok()
+      : fail(unknown.missing ?? unknown.crash ?? `chooseModel("write-a-poem") returned ${show(unknown.value)}. Throw for tasks you don't know instead of guessing.`);
+  return R;
+}
+
+// ---------- Effort and thinking ----------
+
+async function checkThinking(): Promise<Results> {
+  const THOUGHTS = "THOUGHTS-8K: weighed both options before answering.";
+  const run = await withScenario(
+    (req) => {
+      const deep = isObj(req.body?.thinking) && req.body.thinking.display === "summarized";
+      return { json: message(deep ? [thinkingBlock(THOUGHTS), textBlock("ANSWER-DEEP")] : [textBlock("ANSWER-QUICK")], "end_turn") };
+    },
+    async (api) => ({
+      results: await callExports("think.mjs", [
+        { name: "solve", args: ["What is 17 × 3?", "quick"] },
+        { name: "solve", args: ["Plan a zero-downtime migration.", "deep"] },
+      ], api),
+      requests: messageRequests(api),
+    }),
+  );
+  const [quick, deep] = run.results;
+  const [q, d] = run.requests;
+  const why = problem(quick) ?? problem(deep);
+  const effortOf = (r?: RecordedRequest) => (isObj(r?.body?.output_config) ? r.body.output_config.effort : undefined);
+  const thinkingOf = (r?: RecordedRequest) => (isObj(r?.body?.thinking) ? r.body.thinking : null);
+  const haiku = run.requests.find((r) => /haiku/.test(String(r.body?.model)));
+  return {
+    model: haiku
+      ? fail(`${String(haiku.body?.model)} doesn't support effort or adaptive thinking. Use a model that does, like claude-sonnet-5 or claude-opus-5.`)
+      : run.requests.length
+        ? ok()
+        : fail(why ?? "solve didn't call the API."),
+    quick: effortOf(q) === "low" ? ok() : fail(why ?? `"quick" should send output_config: { effort: "low" }; sent ${show(q?.body?.output_config ?? null)}`),
+    deep:
+      ["high", "xhigh", "max"].includes(String(effortOf(d))) && thinkingOf(d)?.type === "adaptive" && thinkingOf(d)?.display === "summarized"
+        ? ok()
+        : fail(
+            why ??
+              `"deep" should send a higher effort (high, xhigh or max) and thinking: { type: "adaptive", display: "summarized" }; sent effort ${show(effortOf(d) ?? null)}, thinking ${show(thinkingOf(d))}`,
+          ),
+    answer: why
+      ? fail(why)
+      : isObj(deep.value) && deep.value.answer === "ANSWER-DEEP" && deep.value.thoughts === THOUGHTS && isObj(quick.value) && quick.value.answer === "ANSWER-QUICK" && quick.value.thoughts === ""
+        ? ok()
+        : fail(`Expected { answer: "ANSWER-DEEP", thoughts: "${THOUGHTS}" } for deep and thoughts "" for quick; got ${show(deep.value)} and ${show(quick.value)}`),
+  };
+}
+
+// ---------- Token budgets ----------
+
+async function checkBudget(): Promise<Results> {
+  const DOC = "DOC-7Q: Tiny Shop's returns policy. Unused items can be returned within 30 days. ".repeat(20);
+  const QUESTION = "Q-3Z: How long do I have to return a mug?";
+  const scenario = (tokens: number) =>
+    withScenario(
+      (req) => (req.path === "/v1/messages/count_tokens" ? { json: { input_tokens: tokens } } : { json: message([textBlock("ANSWER-30")], "end_turn") }),
+      async (api) => ({
+        result: await callExport("budget.mjs", "askWithinBudget", [DOC, QUESTION, 5000], api),
+        counts: api.requests.filter((r) => r.path === "/v1/messages/count_tokens"),
+        sends: messageRequests(api),
+      }),
+    );
+  const within = await scenario(1200);
+  const over = await scenario(9000);
+  const why = problem(within.result);
+  const pick = (b: Json | null | undefined) => JSON.stringify({ model: b?.model, system: b?.system ?? null, messages: b?.messages, tools: b?.tools ?? null });
+  const [counted] = within.counts;
+  const [sent] = within.sends;
+  const text = JSON.stringify(sent?.body?.messages ?? counted?.body?.messages ?? "");
+  const whyOver = problem(over.result);
+  return {
+    counts: !counted
+      ? fail(why ?? "Count the tokens first with client.messages.countTokens(...).")
+      : sent && pick(counted.body) !== pick(sent.body)
+        ? fail("What you count must be what you send: the same model, system and messages.")
+        : ok(),
+    skips: whyOver
+      ? fail(whyOver)
+      : over.sends.length
+        ? fail(`Counted 9000 tokens against a limit of 5000, but the request was still sent.`)
+        : isObj(over.result.value) && over.result.value.skipped === true && over.result.value.inputTokens === 9000
+          ? ok()
+          : fail(`Expected { skipped: true, inputTokens: 9000 }; got ${show(over.result.value)}`),
+    sends: why
+      ? fail(why)
+      : isObj(within.result.value) && within.result.value.skipped === false && within.result.value.inputTokens === 1200 && within.result.value.answer === "ANSWER-30"
+        ? ok()
+        : fail(`Expected { skipped: false, inputTokens: 1200, answer: "ANSWER-30" }; got ${show(within.result.value)}`),
+    order:
+      text.includes("DOC-7Q") && text.includes("Q-3Z") && text.indexOf("DOC-7Q") < text.indexOf("Q-3Z")
+        ? ok()
+        : fail(why ?? "Put the long document first and the question after it: queries at the end give better answers with long inputs."),
+  };
+}
+
+// ---------- Cost ----------
+
+async function checkCost(): Promise<Results> {
+  const HAIKU = "claude-haiku-4-5";
+  const cached = { input_tokens: 100, cache_creation_input_tokens: 4000, cache_read_input_tokens: 20000, output_tokens: 300 };
+  const live = { input_tokens: 1200, output_tokens: 300, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+  const run = await withScenario(
+    (req) => ({ json: message([textBlock("ANSWER-COST")], "end_turn", live, String(req.body?.model)) }),
+    async (api) => ({
+      results: await callExports("cost.mjs", [
+        { name: "PRICES", args: [], read: true },
+        { name: "costOf", args: [{ input_tokens: 1_000_000, output_tokens: 0 }, HAIKU] },
+        { name: "costOf", args: [{ input_tokens: 2000, output_tokens: 1000 }, "claude-sonnet-5"] },
+        { name: "costOf", args: [cached, HAIKU] },
+        { name: "costOf", args: [cached, HAIKU, { batch: true }] },
+        { name: "costOf", args: [{ input_tokens: 10, output_tokens: 10 }, "claude-imaginary-9"] },
+        { name: "askWithCost", args: ["What is prompt caching?"] },
+      ], api),
+      requests: messageRequests(api),
+    }),
+  );
+  const [prices, million, sonnet, withCache, batched, unknown, asked] = run.results;
+  const table = isObj(prices.value) ? prices.value : null;
+  const price = (model: string) => {
+    const p = table && isObj(table[model]) ? table[model] : null;
+    return p && typeof p.input === "number" && typeof p.output === "number" ? { input: p.input, output: p.output } : null;
+  };
+  const expected = (u: Record<string, number>, model: string, batch = false) => {
+    const p = price(model);
+    if (!p) return null;
+    const total = ((u.input_tokens ?? 0) * p.input + (u.cache_creation_input_tokens ?? 0) * p.input * 1.25 + (u.cache_read_input_tokens ?? 0) * p.input * 0.1 + (u.output_tokens ?? 0) * p.output) / 1e6;
+    return batch ? total / 2 : total;
+  };
+  const near = (got: unknown, want: number | null) => typeof got === "number" && want !== null && Math.abs(got - want) <= 1e-9 + Math.abs(want) * 1e-6;
+  const check = (r: CallResult, want: number | null, what: string): Outcome =>
+    problem(r) ? fail(problem(r)!) : want === null ? fail(`PRICES needs input and output prices for the model used here.`) : near(r.value, want) ? ok() : fail(`${what}: expected $${want}, got ${show(r.value)}`);
+
+  const noTable = problem(prices) ?? (table ? null : "Export PRICES from cost.mjs.");
+  const basic = check(million, expected({ input_tokens: 1_000_000 }, HAIKU), "1M Haiku input tokens");
+  const sonnetOk = check(sonnet, expected({ input_tokens: 2000, output_tokens: 1000 }, "claude-sonnet-5"), "2,000 input + 1,000 output tokens on Sonnet 5");
+  const sentModel = String(run.requests[0]?.body?.model ?? HAIKU);
+  const askedValue = isObj(asked.value) ? asked.value : null;
+  return {
+    basic: noTable ? fail(noTable) : !basic.pass ? basic : sonnetOk,
+    cache: noTable ? fail(noTable) : check(withCache, expected(cached, HAIKU), "cache writes at 1.25× and reads at 0.1× the input price"),
+    batch: noTable ? fail(noTable) : check(batched, expected(cached, HAIKU, true), "the same usage through the Batches API (50% off)"),
+    unknown:
+      unknown.thrown !== undefined
+        ? ok()
+        : fail(unknown.missing ?? unknown.crash ?? `costOf for a model missing from PRICES returned ${show(unknown.value)}. Throw instead, so a missing price can't look like $0.`),
+    live: problem(asked)
+      ? fail(problem(asked)!)
+      : askedValue?.answer === "ANSWER-COST" && near(askedValue.costUsd, expected(live, sentModel))
+        ? ok()
+        : fail(`Expected { answer: "ANSWER-COST", costUsd: ${expected(live, sentModel)} } for that response's usage; got ${show(asked.value)}`),
+  };
+}
+
 export const API_CHECKERS: Record<string, () => Promise<Results>> = {
+  "api-model-routing": checkRouting,
+  "api-thinking": checkThinking,
+  "api-token-budget": checkBudget,
+  "api-cost": checkCost,
   "api-tool-loop": checkToolLoop,
   "api-structured": checkExtract,
   "api-caching": checkCaching,

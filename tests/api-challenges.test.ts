@@ -196,3 +196,103 @@ describe("workflow", () => {
     expect(r.chained).toMatchObject({ pass: false, detail: expect.stringMatching(/original text/) });
   });
 });
+
+describe("choosing a model", () => {
+  it("fails when simple tasks go to an expensive model", async () => {
+    const r = await checkWith("api-model-routing", "route.mjs", (c) => replaced(c, 'fast: "claude-haiku-4-5"', 'fast: "claude-opus-5"'));
+    expect(r.simple).toMatchObject({ pass: false, detail: expect.stringMatching(/tag-ticket → claude-opus-5/) });
+    expect(r.complex.pass).toBe(true);
+  });
+
+  it("fails a model ID the API doesn't know, with the API's 404", async () => {
+    const r = await checkWith("api-model-routing", "route.mjs", (c) => replaced(c, 'capable: "claude-sonnet-5"', 'capable: "gpt-5"'));
+    expect(r.valid).toMatchObject({ pass: false, detail: expect.stringMatching(/gpt-5/) });
+  });
+
+  it("fails when an unknown task silently gets a default model", async () => {
+    const r = await checkWith("api-model-routing", "route.mjs", (c) => replaced(c, "if (!tier) throw new Error(`Unknown task: ${taskId}`);", 'if (!tier) return MODELS.fast;'));
+    expect(r.unknown).toMatchObject({ pass: false, detail: expect.stringMatching(/Throw for tasks you don't know/) });
+  });
+});
+
+describe("effort and thinking", () => {
+  it("fails on Haiku 4.5, which doesn't support effort, and shows the API's reason", async () => {
+    const r = await checkWith("api-thinking", "think.mjs", (c) => replaced(c, 'const MODEL = "claude-sonnet-5";', 'const MODEL = "claude-haiku-4-5";'));
+    expect(r.model).toMatchObject({ pass: false, detail: expect.stringMatching(/doesn't support effort/) });
+    expect(r.answer).toMatchObject({ pass: false, detail: expect.stringMatching(/effort parameter/) });
+  });
+
+  it("fails the old budget_tokens setting, which current models reject", async () => {
+    const r = await checkWith("api-thinking", "think.mjs", (c) =>
+      replaced(c, 'thinking: { type: "adaptive", display: "summarized" }', 'thinking: { type: "enabled", budget_tokens: 4000, display: "summarized" }'),
+    );
+    expect(r.deep.pass).toBe(false);
+    expect(r.answer).toMatchObject({ pass: false, detail: expect.stringMatching(/"enabled" isn't supported on claude-sonnet-5/) });
+  });
+
+  it("passes on Opus 5 at max effort", async () => {
+    const r = await checkWith("api-thinking", "think.mjs", (c) =>
+      replaced(replaced(c, 'const MODEL = "claude-sonnet-5";', 'const MODEL = "claude-opus-5";'), 'effort: deep ? "high" : "low"', 'effort: deep ? "max" : "low"'),
+    );
+    expect(Object.values(r).filter((x) => !x.pass)).toEqual([]);
+  });
+
+  it("fails when thinking text is mixed into the answer", async () => {
+    const r = await checkWith("api-thinking", "think.mjs", (c) =>
+      replaced(c, 'return { answer: of("text", "text"), thoughts: of("thinking", "thinking") };', 'return { answer: of("thinking", "thinking") + of("text", "text"), thoughts: "" };'),
+    );
+    expect(r.answer.pass).toBe(false);
+  });
+});
+
+describe("token budgets", () => {
+  it("fails when what's counted isn't what's sent", async () => {
+    const r = await checkWith("api-token-budget", "budget.mjs", (c) =>
+      replaced(c, "await client.messages.countTokens(request)", "await client.messages.countTokens({ model: MODEL, messages: request.messages })"),
+    );
+    expect(r.counts).toMatchObject({ pass: false, detail: expect.stringMatching(/same model, system and messages/) });
+  });
+
+  it("fails when the question comes before the document", async () => {
+    const r = await checkWith("api-token-budget", "budget.mjs", (c) =>
+      replaced(c, "`<document>\\n${document}\\n</document>\\n\\n${question}`", "`${question}\\n\\n<document>\\n${document}\\n</document>`"),
+    );
+    expect(r.order.pass).toBe(false);
+    expect(r.sends.pass).toBe(true);
+  });
+
+  it("fails when the limit is ignored", async () => {
+    const r = await checkWith("api-token-budget", "budget.mjs", (c) => replaced(c, "if (inputTokens > maxInputTokens) return { skipped: true, inputTokens };", ""));
+    expect(r.skips).toMatchObject({ pass: false, detail: expect.stringMatching(/still sent/) });
+  });
+});
+
+describe("cost", () => {
+  it("fails when cache tokens are priced like normal input", async () => {
+    const r = await checkWith("api-cost", "cost.mjs", (c) => replaced(replaced(c, "price.input * 1.25", "price.input"), "price.input * 0.1", "price.input"));
+    expect(r.cache).toMatchObject({ pass: false, detail: expect.stringMatching(/1\.25× and reads at 0\.1×/) });
+    expect(r.basic.pass).toBe(true);
+  });
+
+  it("fails when batches aren't discounted, or an unknown model costs $0", async () => {
+    const r = await checkWith("api-cost", "cost.mjs", (c) =>
+      replaced(replaced(c, "return batch ? total / 2 : total;", "return total;"), "if (!price) throw new Error(`No price for ${model}`);", "if (!price) return 0;"),
+    );
+    expect(r.batch.pass).toBe(false);
+    expect(r.unknown).toMatchObject({ pass: false, detail: expect.stringMatching(/can't look like \$0/) });
+  });
+
+  it("uses your own PRICES table, so updated prices still pass", async () => {
+    const r = await checkWith("api-cost", "cost.mjs", (c) => replaced(c, '"claude-haiku-4-5": { input: 1, output: 5 }', '"claude-haiku-4-5": { input: 1.5, output: 7.5 }'));
+    expect(Object.values(r).filter((x) => !x.pass)).toEqual([]);
+  });
+});
+
+it("explains a file missing from an older workspace", async () => {
+  await ws.resetWorkspace();
+  const { rmSync } = await import("node:fs");
+  rmSync(path.join(ws.WORKSPACE_DIR, "cost.mjs"));
+  const result = await checks.runChallengeChecks("api-cost");
+  if ("error" in result) throw new Error(result.error);
+  expect(result.results.find((x) => x.id === "live")).toMatchObject({ pass: false, detail: expect.stringMatching(/cost\.mjs is missing.*Reset/) });
+});

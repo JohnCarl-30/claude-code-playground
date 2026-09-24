@@ -13,6 +13,10 @@ TypeScript/JavaScript SDK (`@anthropic-ai/sdk`).
 | `errors.mjs` | Error types, retries and recovery | TODO |
 | `stream.mjs` | Streaming text as it's generated | TODO |
 | `workflow.mjs` | A two-step prompt chain (a workflow, not an agent) | TODO |
+| `route.mjs` | Picking the right model for each task | TODO |
+| `think.mjs` | Effort levels and adaptive thinking | TODO |
+| `budget.mjs` | Counting tokens before you send | TODO |
+| `cost.mjs` | What a response cost, with caching and batches | TODO |
 
 ## Running without an API key
 
