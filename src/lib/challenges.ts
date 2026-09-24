@@ -10,7 +10,7 @@ export type Requirement = { id: string; label: string };
 export type Challenge = {
   id: string;
   title: string;
-  area: "REST API" | "MCP" | "Claude Code config" | "Debugging" | "Agent SDK";
+  area: "REST API" | "MCP" | "Claude Code config" | "Debugging" | "Agent SDK" | "Claude API" | "Security";
   level: "Beginner" | "Intermediate";
   template: TemplateId;
   /** What to build, in a few sentences. Supports **bold** and `code`. */
@@ -23,6 +23,9 @@ export type Challenge = {
 };
 
 const BUILDER: Partial<RunConfig> = { tools: ["Read", "Glob", "Grep", "Edit", "Write"], permissionMode: "acceptEdits", projectConfig: true, maxTurns: 30 };
+
+// Every Claude API challenge runs your code against the practice API, so this hint applies to all of them.
+const PRACTICE_HINT = "Run the file from **Run & test** to see it work against the practice API (canned replies, real shapes, no key needed).";
 
 export const CHALLENGES: Challenge[] = [
   {
@@ -105,6 +108,26 @@ export const CHALLENGES: Challenge[] = [
     hints: [
       "Use `z.number()` for value. For unit, `z.string()` lets the handler see bad values; `z.enum` makes the SDK reject them for you.",
       "An error result looks like `{ isError: true, content: [{ type: \"text\", text: \"…\" }] }`.",
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "mcp-resources",
+    title: "Resources and prompts",
+    area: "MCP",
+    level: "Intermediate",
+    template: "mcp-server",
+    goal: "Tools aren't the only thing an MCP server offers. Add a **resource** at `docs://style-guide` (text the app can attach as context) and a **prompt** called `review_code` with a `code` argument (a template the user picks, e.g. as a slash command).",
+    requirements: [
+      { id: "resource", label: "It lists a resource at docs://style-guide, with a name" },
+      { id: "read", label: "Reading docs://style-guide returns some text" },
+      { id: "prompt", label: "It lists a review_code prompt with a required code argument" },
+      { id: "get", label: "Getting review_code with some code returns a user message that includes that code" },
+    ],
+    hints: [
+      "`server.registerResource(name, uri, { title, description, mimeType }, async (uri) => ({ contents: [{ uri: uri.href, text }] }))`.",
+      "`server.registerPrompt(name, { description, argsSchema: { code: z.string() } }, ({ code }) => ({ messages: [{ role: \"user\", content: { type: \"text\", text: … } }] }))`.",
+      "Who uses what: the model calls tools, the app attaches resources, the user picks prompts.",
     ],
     config: BUILDER,
   },
@@ -203,6 +226,171 @@ export const CHALLENGES: Challenge[] = [
     hints: [
       "The agent-sdk starter's CLAUDE.md lists the pattern; turn on Project config.",
       "After checking, run it from Run & test → Run agent.mjs and watch it call your tool.",
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "security-hook",
+    title: "Guard secrets with a hook",
+    area: "Security",
+    level: "Intermediate",
+    template: "rest-api",
+    goal: "Layer your guardrails. The deny rule `Read(./.env)` blocks the Read tool and file commands Claude Code recognizes, like `cat .env`, but not a script that opens the file itself (`node -e \"…readFileSync('.env')\"`). Write a **PreToolUse hook** that blocks any tool call that mentions `.env`, and turn it on in `.claude/settings.json`.",
+    requirements: [
+      { id: "script", label: ".claude/hooks/protect-env.mjs exists and runs" },
+      { id: "read", label: "It blocks Read of .env (exit code 2, with the reason on stderr)" },
+      { id: "bash", label: "It blocks Bash commands that mention .env, like cat .env or a node -e script that reads it" },
+      { id: "allow", label: "It lets everything else through (exit code 0), like Read server.js or Bash ls" },
+      { id: "registered", label: "settings.json runs it as a PreToolUse hook whose matcher covers Read and Bash" },
+    ],
+    hints: [
+      "The hook gets JSON on stdin: `tool_name` and `tool_input` (`file_path` for Read/Edit/Write, `command` for Bash).",
+      "Exit code 2 blocks the call, and whatever you print to stderr is shown to Claude as the reason. Exit 0 lets it through.",
+      "Register it with `{ \"matcher\": \"Read|Edit|Write|Bash\", \"hooks\": [{ \"type\": \"command\", \"command\": \"node .claude/hooks/protect-env.mjs\" }] }` under `hooks.PreToolUse`.",
+      "After checking, turn on Bash and ask Claude to print .env with a one-line node script: the hook stops it.",
+    ],
+    config: { ...BUILDER, permissionMode: "default" },
+  },
+  {
+    id: "api-tool-loop",
+    title: "The tool-use loop",
+    area: "Claude API",
+    level: "Intermediate",
+    template: "claude-api",
+    goal: "In `tools.mjs`, write `runWithTools(question)`: give Claude a `get_weather` tool, run the tool when Claude asks for it, send the result back, and repeat until Claude gives its final answer. This loop is what every agent harness does under the hood.",
+    requirements: [
+      { id: "defined", label: "The request describes get_weather with a description and an input_schema with a string city" },
+      { id: "loop", label: "After a tool_use, the next request sends Claude's turn back plus a tool_result with the same tool_use_id" },
+      { id: "final", label: "It returns Claude's text once stop_reason is end_turn, and stops calling" },
+      { id: "parallel", label: "Two tool calls in one reply get both tool_results in a single user message" },
+      { id: "error", label: "A failed lookup (unknown city) goes back as a tool_result with is_error: true" },
+    ],
+    hints: [
+      "Loop while `response.stop_reason === \"tool_use\"`. Push `{ role: \"assistant\", content: response.content }`, then one user message with every tool_result.",
+      "A tool_result looks like `{ type: \"tool_result\", tool_use_id: block.id, content: \"…\" }`. Add `is_error: true` when the tool failed.",
+      PRACTICE_HINT,
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "api-structured",
+    title: "Structured output you can trust",
+    area: "Claude API",
+    level: "Intermediate",
+    template: "claude-api",
+    goal: "In `extract.mjs`, write `extractContact(text)`: get `{ name, email, company }` back as JSON using **structured outputs**, and return `null` whenever the reply can't be trusted (cut off, or refused) instead of crashing.",
+    requirements: [
+      { id: "schema", label: "The request sets output_config.format to a json_schema with name, email, company and additionalProperties: false" },
+      { id: "parsed", label: "A normal reply returns the { name, email, company } object" },
+      { id: "truncated", label: "A reply cut off by max_tokens returns null" },
+      { id: "refusal", label: "A refusal (stop_reason: refusal) returns null" },
+    ],
+    hints: [
+      "`output_config: { format: { type: \"json_schema\", schema: { type: \"object\", properties: {…}, required: […], additionalProperties: false } } }`.",
+      "Check `stop_reason` before parsing, and wrap `JSON.parse` in try/catch.",
+      PRACTICE_HINT,
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "api-caching",
+    title: "Prompt caching and usage",
+    area: "Claude API",
+    level: "Intermediate",
+    template: "claude-api",
+    goal: "In `faq.mjs`, write `answerFaq(question)`: send the long FAQ as a **cached** system prompt, and return the answer with the token usage, including what was written to and read from the cache.",
+    requirements: [
+      { id: "marked", label: "The FAQ is in the system prompt, marked with cache_control" },
+      { id: "stable", label: "The system prompt is byte-identical across two questions (the question goes in messages)" },
+      { id: "usage", label: "It returns input, cacheWrite, cacheRead and output from the response's usage" },
+      { id: "total", label: "usage.totalInput = input + cacheWrite + cacheRead" },
+    ],
+    hints: [
+      "`system: [{ type: \"text\", text: FAQ, cache_control: { type: \"ephemeral\" } }]`.",
+      "Caching is a prefix match: anything that changes (a date, an id) before the breakpoint means a cache miss every time.",
+      "`usage.input_tokens` counts only the uncached tokens. The prompt's full size is the sum of all three input fields.",
+      PRACTICE_HINT,
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "api-batch",
+    title: "An overnight batch",
+    area: "Claude API",
+    level: "Intermediate",
+    template: "claude-api",
+    goal: "In `batch.mjs`, classify product reviews with the **Message Batches API**: it's asynchronous and costs less, a good fit for work that can wait. Submit one request per review, wait for the batch to end, then collect the results by `custom_id`.",
+    requirements: [
+      { id: "create", label: "submitReviews creates one batch with a request per review, using the review id as custom_id" },
+      { id: "params", label: "Each request's params is a full Messages request (model, max_tokens, messages with the review)" },
+      { id: "returns", label: "submitReviews returns the batch id" },
+      { id: "poll", label: "collectResults waits until processing_status is \"ended\" before reading results" },
+      { id: "results", label: "It returns succeeded texts by custom_id and lists the ones that failed" },
+    ],
+    hints: [
+      "`client.messages.batches.create({ requests: [{ custom_id, params: { model, max_tokens, messages } }] })`.",
+      "Poll with `client.messages.batches.retrieve(id)`, waiting POLL_MS between checks. Then `for await (const item of await client.messages.batches.results(id))`.",
+      "Results can arrive in any order. `item.result.type` is succeeded, errored, canceled or expired.",
+      PRACTICE_HINT,
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "api-errors",
+    title: "Errors and retries",
+    area: "Claude API",
+    level: "Beginner",
+    template: "claude-api",
+    goal: "In `errors.mjs`, write `safeAsk(question)` that never throws: it tells errors apart by type, retries the ones that can succeed later, and doesn't waste retries on ones that can't. And no API key in the code.",
+    requirements: [
+      { id: "success", label: "A normal reply returns { ok: true, text }" },
+      { id: "badrequest", label: "A 400 returns { ok: false, retryable: false } and is sent only once" },
+      { id: "overloaded", label: "A 529 that keeps happening is retried, then returns { ok: false, retryable: true }" },
+      { id: "ratelimit", label: "A 429 that clears up on the next try ends in { ok: true }" },
+      { id: "nokey", label: "No API key is written in any file (the SDK reads ANTHROPIC_API_KEY)" },
+    ],
+    hints: [
+      "The SDK retries 429s and 5xx errors twice by default (`maxRetries`). It doesn't retry a 400.",
+      "Check `err instanceof Anthropic.APIError` and its `status`, or the specific classes like `Anthropic.RateLimitError`.",
+      PRACTICE_HINT,
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "api-streaming",
+    title: "Stream the answer",
+    area: "Claude API",
+    level: "Beginner",
+    template: "claude-api",
+    goal: "In `stream.mjs`, write `streamAnswer(question, onText)`: stream the reply and hand each piece of text to `onText` as it arrives, so people see progress right away. Return the whole text at the end.",
+    requirements: [
+      { id: "streams", label: "The request asks for a stream" },
+      { id: "chunks", label: "onText gets every text delta, in order" },
+      { id: "final", label: "It returns the whole text" },
+    ],
+    hints: [
+      "`const stream = client.messages.stream({...}); stream.on(\"text\", onText); const msg = await stream.finalMessage();`",
+      PRACTICE_HINT,
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "api-workflow",
+    title: "A workflow, not an agent",
+    area: "Claude API",
+    level: "Beginner",
+    template: "claude-api",
+    goal: "In `workflow.mjs`, chain two calls: summarize, then translate the summary. Your code decides the steps (that's a **workflow**; in an **agent**, Claude decides). Add a gate: if step 1 didn't finish properly, stop there.",
+    requirements: [
+      { id: "steps", label: "It makes exactly two requests: summarize, then translate" },
+      { id: "chained", label: "The second request contains step 1's summary, not the original text" },
+      { id: "result", label: "It returns the translation from step 2" },
+      { id: "gate", label: "If step 1 stops with max_tokens, it returns null without a second call" },
+    ],
+    hints: [
+      "Each step is a normal `client.messages.create` call. Pass step 1's text into step 2's prompt.",
+      "Workflows are predictable and easy to test; reach for an agent only when the steps can't be known ahead of time.",
+      PRACTICE_HINT,
     ],
     config: BUILDER,
   },

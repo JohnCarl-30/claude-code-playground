@@ -1,7 +1,7 @@
 // Starter projects the workspace can be created from (folders in templates/).
 // Shared by the browser and the server, so keep it free of Node-only imports.
 
-export type TemplateId = "tiny-shop" | "rest-api" | "mcp-server" | "agent-sdk";
+export type TemplateId = "tiny-shop" | "rest-api" | "mcp-server" | "agent-sdk" | "claude-api";
 
 export type TemplateScript = {
   id: string;
@@ -10,6 +10,8 @@ export type TemplateScript = {
   command: string[];
   /** Keeps running until stopped (a server), instead of finishing on its own. */
   longRunning?: boolean;
+  /** Runs against the practice Claude API on this computer instead of api.anthropic.com. */
+  practiceApi?: boolean;
 };
 
 export type TemplateInfo = {
@@ -22,6 +24,8 @@ export type TemplateInfo = {
   /** The workspace itself is an MCP server that can be plugged into the playground. */
   mcpServer?: boolean;
 };
+
+const CLAUDE_API_FILES = ["ask", "tools", "extract", "faq", "batch", "errors", "stream", "workflow"];
 
 export const API_PORT = 4100;
 
@@ -56,6 +60,23 @@ export const TEMPLATES: TemplateInfo[] = [
     scripts: [
       { id: "run", label: "Run agent.mjs", command: ["node", "agent.mjs"] },
       { id: "check", label: "Check syntax", command: ["node", "--check", "agent.mjs"] },
+    ],
+  },
+  {
+    id: "claude-api",
+    title: "Claude API app",
+    blurb: "Messages, tools, streaming, caching and batches with @anthropic-ai/sdk. Runs against a practice API: no key needed.",
+    scripts: [
+      ...CLAUDE_API_FILES.map((name) => ({ id: name, label: `${name}.mjs`, command: ["node", "run.mjs", name], practiceApi: true })),
+      {
+        id: "check",
+        label: "Check syntax",
+        command: [
+          "node",
+          "-e",
+          "for (const f of require('fs').readdirSync('.').filter((f) => f.endsWith('.mjs'))) require('child_process').execFileSync(process.execPath, ['--check', f], { stdio: 'inherit' }); console.log('All files OK')",
+        ],
+      },
     ],
   },
 ];

@@ -1,6 +1,7 @@
 import "server-only";
 import { spawn, type ChildProcess } from "node:child_process";
 import { claudeEnv } from "./auth";
+import { ensurePracticeApi, mockApiEnv } from "./practice-api";
 import { API_PORT, findTemplate } from "./templates";
 import { WORKSPACE_DIR, currentTemplate, ensureWorkspace } from "./workspace";
 
@@ -64,12 +65,28 @@ export async function startProcess(scriptId: string): Promise<ProcessStatus | st
 
   // Agent scripts sign in the same way the playground does (login, or your key if you opted in).
   const env: NodeJS.ProcessEnv = { ...claudeEnv(), PORT: String(API_PORT), FORCE_COLOR: "0" };
+  // Claude API programs talk to the practice API instead, so they never need (or see) a real key.
+  let practice: Awaited<ReturnType<typeof ensurePracticeApi>> | null = null;
+  if (script.practiceApi) {
+    practice = await ensurePracticeApi();
+    for (const k of Object.keys(env)) if (k.startsWith("ANTHROPIC_")) delete env[k];
+    Object.assign(env, mockApiEnv(practice.url), { POLL_MS: "500" });
+  }
 
   const [program, ...args] = script.command;
   const child = spawn(program === "node" ? process.execPath : program, args, { cwd: WORKSPACE_DIR, env });
   state.child = child;
   state.status = { script: script.id, running: true, exitCode: null, logs: [`$ ${script.command.join(" ")}`] };
 
+  if (practice) {
+    log(`(practice API at ${practice.url}: canned replies in the real API's shapes, not Claude)`);
+    const api = practice;
+    const onRequest = (req: { method: string; path: string }, summary: string) => {
+      if (state.child === child) log(`  ⇄ practice API: ${req.method} ${req.path} → ${summary}`);
+    };
+    api.onRequest.add(onRequest);
+    child.once("exit", () => api.onRequest.delete(onRequest));
+  }
   child.stdout?.on("data", (d: Buffer) => log(d.toString()));
   child.stderr?.on("data", (d: Buffer) => log(d.toString()));
   child.on("error", (err) => log(`Couldn't start: ${err.message}`));

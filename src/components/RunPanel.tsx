@@ -84,10 +84,19 @@ export function RunPanel({
             <span className="size-2 animate-pulse rounded-full bg-ok" /> running
           </span>
         )}
-        <code className="ml-auto hidden font-mono text-xs text-muted sm:inline">
-          {template.scripts.map((s) => s.command.join(" ")).join("  ·  ")}
-        </code>
+        {template.scripts.length <= 3 && (
+          <code className="ml-auto hidden font-mono text-xs text-muted sm:inline">
+            {template.scripts.map((s) => s.command.join(" ")).join("  ·  ")}
+          </code>
+        )}
       </div>
+      {template.scripts.some((s) => s.practiceApi) && (
+        <p className="rounded-lg bg-info-soft px-3 py-2 text-xs text-info">
+          Each <code className="font-mono">▶ file.mjs</code> runs <code className="font-mono">node run.mjs &lt;file&gt;</code> against the{" "}
+          <strong>practice API</strong>: a stand-in for the Claude API on your computer with canned replies in the real shapes (tool_use, streaming,
+          usage, errors, batches). No key needed and nothing leaves your machine. The log shows each request it received.
+        </p>
+      )}
       {error && <p className="text-xs text-danger">{error}</p>}
 
       {ownScript && proc.logs.length > 0 && (

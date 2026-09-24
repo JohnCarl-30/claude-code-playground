@@ -1,4 +1,4 @@
-import { cpSync } from "node:fs";
+import { cpSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createTempPlaygroundRoot } from "./helpers";
 
@@ -27,6 +27,15 @@ const SOLUTION: Record<string, string> = {
   "config-subagent": "config-subagent",
   "debug-discount": "debug-discount",
   "agent-tool": "agent-tool",
+  "mcp-resources": "mcp",
+  "security-hook": "security-hook",
+  "api-tool-loop": "claude-api",
+  "api-structured": "claude-api",
+  "api-caching": "claude-api",
+  "api-batch": "claude-api",
+  "api-errors": "claude-api",
+  "api-streaming": "claude-api",
+  "api-workflow": "claude-api",
 };
 
 async function freshStarter(template: string) {
@@ -75,5 +84,41 @@ describe("challenge checks", () => {
     writeFileSync(path.join(ws.WORKSPACE_DIR, "server.js"), "throw new Error('boom');\n");
     const results = await check("api-todos");
     expect(results.every((r) => !r.pass && /Error: boom/.test(r.detail ?? "") && /server\.js:1/.test(r.detail ?? ""))).toBe(true);
+  });
+});
+
+describe("security hook check", () => {
+  const HOOK = ".claude/hooks/protect-env.mjs";
+  async function withHook(code: string, settings?: (s: string) => string) {
+    await freshStarter("rest-api");
+    cpSync(path.join(FIXTURES, "security-hook"), ws.WORKSPACE_DIR, { recursive: true });
+    const { readFileSync, writeFileSync } = await import("node:fs");
+    writeFileSync(path.join(ws.WORKSPACE_DIR, HOOK), code);
+    if (settings) {
+      const file = path.join(ws.WORKSPACE_DIR, ".claude/settings.json");
+      writeFileSync(file, settings(readFileSync(file, "utf8")));
+    }
+    return Object.fromEntries((await check("security-hook")).map((r) => [r.id, r]));
+  }
+
+  it("accepts a JSON deny decision instead of exit code 2", async () => {
+    const r = await withHook(`let s = ""; for await (const c of process.stdin) s += c;
+const { tool_input } = JSON.parse(s);
+if (JSON.stringify(tool_input).includes(".env")) {
+  console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: "secrets" } }));
+}
+`);
+    expect(Object.values(r).filter((x) => !x.pass)).toEqual([]);
+  });
+
+  it("fails a hook that blocks everything", async () => {
+    const r = await withHook(`console.error("no"); process.exit(2);`);
+    expect(r.read.pass).toBe(true);
+    expect(r.allow).toMatchObject({ pass: false, detail: expect.stringMatching(/Read server\.js/) });
+  });
+
+  it("fails a matcher that leaves out Read", async () => {
+    const r = await withHook(readFileSync(path.join(FIXTURES, "security-hook", HOOK), "utf8"), (s) => s.replace('"Read|Edit|Write|Bash"', '"Bash"'));
+    expect(r.registered).toMatchObject({ pass: false, detail: expect.stringMatching(/should cover Read and Bash/) });
   });
 });

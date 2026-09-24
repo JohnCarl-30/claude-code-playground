@@ -239,11 +239,20 @@ A challenge (`src/lib/challenges.ts`) is a goal, a starter (`template`), require
 - **MCP**: connects with the MCP SDK's `Client` + `StdioClientTransport` (`node server.js` in the workspace, like Claude Code) and lists and calls the tools.
 - **Claude Code config**: `readClaudeConfig()` and the files' frontmatter.
 - **Debugging**: imports `src/cart.js` in a child process and runs `node --test`.
+- **MCP resources and prompts**: the same client lists and reads resources, and lists and gets prompts.
 - **Agent SDK**: `node --check` plus a few patterns in `agent.mjs`.
+- **Claude API** (`src/lib/challenge-checks-api.ts`): each check starts a **mock Claude API** (`startMockApi()` in `src/lib/practice-api.ts`) that plays a scripted scenario: Claude asks for a tool, asks for two at once, gets cut off at `max_tokens`, refuses, returns a 400 or keeps returning 529, or reports a batch as `in_progress` twice before it ends. A small harness imports your file in a child process with `ANTHROPIC_BASE_URL` pointing at the mock, calls your exported function, and the check looks at both what it returned and every request your code sent (the tools you described, the `tool_result` ids, `output_config`, `cache_control`, how many retries…). Requests the real API would reject (no `max_tokens`, an unanswered `tool_use`, a stray `tool_result`) get the real API's 400.
+- **Security**: runs your `PreToolUse` hook script the way Claude Code does, with the event JSON on stdin (`Read .env`, `cat .env`, a `node -e` script that opens `.env`, and harmless calls), and accepts either exit code 2 or a JSON `deny` decision as blocking. It also checks the hook is registered with a matcher that covers Read and Bash.
 
-Your programs run without `ANTHROPIC_API_KEY` or `NODE_OPTIONS`, with timeouts. Passed challenges are remembered in the browser (`markPassed()` in `src/lib/tried.ts`).
+Your programs run without any `ANTHROPIC_*` variables or `NODE_OPTIONS`, with timeouts. Passed challenges are remembered in the browser (`markPassed()` in `src/lib/tried.ts`).
 
-**Adding a challenge:** add it to `CHALLENGES`, write its checker in `CHECKERS`, and put a reference solution in `tests/fixtures/challenges/`. `tests/challenges.test.ts` then proves the untouched starter fails and the reference solution passes every requirement.
+**Adding a challenge:** add it to `CHALLENGES`, write its checker in `CHECKERS` (or `API_CHECKERS`), put a reference solution in `tests/fixtures/challenges/`, and list the exam skill it practices in `src/lib/certification.ts`. `tests/challenges.test.ts` then proves the untouched starter fails and the reference solution passes every requirement; `tests/api-challenges.test.ts` checks the Claude API checkers are fair both ways (common mistakes fail with a useful reason, other correct styles such as the SDK's tool runner or `messages.parse` pass).
+
+### Certification track
+
+`src/lib/certification.ts` holds the CCDV-F blueprint from the official exam guide: 8 domains and 25 skills with their weights, each skill linked to the examples and challenges that practice it (`skillsFor()` goes the other way, for the "Practices for CCDV-F" chips). `src/lib/quizzes.ts` holds one knowledge check per domain. Every question has a source URL on Anthropic's or MCP's docs, and the answers were checked against those pages. The option order is shuffled the same way every time (`optionOrder()`), so the right answer isn't always first.
+
+Readiness is `Σ weight × share done ÷ 100`, where a domain's share counts its examples tried, challenges passed and its quiz (passed at 80%, `markQuizPassed()`). The sidebar and `CertificationPanel.tsx` show it; `?cert=overview` and `?cert=<domain>` link straight to a page.
 
 ---
 
@@ -273,6 +282,7 @@ Claude always works in **`workspace/`**. It's ignored by the playground's own gi
 | REST API | `templates/rest-api/` | `node server.js` (long-running), `node --check server.js` |
 | MCP server | `templates/mcp-server/` | `node --check server.js` |
 | Agent SDK script | `templates/agent-sdk/` | `node agent.mjs`, `node --check agent.mjs` |
+| Claude API app | `templates/claude-api/` | `node run.mjs <file>` for each feature file (against the practice API), a syntax check of every `.mjs` |
 
 The list lives in `src/lib/templates.ts`.
 
@@ -282,7 +292,7 @@ The list lives in `src/lib/templates.ts`.
 2. Write `.playground-template` to remember which starter it came from.
 3. **Make it its own git repo** with one commit, "Starting point". Claude Code puts `git status` into Claude's context. Without its own repo, the workspace would show the playground's files (`../src`, `../package.json`) and Claude would wander there.
 
-**Why starters need no `npm install`.** `workspace/` sits inside the playground folder, so Node finds packages in the playground's `node_modules`: `@modelcontextprotocol/sdk`, `zod` and `@anthropic-ai/claude-agent-sdk`. Each starter's `CLAUDE.md` tells Claude not to install anything.
+**Why starters need no `npm install`.** `workspace/` sits inside the playground folder, so Node finds packages in the playground's `node_modules`: `@modelcontextprotocol/sdk`, `zod`, `@anthropic-ai/claude-agent-sdk` and `@anthropic-ai/sdk`. Each starter's `CLAUDE.md` tells Claude not to install anything.
 
 **Switching keeps your work.** `POST /api/workspace { template }` moves the current `workspace/` into `.workspaces/<starter>/` (git-ignored) and moves the target starter's parked folder back, or creates it fresh the first time. Files and git history survive the round trip; `GET /api/workspace` lists parked starters so the picker can mark them "saved". `DELETE /api/workspace` **resets** the current starter to its original files, which is the one action that discards work. Both stop any running program first. An example that needs a particular starter (`template` in `src/lib/examples.ts`) shows a **Switch to …** banner when your workspace has a different one.
 
@@ -303,6 +313,8 @@ The **Run & test** tab (`src/components/RunPanel.tsx`) runs your project without
 - It runs inside `workspace/` with `PORT=4100`, and without `ANTHROPIC_API_KEY`, so agent scripts use your login too.
 - Output is kept (last 400 lines), and the panel polls `GET /api/process` every second while it's running.
 - **Stop** sends SIGTERM, then SIGKILL after 3 seconds. Running programs are also stopped when the playground exits.
+
+**The practice API** (Claude API starter): scripts marked `practiceApi` in `templates.ts` run with `ANTHROPIC_BASE_URL` pointing at a mock Claude API that the playground starts on a free localhost port the first time it's needed (`ensurePracticeApi()` in `src/lib/practice-api.ts`). All other `ANTHROPIC_*` variables are removed, so these programs never reach the real API or see a real key. The practice API answers with canned replies in the real shapes: a `tool_use` for the first tool you offer (with an input that fits its schema), an answer built from your `tool_result`s, JSON that fits an `output_config` schema, streamed events when you ask for a stream, cache writes then reads for a repeated `cache_control` prefix, message batches that are `in_progress` once before they end, and the real API's 400s for malformed requests. Each request it handles is added to the program's log (`⇄ practice API: POST /v1/messages → stop_reason: tool_use (get_weather)`). It's not Claude: the text is a placeholder, but your code runs for real.
 
 **Request tester** (REST API starter; `/api/process/request`): sends one request from the server to `http://127.0.0.1:4100<path>`. The host and port are fixed, and the path must start with a single `/`, so it can only reach your own API. It shows the status, the time taken and the pretty-printed JSON body. "Connection refused" becomes "Click Start server first."
 
@@ -338,6 +350,8 @@ Some preferences are kept in your browser's `localStorage`, for this browser onl
 | What | Key | File |
 |---|---|---|
 | Examples you've run successfully (✓) | `claude-code-playground:tried:v1` | `src/lib/tried.ts` |
+| Challenges you've passed (🏆) | `claude-code-playground:challenges-passed:v1` | `src/lib/tried.ts` |
+| Knowledge checks you've passed | `claude-code-playground:quizzes-passed:v1` | `src/lib/tried.ts` |
 | MCP servers you added | `claude-code-playground:mcp-servers:v1` | `src/lib/saved-mcp.ts` |
 
 The current conversation (its session id and turns) lives only in the page: reloading the page starts a new conversation. Claude Code itself keeps session transcripts in `~/.claude/projects/`, as it does in the terminal.
@@ -357,7 +371,10 @@ If storage is blocked (private windows, strict settings), everything still works
 | Change what's allowed without asking | `canUseTool` in `src/lib/run-agent.ts` |
 | Change hooks or subagents | `hooks`, `SUBAGENTS`, `TEAM` in `src/lib/run-agent.ts` |
 | Change how a message is displayed | `src/components/Timeline.tsx` |
-| Add or change a practice challenge | `src/lib/challenges.ts`, `src/lib/challenge-checks.ts`, `tests/fixtures/challenges/` |
+| Add or change a practice challenge | `src/lib/challenges.ts`, `src/lib/challenge-checks.ts` (Claude API ones: `challenge-checks-api.ts`), `tests/fixtures/challenges/` |
+| Change the exam blueprint or what practices a skill | `src/lib/certification.ts` |
+| Add or fix a knowledge-check question | `src/lib/quizzes.ts` (with its source URL; `tests/certification.test.ts` checks the format) |
+| Change what the practice API answers | `practiceResponder()` in `src/lib/practice-api.ts` |
 | Change the question / plan cards, task list or context meter | `Timeline.tsx` (`QuestionCard`, `PlanCard`), `TaskListPanel.tsx`, `ContextMeter.tsx` |
 | Change the generated code in the Code tab | `src/components/CodePreview.tsx` |
 | Change a starter's Claude Code config | `templates/<starter>/.claude/` |
@@ -385,14 +402,17 @@ npm run build
 | `claude-config.test.ts` | reading `.claude/`: frontmatter, rules, hooks, invalid JSON, every starter's config is valid |
 | `zip.test.ts` | the ZIP writer round-trips files, and `unzip -t` accepts its output |
 | `workspace.test.ts` | creating, diffing, switching (work kept), exporting, resetting, file editing limits, adding starter config, symlink-aware path checks |
-| `processes.test.ts` | Run & test: only declared scripts run, the API server starts, answers and stops quickly |
+| `processes.test.ts` | Run & test: only declared scripts run, the API server starts, answers and stops quickly, Claude API files run against the practice API (never a real key) |
+| `practice-api.test.ts` | the practice API driven by the real `@anthropic-ai/sdk`: messages, tool use, the API's 400s, structured output, cache usage, streaming (text and tool_use), batches, 404s; and every Claude API reference solution running through `run.mjs` |
+| `api-challenges.test.ts` | the Claude API checkers are fair: common mistakes (no `is_error`, a dropped assistant turn, no `additionalProperties: false`, a timestamp in the cached prefix, retries turned off, a hard-coded key, no stream, no gate) fail with a useful reason, and other correct styles (tool runner, `messages.parse` + Zod, automatic caching) pass |
+| `certification.test.ts` | the blueprint matches the guide's weights (domains add up to 100%, skills to their domain), links only to real examples and challenges, and every quiz question is well-formed ("Choose 2" when it has two answers), sourced from an official docs host and shuffled |
 | `examples.test.ts` | every sidebar example is well-formed |
 | `code-preview.test.ts` | the Code tab mirrors settings, shows the live-session pattern, wraps long prompts |
-| `challenges.test.ts` | every challenge's checker: the untouched starter fails, the reference solution in `tests/fixtures/challenges/` passes every requirement, a crashing server is explained, and the wrong starter is refused |
+| `challenges.test.ts` | every challenge's checker: the untouched starter fails, the reference solution in `tests/fixtures/challenges/` passes every requirement, a crashing server is explained, the wrong starter is refused, and the security hook check accepts a JSON deny decision but not a hook that blocks everything or a matcher that misses Read |
 | `auth.test.ts`, `account.test.ts` | which credentials Claude Code gets in each mode, and the status for a subscription, a cloud provider, no login, a working, rejected, missing or unverifiable API key |
 | `harness.test.ts` | rebuilding the task list from tool calls, and checking card answers (questions, plan reviews) |
 | `live-session.test.ts` | the session manager with a fake Claude Code: context usage (and none once closed), queue vs steer, stop only while working, live model and mode changes, replay after reconnect, closing, idle cleanup, the three-session limit |
-| `components/*.test.tsx` | the UI in a simulated browser: the challenge panel (results, reasons, completion, hints), timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner against a fake live session (follow-ups, Steer / Queue / Stop, live model and mode changes, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
+| `components/*.test.tsx` | the UI in a simulated browser: the certification track (blueprint, readiness, focus next, domain pages) and knowledge checks (grading, explanations with sources, remembering a pass), the challenge panel (results, reasons, completion, hints), timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner against a fake live session (follow-ups, Steer / Queue / Stop, live model and mode changes, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
 
 The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something answers on port 4100 (for example your own API server).
 

@@ -1,12 +1,13 @@
 import "server-only";
 import { execFile, spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { findChallenge, type CheckResult } from "./challenges";
+import { API_CHECKERS } from "./challenge-checks-api";
+import { childEnv, crashSummary, fail, isObj, ok, readText, type Results } from "./check-utils";
 import { parseFrontmatter, readClaudeConfig } from "./claude-config";
 import { WORKSPACE_DIR, currentTemplate, ensureWorkspace } from "./workspace";
 
@@ -14,22 +15,7 @@ import { WORKSPACE_DIR, currentTemplate, ensureWorkspace } from "./workspace";
 // calls Claude; checks run your code (your API, your MCP server, your tests)
 // the same way every time.
 
-type Outcome = { pass: boolean; detail?: string };
-type Results = Record<string, Outcome>;
-
 const run = promisify(execFile);
-const ok = (): Outcome => ({ pass: true });
-const fail = (detail: string): Outcome => ({ pass: false, detail });
-
-/** Environment for your programs: no API key, no inherited Node flags. */
-function childEnv(extra: Record<string, string> = {}) {
-  const env: Record<string, string> = {};
-  for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== "ANTHROPIC_API_KEY" && k !== "NODE_OPTIONS") env[k] = v;
-  return { ...env, ...extra };
-}
-
-const file = (rel: string) => path.join(WORKSPACE_DIR, rel);
-const readText = (rel: string) => readFile(file(rel), "utf8").catch(() => null);
 
 function freePort() {
   return new Promise<number>((resolve, reject) => {
@@ -41,15 +27,6 @@ function freePort() {
   });
 }
 
-/** The useful part of a crash: the error line and where it happened, not Node's stack trace. */
-export function crashSummary(output: string) {
-  const lines = output.split("\n").map((l) => l.trimEnd()).filter(Boolean);
-  const i = lines.findIndex((l) => /^\w*Error\b|^\s*\w*Error:/.test(l.trim()));
-  if (i === -1) return lines.slice(-3).join(" · ") || "no output";
-  const where = lines.slice(0, i).find((l) => /server\.js:\d+/.test(l));
-  return [lines[i].trim(), where && `(${where.trim().split("/").pop()})`].filter(Boolean).join(" ");
-}
-
 // ---------- REST API ----------
 
 type Reply = { status: number; json: unknown; text: string };
@@ -57,7 +34,7 @@ type Reply = { status: number; json: unknown; text: string };
 /** Start the workspace's server.js on its own free port, run `fn`, then stop it. */
 async function withApiServer(fn: (call: (method: string, p: string, body?: unknown) => Promise<Reply>) => Promise<void>) {
   const port = await freePort();
-  const child = spawn(process.execPath, ["server.js"], { cwd: WORKSPACE_DIR, env: childEnv({ PORT: String(port) }) as NodeJS.ProcessEnv });
+  const child = spawn(process.execPath, ["server.js"], { cwd: WORKSPACE_DIR, env: childEnv({ PORT: String(port) }) });
   let output = "";
   child.stdout.on("data", (d) => (output += d));
   child.stderr.on("data", (d) => (output += d));
@@ -98,7 +75,6 @@ async function withApiServer(fn: (call: (method: string, p: string, body?: unkno
   }
 }
 
-const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const hasError = (r: Reply) => isObj(r.json) && typeof r.json.error === "string" && r.json.error.length > 0;
 const listOf = (r: Reply): Record<string, unknown>[] | null =>
   Array.isArray(r.json) ? r.json : isObj(r.json) && Array.isArray(r.json.todos) ? (r.json.todos as Record<string, unknown>[]) : null;
@@ -197,7 +173,7 @@ type ToolResult = { isError?: boolean; content?: { type: string; text?: string }
 
 /** Connect to the workspace's MCP server over stdio, like Claude Code does. */
 async function withMcpClient(fn: (client: Client, tools: ToolInfo[]) => Promise<void>) {
-  const transport = new StdioClientTransport({ command: process.execPath, args: ["server.js"], cwd: WORKSPACE_DIR, env: childEnv(), stderr: "pipe" });
+  const transport = new StdioClientTransport({ command: process.execPath, args: ["server.js"], cwd: WORKSPACE_DIR, env: childEnv() as Record<string, string>, stderr: "pipe" });
   let stderr = "";
   transport.stderr?.on("data", (d) => (stderr += d));
   const client = new Client({ name: "playground-checker", version: "1.0.0" });
@@ -211,7 +187,7 @@ async function withMcpClient(fn: (client: Client, tools: ToolInfo[]) => Promise<
     throw new Error(`Couldn't connect to server.js over MCP (${err instanceof Error ? err.message : err}). ${stderr.trim().slice(-300)}`);
   }
   try {
-    const { tools } = await client.listTools();
+    const tools = client.getServerCapabilities()?.tools ? (await client.listTools()).tools : [];
     await fn(client, tools as ToolInfo[]);
   } finally {
     await client.close().catch(() => {});
@@ -281,6 +257,50 @@ async function checkTempErrors(): Promise<Results> {
   return R;
 }
 
+async function checkResourcesAndPrompts(): Promise<Results> {
+  const R: Results = {};
+  await withMcpClient(async (client) => {
+    const caps = client.getServerCapabilities() ?? {};
+    const URI = "docs://style-guide";
+    if (!caps.resources) {
+      R.resource = R.read = fail("The server doesn't offer resources yet. Register one with server.registerResource(…).");
+    } else {
+      const { resources } = await client.listResources();
+      const res = resources.find((r) => r.uri === URI);
+      R.resource = res?.name ? ok() : fail(`No resource at ${URI}. Found: ${resources.map((r) => r.uri).join(", ") || "none"}`);
+      try {
+        const { contents } = await client.readResource({ uri: URI });
+        const text = contents.map((c) => ("text" in c && typeof c.text === "string" ? c.text : "")).join("");
+        R.read = text.trim() ? ok() : fail(`Reading ${URI} returned no text.`);
+      } catch (err) {
+        R.read = fail(`Reading ${URI} failed: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+    if (!caps.prompts) {
+      R.prompt = R.get = fail("The server doesn't offer prompts yet. Register one with server.registerPrompt(…).");
+      return;
+    }
+    const { prompts } = await client.listPrompts();
+    const prompt = prompts.find((p) => p.name === "review_code");
+    const arg = prompt?.arguments?.find((a) => a.name === "code");
+    R.prompt = !prompt
+      ? fail(`No review_code prompt. Found: ${prompts.map((p) => p.name).join(", ") || "none"}`)
+      : arg?.required
+        ? ok()
+        : fail("review_code needs a required argument called code (argsSchema: { code: z.string() }).");
+    try {
+      const got = await client.getPrompt({ name: "review_code", arguments: { code: "let total = price * qty;" } });
+      const user = got.messages.filter((m) => m.role === "user").map((m) => (m.content.type === "text" ? m.content.text : "")).join("\n");
+      R.get = user.includes("let total = price * qty;") ? ok() : fail(`The prompt's user message should include the code; got ${JSON.stringify(got.messages).slice(0, 160)}`);
+    } catch (err) {
+      R.get = fail(`Getting review_code failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }).catch((err) => {
+    for (const k of ["resource", "read", "prompt", "get"]) R[k] ??= fail(err instanceof Error ? err.message : String(err));
+  });
+  return R;
+}
+
 // ---------- Claude Code config ----------
 
 async function checkCommand(): Promise<Results> {
@@ -345,7 +365,7 @@ async function checkDiscount(): Promise<Results> {
     const { stdout } = await run(
       process.execPath,
       ["--input-type=module", "-e", `import { applyDiscount } from "./src/cart.js"; console.log(JSON.stringify([applyDiscount(200, "SAVE10"), applyDiscount(80, "HALFOFF")]));`],
-      { cwd: WORKSPACE_DIR, env: childEnv() as NodeJS.ProcessEnv, timeout: 10_000 },
+      { cwd: WORKSPACE_DIR, env: childEnv(), timeout: 10_000 },
     );
     const [save10, halfoff] = JSON.parse(stdout.trim().split("\n").pop() ?? "[]");
     R.fixed = save10 === 180 ? ok() : fail(`applyDiscount(200, "SAVE10") returned ${save10}`);
@@ -358,7 +378,7 @@ async function checkDiscount(): Promise<Results> {
   const tests = await readText("src/cart.test.js");
   R.test = tests && /HALFOFF/.test(tests) ? ok() : fail("Add a test in src/cart.test.js that uses HALFOFF.");
   try {
-    await run(process.execPath, ["--test"], { cwd: WORKSPACE_DIR, env: childEnv() as NodeJS.ProcessEnv, timeout: 30_000 });
+    await run(process.execPath, ["--test"], { cwd: WORKSPACE_DIR, env: childEnv(), timeout: 30_000 });
     R.green = ok();
   } catch (err) {
     const out = (err as { stdout?: string }).stdout ?? "";
@@ -394,7 +414,105 @@ async function checkAgentTool(): Promise<Results> {
   };
 }
 
+// ---------- Security ----------
+
+type HookRun = { code: number | null; stdout: string; stderr: string };
+
+/** Run a hook script the way Claude Code does: the event as JSON on stdin. */
+function runHook(script: string, toolName: string, toolInput: Record<string, unknown>) {
+  const event = {
+    session_id: "playground-check",
+    transcript_path: "",
+    cwd: WORKSPACE_DIR,
+    permission_mode: "default",
+    hook_event_name: "PreToolUse",
+    tool_name: toolName,
+    tool_input: toolInput,
+  };
+  return new Promise<HookRun>((resolve) => {
+    const child = spawn(process.execPath, [script], { cwd: WORKSPACE_DIR, env: childEnv({ CLAUDE_PROJECT_DIR: WORKSPACE_DIR }) });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => (stdout += d));
+    child.stderr.on("data", (d) => (stderr += d));
+    const timer = setTimeout(() => child.kill("SIGKILL"), 10_000);
+    child.once("close", (code) => {
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr });
+    });
+    child.stdin.on("error", () => {}); // a hook that exits without reading stdin
+    child.stdin.end(JSON.stringify(event));
+  });
+}
+
+/** A hook blocks with exit code 2, or with a JSON decision on stdout. */
+function blocked(r: HookRun) {
+  if (r.code === 2) return true;
+  if (r.code !== 0) return false;
+  try {
+    const out = JSON.parse(r.stdout.trim().split("\n").pop() ?? "") as { hookSpecificOutput?: { permissionDecision?: string } };
+    return ["deny", "block"].includes(out.hookSpecificOutput?.permissionDecision ?? "");
+  } catch {
+    return false;
+  }
+}
+
+async function checkSecurityHook(): Promise<Results> {
+  const R: Results = {};
+  const rel = ".claude/hooks/protect-env.mjs";
+  if ((await readText(rel)) === null) {
+    const missing = fail(`Create ${rel} first.`);
+    R.script = R.read = R.bash = R.allow = missing;
+  } else {
+    const script = path.join(WORKSPACE_DIR, rel);
+    const SCRIPT = `node -e "console.log(require('fs').readFileSync('.env', 'utf8'))"`;
+    const [readEnv, catEnv, scriptEnv, readServer, ls] = await Promise.all([
+      runHook(script, "Read", { file_path: path.join(WORKSPACE_DIR, ".env") }),
+      runHook(script, "Bash", { command: "cat .env", description: "Show the env file" }),
+      runHook(script, "Bash", { command: SCRIPT }),
+      runHook(script, "Read", { file_path: path.join(WORKSPACE_DIR, "server.js") }),
+      runHook(script, "Bash", { command: "ls -la" }),
+    ]);
+    const crashed = [readEnv, catEnv, readServer].find((r) => r.code !== 0 && r.code !== 2);
+    R.script = crashed ? fail(`It exited with code ${crashed.code}: ${crashSummary(crashed.stderr)}`) : ok();
+    const why = (r: HookRun) => (blocked(r) ? "" : `exited with ${r.code}${r.stderr.trim() ? ` (${r.stderr.trim().slice(0, 80)})` : ""}`);
+    R.read = blocked(readEnv)
+      ? readEnv.code === 2 && !readEnv.stderr.trim()
+        ? fail("It blocked, but printed no reason on stderr. Claude sees that reason, so say why.")
+        : ok()
+      : fail(`Read of .env wasn't blocked: it ${why(readEnv)}. Exit with code 2 to block.`);
+    R.bash =
+      blocked(catEnv) && blocked(scriptEnv)
+        ? ok()
+        : fail(`Not blocked: ${[!blocked(catEnv) && "cat .env", !blocked(scriptEnv) && SCRIPT].filter(Boolean).join(", ")}. Look at tool_input.command.`);
+    const wrongly = [readServer.code !== 0 && "Read server.js", ls.code !== 0 && "Bash ls -la", blocked(readServer) && "Read server.js"].filter(Boolean);
+    R.allow = wrongly.length ? fail(`These should be allowed with exit code 0: ${[...new Set(wrongly)].join(", ")}`) : ok();
+  }
+
+  const { settings } = await readClaudeConfig(WORKSPACE_DIR);
+  const covers = (matcher: string, tool: string) => {
+    if (matcher === "" || matcher === "*") return true;
+    try {
+      return new RegExp(`^(?:${matcher})$`).test(tool);
+    } catch {
+      return false;
+    }
+  };
+  const hook = settings.hooks.find((h) => h.event === "PreToolUse" && h.command.includes("protect-env.mjs"));
+  R.registered = settings.error
+    ? fail(`.claude/settings.json isn't valid JSON: ${settings.error}`)
+    : !hook
+      ? fail("No PreToolUse hook in .claude/settings.json runs protect-env.mjs.")
+      : covers(hook.matcher, "Read") && covers(hook.matcher, "Bash")
+        ? ok()
+        : fail(`The matcher "${hook.matcher}" should cover Read and Bash, e.g. "Read|Edit|Write|Bash".`);
+  return R;
+}
+
 const CHECKERS: Record<string, () => Promise<Results>> = {
+  ...API_CHECKERS,
+  "mcp-resources": checkResourcesAndPrompts,
+  "security-hook": checkSecurityHook,
   "api-todos": checkTodos,
   "api-filter": checkFilter,
   "mcp-text-tools": checkTextTools,

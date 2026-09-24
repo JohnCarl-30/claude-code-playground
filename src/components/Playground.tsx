@@ -2,36 +2,86 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DOMAINS, EXAM, domainProgress, findDomain, readiness, skillsFor, type PracticeRef } from "@/lib/certification";
 import { CHALLENGES, findChallenge } from "@/lib/challenges";
 import { BLANK_EXAMPLE_ID, EXAMPLES, EXAMPLE_GROUPS, findExample } from "@/lib/examples";
 import type { RunConfig } from "@/lib/run-types";
-import { usePassed, useTried } from "@/lib/tried";
+import { usePassed, useQuizzesPassed, useTried } from "@/lib/tried";
+import { CertificationPanel } from "./CertificationPanel";
 import { ChallengePanel } from "./ChallengePanel";
 import { Markdownish } from "./Markdownish";
 import { Runner } from "./Runner";
 
 const BLANK: Partial<RunConfig> = { prompt: "", tools: ["Read", "Glob", "Grep", "Edit"], demoMcp: true };
 
-// Challenges share the sidebar with examples; their ids carry this prefix.
+// Challenges and the certification track share the sidebar with examples; their ids carry these prefixes.
 const CHALLENGE = "challenge:";
+const CERT = "cert:";
+const CERT_OVERVIEW = "cert:overview";
 
-export function Playground({ initialExampleId, initialChallengeId }: { initialExampleId?: string; initialChallengeId?: string }) {
+function initialSelection(exampleId?: string, challengeId?: string, certId?: string) {
+  if (certId !== undefined) return findDomain(certId) ? CERT + certId : CERT_OVERVIEW;
+  if (findChallenge(challengeId)) return CHALLENGE + challengeId;
+  return findExample(exampleId)?.id ?? BLANK_EXAMPLE_ID;
+}
+
+function urlFor(id: string) {
+  if (id === BLANK_EXAMPLE_ID) return "/";
+  if (id.startsWith(CHALLENGE)) return `/?challenge=${encodeURIComponent(id.slice(CHALLENGE.length))}`;
+  if (id.startsWith(CERT)) return `/?cert=${encodeURIComponent(id.slice(CERT.length))}`;
+  return `/?example=${encodeURIComponent(id)}`;
+}
+
+/** Which exam skills the selected example or challenge practices, as links to their domains. */
+function ExamSkills({ item, onDomain }: { item: PracticeRef; onDomain: (id: string) => void }) {
+  const skills = skillsFor(item);
+  if (!skills.length) return null;
+  return (
+    <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+      <span>Practices for {EXAM.code}:</span>
+      {skills.map(({ domain, skill }) => (
+        <button
+          key={`${domain.id}:${skill.name}`}
+          onClick={() => onDomain(domain.id)}
+          className="rounded-full border border-line px-2 py-0.5 hover:bg-surface-2 hover:text-ink"
+        >
+          D{domain.number} · {skill.name}
+        </button>
+      ))}
+    </p>
+  );
+}
+
+export function Playground({
+  initialExampleId,
+  initialChallengeId,
+  initialCertId,
+}: {
+  initialExampleId?: string;
+  initialChallengeId?: string;
+  initialCertId?: string;
+}) {
   const router = useRouter();
   const tried = useTried();
   const passed = usePassed();
-  const [selectedId, setSelectedId] = useState(
-    findChallenge(initialChallengeId) ? CHALLENGE + initialChallengeId : (findExample(initialExampleId)?.id ?? BLANK_EXAMPLE_ID),
-  );
+  const quizzes = useQuizzesPassed();
+  const progress = { tried, passed, quizzes };
+  const [selectedId, setSelectedId] = useState(() => initialSelection(initialExampleId, initialChallengeId, initialCertId));
   const example = findExample(selectedId);
   const challenge = selectedId.startsWith(CHALLENGE) ? findChallenge(selectedId.slice(CHALLENGE.length)) : undefined;
+  const cert = selectedId.startsWith(CERT);
+  const certDomain = cert ? findDomain(selectedId.slice(CERT.length)) : undefined;
   const doneCount = EXAMPLES.filter((e) => tried.has(e.id)).length;
   const passedCount = CHALLENGES.filter((c) => passed.has(c.id)).length;
+  const ready = Math.round(readiness(progress) * 100);
 
   function select(id: string) {
     setSelectedId(id);
-    const url = id === BLANK_EXAMPLE_ID ? "/" : id.startsWith(CHALLENGE) ? `/?challenge=${encodeURIComponent(id.slice(CHALLENGE.length))}` : `/?example=${encodeURIComponent(id)}`;
-    router.replace(url, { scroll: false });
+    router.replace(urlFor(id), { scroll: false });
+    if (id.startsWith(CERT)) window.scrollTo?.({ top: 0 });
   }
+  const openPractice = (item: PracticeRef) => select(item.kind === "challenge" ? CHALLENGE + item.id : item.id);
+  const openDomain = (id?: string) => select(id ? CERT + id : CERT_OVERVIEW);
 
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[272px_1fr] lg:gap-10 lg:py-8">
@@ -47,6 +97,15 @@ export function Playground({ initialExampleId, initialChallengeId }: { initialEx
             className="h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm"
           >
             <option value={BLANK_EXAMPLE_ID}>Blank: write your own prompt</option>
+            <optgroup label={`Certification · ${ready}% ready`}>
+              <option value={CERT_OVERVIEW}>Exam blueprint &amp; readiness</option>
+              {DOMAINS.map((d) => (
+                <option key={d.id} value={CERT + d.id}>
+                  {quizzes.has(d.id) ? "✓ " : ""}
+                  {d.number}. {d.name}
+                </option>
+              ))}
+            </optgroup>
             <optgroup label={`Challenges · ${passedCount}/${CHALLENGES.length} passed`}>
               {CHALLENGES.map((c) => (
                 <option key={c.id} value={CHALLENGE + c.id}>
@@ -96,6 +155,51 @@ export function Playground({ initialExampleId, initialChallengeId }: { initialEx
               <span className="block text-xs text-muted">Write your own prompt</span>
             </span>
           </button>
+
+          <div>
+            <div className="mb-2 flex items-baseline justify-between px-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">Certification · {EXAM.code}</p>
+              <p className={`text-xs tabular-nums ${ready === 100 ? "text-ok" : "text-muted"}`}>{ready}% ready</p>
+            </div>
+            <ul className="space-y-0.5">
+              <li>
+                <button
+                  onClick={() => select(CERT_OVERVIEW)}
+                  aria-current={selectedId === CERT_OVERVIEW ? "true" : undefined}
+                  className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+                    selectedId === CERT_OVERVIEW ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
+                  }`}
+                >
+                  <span aria-hidden className="w-4 shrink-0 text-center text-xs leading-none">
+                    ◎
+                  </span>
+                  <span className="min-w-0 flex-1">Exam blueprint</span>
+                </button>
+              </li>
+              {DOMAINS.map((d) => {
+                const active = selectedId === CERT + d.id;
+                const share = domainProgress(d, progress).share;
+                return (
+                  <li key={d.id}>
+                    <button
+                      onClick={() => select(CERT + d.id)}
+                      aria-current={active ? "true" : undefined}
+                      title={`${d.weight.toFixed(1)}% of the exam`}
+                      className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+                        active ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
+                      }`}
+                    >
+                      <span aria-label={quizzes.has(d.id) ? "quiz passed" : undefined} className="w-4 shrink-0 text-center font-mono text-xs leading-none">
+                        {quizzes.has(d.id) ? "✓" : d.number}
+                      </span>
+                      <span className="min-w-0 flex-1">{d.name}</span>
+                      <span className={`shrink-0 text-[10px] tabular-nums ${share === 1 ? "text-ok" : "text-muted"}`}>{Math.round(share * 100)}%</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
 
           <div>
             <div className="mb-2 flex items-baseline justify-between px-2">
@@ -176,7 +280,9 @@ export function Playground({ initialExampleId, initialChallengeId }: { initialEx
       </aside>
 
       <main className="min-w-0 space-y-6">
-        {challenge ? (
+        {cert ? (
+          <CertificationPanel domain={certDomain} progress={progress} onOpen={openPractice} onDomain={openDomain} />
+        ) : challenge ? (
           <ChallengePanel key={challenge.id} challenge={challenge} passedBefore={passed.has(challenge.id)} />
         ) : (
           <header className="space-y-2">
@@ -203,13 +309,18 @@ export function Playground({ initialExampleId, initialChallengeId }: { initialEx
             <Markdownish blocks={[example.notice.map((n) => `- ${n}`).join("\n")]} className="text-ink/85" />
           </aside>
         )}
-        <Runner
-          key={selectedId}
-          exampleId={example?.id}
-          template={challenge?.template ?? example?.template}
-          preset={challenge ? { ...challenge.config, prompt: "" } : (example?.config ?? BLANK)}
-          showRawByDefault={example?.showRaw}
-        />
+        {(example || challenge) && (
+          <ExamSkills item={challenge ? { kind: "challenge", id: challenge.id } : { kind: "example", id: example!.id }} onDomain={openDomain} />
+        )}
+        {!cert && (
+          <Runner
+            key={selectedId}
+            exampleId={example?.id}
+            template={challenge?.template ?? example?.template}
+            preset={challenge ? { ...challenge.config, prompt: "" } : (example?.config ?? BLANK)}
+            showRawByDefault={example?.showRaw}
+          />
+        )}
       </main>
     </div>
   );

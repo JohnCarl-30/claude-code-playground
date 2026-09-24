@@ -21,4 +21,15 @@ server.registerTool(
     return { isError: true, content: [{ type: "text", text: `Unknown unit ${unit}; use C or F.` }] };
   },
 );
+server.registerResource(
+  "style-guide",
+  "docs://style-guide",
+  { title: "Style guide", description: "How we write code here.", mimeType: "text/markdown" },
+  async (uri) => ({ contents: [{ uri: uri.href, text: "# Style guide\n\n- Prefer small functions.\n- Name things clearly." }] }),
+);
+server.registerPrompt(
+  "review_code",
+  { description: "Review a piece of code against the style guide.", argsSchema: { code: z.string() } },
+  ({ code }) => ({ messages: [{ role: "user", content: { type: "text", text: `Review this code against docs://style-guide:\n\n${code}` } }] }),
+);
 await server.connect(new StdioServerTransport());

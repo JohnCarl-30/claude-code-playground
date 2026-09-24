@@ -66,4 +66,29 @@ describe("Run & test", () => {
     await proc.stopProcess();
     expect(Date.now() - started).toBeLessThan(2500);
   });
+
+  it("runs Claude API files against the practice API, never the real one", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-should-never-be-used";
+    try {
+      await ws.switchWorkspace("claude-api");
+      await proc.startProcess("ask");
+      await until(() => !proc.getProcessStatus().running, 20_000);
+      const { exitCode, logs } = proc.getProcessStatus();
+      expect(exitCode).toBe(0);
+      expect(logs[0]).toBe("$ node run.mjs ask");
+      expect(logs.join("\n")).toMatch(/practice API at http:\/\/127\.0\.0\.1:\d+/);
+      expect(logs.join("\n")).toContain("⇄ practice API: POST /v1/messages → stop_reason: end_turn");
+      expect(logs.join("\n")).toMatch(/ask\.mjs returned:\n\(practice API\) This is a canned reply/);
+    } finally {
+      delete process.env.ANTHROPIC_API_KEY;
+    }
+  });
+
+  it("shows why an unfinished file fails", async () => {
+    await proc.startProcess("tools");
+    await until(() => !proc.getProcessStatus().running, 20_000);
+    const { exitCode, logs } = proc.getProcessStatus();
+    expect(exitCode).toBe(1);
+    expect(logs.join("\n")).toContain("runWithTools isn't written yet");
+  });
 });

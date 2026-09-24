@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
-// Small sets of ids remembered in this browser only: examples you've run, challenges you've passed.
+// Small sets of ids remembered in this browser only: examples you've run, challenges and quizzes you've passed.
 const EMPTY: readonly string[] = [];
 
 function idSetStore(key: string) {
@@ -67,3 +67,9 @@ export const useTried = () => tried.useSet();
 /** A challenge whose checks all passed. */
 export const markPassed = (id: string) => passed.add(id);
 export const usePassed = () => passed.useSet();
+
+const quizzes = idSetStore("claude-code-playground:quizzes-passed:v1");
+
+/** An exam domain whose knowledge check you passed. */
+export const markQuizPassed = (domain: string) => quizzes.add(domain);
+export const useQuizzesPassed = () => quizzes.useSet();
