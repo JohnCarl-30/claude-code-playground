@@ -113,7 +113,7 @@ export class LiveSession {
     this.lastActivity = Date.now();
     await this.query?.setPermissionMode(mode);
     this.config.permissionMode = mode;
-    this.emit({ kind: "control", note: `Permission mode is now ${mode}.` });
+    this.emit({ kind: "control", note: `Permission mode is now ${mode}.`, permissionMode: mode });
   }
 
   async setModel(model: string) {
@@ -121,6 +121,23 @@ export class LiveSession {
     await this.query?.setModel(model || undefined);
     this.config.model = model;
     this.emit({ kind: "control", note: `Model is now ${model || "your Claude Code default"}.` });
+  }
+
+  /** How full the context window is, like /context in the terminal. */
+  async contextUsage() {
+    if (!this.query || this.closed) return null;
+    const u = await this.query.getContextUsage();
+    return {
+      model: u.model,
+      totalTokens: u.totalTokens,
+      maxTokens: u.maxTokens,
+      percentage: u.percentage,
+      isAutoCompactEnabled: u.isAutoCompactEnabled,
+      autoCompactThreshold: u.autoCompactThreshold ?? null,
+      categories: u.categories.map((c) => ({ name: c.name, tokens: c.tokens, kind: c.kind })),
+      memoryFiles: u.memoryFiles.map((f) => ({ path: f.path, tokens: f.tokens })),
+      mcpTools: u.mcpTools.map((t) => ({ name: t.name, server: t.serverName, tokens: t.tokens })),
+    };
   }
 
   /** Replay stored events from `from`, then stream new ones. Returns an unsubscribe function. */

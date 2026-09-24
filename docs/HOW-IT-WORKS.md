@@ -124,6 +124,22 @@ sequenceDiagram
 
 ---
 
+### Inside the session: context, tasks, questions and plans
+
+The playground shows the parts of the harness you'd see in the terminal:
+
+| What you see | Where it comes from |
+|---|---|
+| **Context meter** in the conversation header: how full the context window is, what's using it, and where auto-compaction kicks in | `GET /api/session/<id>/context` → `query.getContextUsage()` (the data behind `/context`), refreshed after every reply |
+| **🗜 Compact now** and the **Context compacted** card | sends `/compact` as a message; Claude Code answers with a `system` message `compact_boundary` (`trigger`, `pre_tokens`, `post_tokens`) |
+| **Claude's task list** above the prompt box (○ to do, ● in progress, ✓ done) | the `TaskCreate` / `TaskUpdate` tool calls, rebuilt by `taskListFrom()` in `src/lib/tasks.ts`; they're allowed without asking because they touch no files |
+| **❓ Question cards**: pick an option or type your own answer | Claude calls `AskUserQuestion`; `canUseTool` shows the card and returns your picks as the tool's `answers` |
+| **📋 Plan review** in `plan` mode: approve (auto-accept edits or ask before edits) or keep planning with feedback | Claude writes its plan to `.claude/plans/` (the `plansDirectory` setting) and calls `ExitPlanMode`; approving returns `updatedPermissions: [{ type: "setMode", mode }]`, keeping planning denies with your feedback (or `interrupt: true` without feedback, so Claude stops and waits) |
+
+These tools (`TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet`, `AskUserQuestion`, `ExitPlanMode`) are always available, like in the terminal (`HARNESS_TOOLS` in `run-types.ts`). Your answers to all cards go through `POST /api/permission` and are checked by `parseAnswer()`.
+
+---
+
 ## 3. Permissions: the Allow / Deny cards
 
 Claude never touches your computer directly. It asks Claude Code to run a tool. Before anything else, the playground's always-on **workspace guard** hook checks the call; then Claude Code applies permission modes and rules; and whenever a tool still isn't approved, it asks the playground's **`canUseTool`** callback.
@@ -317,6 +333,7 @@ If storage is blocked (private windows, strict settings), everything still works
 | Change what's allowed without asking | `canUseTool` in `src/lib/run-agent.ts` |
 | Change hooks or subagents | `hooks`, `SUBAGENTS`, `TEAM` in `src/lib/run-agent.ts` |
 | Change how a message is displayed | `src/components/Timeline.tsx` |
+| Change the question / plan cards, task list or context meter | `Timeline.tsx` (`QuestionCard`, `PlanCard`), `TaskListPanel.tsx`, `ContextMeter.tsx` |
 | Change the generated code in the Code tab | `src/components/CodePreview.tsx` |
 | Change a starter's Claude Code config | `templates/<starter>/.claude/` |
 | Change how `.claude/` is read or shown | `src/lib/claude-config.ts`, `src/components/ClaudeConfigPanel.tsx` |
@@ -346,10 +363,11 @@ npm run build
 | `processes.test.ts` | Run & test: only declared scripts run, the API server starts, answers and stops quickly |
 | `examples.test.ts` | every sidebar example is well-formed |
 | `code-preview.test.ts` | the Code tab mirrors settings, shows the live-session pattern, wraps long prompts |
-| `live-session.test.ts` | the session manager with a fake Claude Code: queue vs steer, stop only while working, live model and mode changes, replay after reconnect, closing, idle cleanup, the three-session limit |
+| `harness.test.ts` | rebuilding the task list from tool calls, and checking card answers (questions, plan reviews) |
+| `live-session.test.ts` | the session manager with a fake Claude Code: context usage (and none once closed), queue vs steer, stop only while working, live model and mode changes, replay after reconnect, closing, idle cleanup, the three-session limit |
 | `components/*.test.tsx` | the UI in a simulated browser: timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner against a fake live session (follow-ups, Steer / Queue / Stop, live model and mode changes, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
 
 The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something answers on port 4100 (for example your own API server).
 
-**Real-Claude end-to-end tests** (`npm run test:e2e`, `tests/e2e/`): builds the app, starts a separate production server on a free port with `PLAYGROUND_ROOT` pointing at a temporary folder, and refuses to run unless it can prove the server answering is that one (its workspace appears in the temporary folder). Then it drives it over HTTP with real Claude calls on Haiku (a few cents): a deny rule keeps `.env` private, an allow rule skips the question, `/add-route` edits the API and the `settings.json` hook checks it, settings edits always ask, follow-ups go into the same live session, steering mid-task switches Claude to your new message, and Stop interrupts a turn while the session continues on a new model. They are not part of `npm test` or CI.
+**Real-Claude end-to-end tests** (`npm run test:e2e`, `tests/e2e/`): builds the app, starts a separate production server on a free port with `PLAYGROUND_ROOT` pointing at a temporary folder, and refuses to run unless it can prove the server answering is that one (its workspace appears in the temporary folder). Then it drives it over HTTP with real Claude calls on Haiku (a few cents): a deny rule keeps `.env` private, an allow rule skips the question, `/add-route` edits the API and the `settings.json` hook checks it, settings edits always ask, follow-ups go into the same live session, steering mid-task switches Claude to your new message, Stop interrupts a turn while the session continues on a new model, Claude asks a question and uses your answer, plan mode (keep planning with feedback, then approve with auto-accept edits), the task list, and context usage plus `/compact`. They are not part of `npm test` or CI.
 

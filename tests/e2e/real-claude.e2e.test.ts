@@ -10,6 +10,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import { taskListFrom } from "@/lib/tasks";
 import { createTempPlaygroundRoot } from "../helpers";
 
 jest.setTimeout(240_000);
@@ -47,7 +48,10 @@ async function api(pathname: string, init?: RequestInit) {
  * A live session driven over HTTP like the browser does: POST /api/session, read
  * the NDJSON event stream, send messages and controls. `answer` decides permission cards.
  */
-async function openSession(config: Record<string, unknown>, answer: (e: Event) => "allow" | "deny" = () => "allow") {
+/** How the test answers a card: permission cards get allow/deny; questions and plan reviews get a full answer. */
+type CardAnswer = "allow" | "deny" | Record<string, unknown>;
+
+async function openSession(config: Record<string, unknown>, answer: (e: Event) => CardAnswer = () => "allow") {
   const created = await api("/api/session", {
     method: "POST",
     body: JSON.stringify({ model: "claude-haiku-4-5", maxBudgetUsd: 0.5, ...config }),
@@ -69,14 +73,17 @@ async function openSession(config: Record<string, unknown>, answer: (e: Event) =
         const event = JSON.parse(line) as Event;
         if (event.kind === "sdk" && (event.message as { type: string }).type === "stream_event") continue;
         events.push(event);
-        if (event.kind === "permission_request") {
-          await api("/api/permission", { method: "POST", body: JSON.stringify({ id: event.id, allow: answer(event) === "allow" }) });
+        if (event.kind === "permission_request" || event.kind === "question" || event.kind === "plan_review") {
+          const a = answer(event);
+          const body = typeof a === "string" ? { allow: a === "allow" } : a;
+          await api("/api/permission", { method: "POST", body: JSON.stringify({ id: event.id, ...body }) });
         }
       }
     }
   })();
   const results = () => sdk(events).filter((m) => m.type === "result");
   return {
+    id,
     events,
     results,
     /** Wait until Claude has finished `n` messages in this session. */
@@ -95,7 +102,7 @@ async function openSession(config: Record<string, unknown>, answer: (e: Event) =
 }
 
 /** One message in a fresh session, then close it. */
-async function run(config: Record<string, unknown>, answer?: (e: Event) => "allow" | "deny") {
+async function run(config: Record<string, unknown>, answer?: (e: Event) => CardAnswer) {
   const session = await openSession(config, answer);
   await session.untilResults(1);
   await session.close();
@@ -224,4 +231,71 @@ describe("real Claude through the playground", () => {
     expect(inits.at(-1)?.model).toBe("claude-sonnet-5");
   });
 
+});
+
+describe("inside the session (real Claude)", () => {
+  beforeAll(async () => {
+    const ws = await api("/api/workspace", { method: "POST", body: JSON.stringify({ template: "tiny-shop" }) });
+    expect(ws.template).toBe("tiny-shop");
+  });
+
+  it("Claude asks a question and continues with your answer", async () => {
+    const session = await openSession(
+      { prompt: "Use the AskUserQuestion tool to ask me whether to reply in English or Filipino (two options). Then say good morning in the language I pick.", tools: [] },
+      (e) => {
+        const q = (e.questions as { question: string }[])[0];
+        return { allow: true, answers: { [q.question]: "Filipino" } };
+      },
+    );
+    await session.untilResults(1);
+    await session.close();
+    expect(session.events.some((e) => e.kind === "question")).toBe(true);
+    const reply = JSON.stringify(sdk(session.events).filter((m) => m.type === "assistant").at(-1)).toLowerCase();
+    expect(reply).toMatch(/magandang|umaga/);
+  });
+
+  it("plan mode: keep planning with feedback, then approve with auto-accept edits", async () => {
+    let reviews = 0;
+    const session = await openSession(
+      {
+        prompt: "Plan how to fix the discount code bug in src/cart.js. Keep the plan short and present it for my approval.",
+        tools: ["Read", "Glob", "Grep", "Edit", "Write"],
+        permissionMode: "plan",
+        maxTurns: 30,
+      },
+      (e) => {
+        if (e.kind !== "plan_review") return "allow";
+        reviews++;
+        return reviews === 1 ? { allow: false, message: "Also mention running the tests afterwards." } : { allow: true, mode: "acceptEdits" };
+      },
+    );
+    await session.until(() => session.results().length >= 1 && reviews >= 2);
+    await session.close();
+    expect(session.events.filter((e) => e.kind === "plan_review").length).toBeGreaterThanOrEqual(2);
+    expect(session.events.some((e) => e.kind === "control" && e.permissionMode === "acceptEdits")).toBe(true);
+    expect(workspaceFile("src/cart.js")).not.toContain("amount - percent");
+    expect(existsSync(path.join(temp.root, "workspace", ".claude", "plans"))).toBe(true);
+  });
+
+  it("Claude keeps a task list", async () => {
+    const events = await run({
+      prompt: "Create a task list with exactly 3 short tasks for reviewing README.md, then do each one, marking it in progress and completed as you go. Be very brief.",
+      tools: ["Read"],
+    });
+    const tasks = taskListFrom(events as unknown as Parameters<typeof taskListFrom>[0]);
+    expect(tasks).toHaveLength(3);
+    expect(tasks.every((t) => t.status === "completed")).toBe(true);
+  });
+
+  it("reports context usage, and /compact compacts the conversation", async () => {
+    const session = await openSession({ prompt: "Read README.md and summarize it in one line.", tools: ["Read"] });
+    await session.untilResults(1);
+    const usage = await (await fetch(`${BASE}/api/session/${session.id}/context`)).json();
+    expect(usage.totalTokens).toBeGreaterThan(0);
+    expect(usage.maxTokens).toBeGreaterThan(usage.totalTokens);
+    expect(Array.isArray(usage.categories)).toBe(true);
+    await session.send("/compact");
+    await session.until(() => sdk(session.events).some((m) => m.subtype === "compact_boundary"));
+    await session.close();
+  });
 });

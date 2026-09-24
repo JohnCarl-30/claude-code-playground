@@ -2,6 +2,55 @@
 
 export type PlaygroundPermissionMode = "default" | "acceptEdits" | "plan" | "dontAsk";
 
+/** One question from AskUserQuestion. */
+export type Question = {
+  question: string;
+  header: string;
+  multiSelect: boolean;
+  options: { label: string; description: string }[];
+};
+
+/**
+ * Tools Claude Code always has in the playground, like in the terminal: its task
+ * list, asking you questions, and presenting a plan. None of them touch files.
+ */
+export const HARNESS_TOOLS = ["TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "AskUserQuestion", "ExitPlanMode"] as const;
+
+/** Your answer to a permission card, question or plan review. */
+export type Answer = {
+  allow: boolean;
+  /** Allow this tool for the rest of the conversation. */
+  always?: boolean;
+  /** AskUserQuestion: question text → chosen label(s) or your own text. */
+  answers?: Record<string, string>;
+  /** Plan approval: the permission mode to continue in. */
+  mode?: PlaygroundPermissionMode;
+  /** Feedback when you keep planning. */
+  message?: string;
+};
+
+/** Checks an answer sent from the browser. */
+export function parseAnswer(body: unknown): (Answer & { id: string }) | string {
+  const b = (body ?? {}) as Record<string, unknown>;
+  if (typeof b.id !== "string" || typeof b.allow !== "boolean") return "Expected { id, allow }";
+  const answer: Answer & { id: string } = { id: b.id, allow: b.allow, always: b.always === true };
+  if (b.answers !== undefined) {
+    if (!b.answers || typeof b.answers !== "object" || Array.isArray(b.answers)) return "answers must be an object";
+    const entries = Object.entries(b.answers as Record<string, unknown>);
+    if (entries.length > 8 || entries.some(([k, v]) => typeof v !== "string" || k.length > 1000 || v.length > 2000)) return "Invalid answers.";
+    answer.answers = Object.fromEntries(entries) as Record<string, string>;
+  }
+  if (b.mode !== undefined) {
+    if (!(["default", "acceptEdits", "plan", "dontAsk"] as unknown[]).includes(b.mode)) return "Unknown permission mode.";
+    answer.mode = b.mode as PlaygroundPermissionMode;
+  }
+  if (b.message !== undefined) {
+    if (typeof b.message !== "string" || b.message.length > 2000) return "Feedback is too long.";
+    answer.message = b.message;
+  }
+  return answer;
+}
+
 export const BUILT_IN_TOOLS = ["Read", "Glob", "Grep", "Write", "Edit", "Bash", "WebSearch", "WebFetch"] as const;
 export type BuiltInTool = (typeof BUILT_IN_TOOLS)[number];
 
@@ -122,10 +171,14 @@ export type RunEvent =
   /** You sent a message. `mode` says how it was delivered while Claude was working. */
   | { kind: "user_prompt"; text: string; mode: "start" | "steer" | "queue" }
   /** A mid-session change, like switching the model or permission mode. */
-  | { kind: "control"; note: string }
+  | { kind: "control"; note: string; permissionMode?: PlaygroundPermissionMode }
   /** A raw message from the Agent SDK, exactly as query() yielded it. */
   | { kind: "sdk"; message: SdkMessageLike }
   | { kind: "permission_request"; id: string; tool: string; input: unknown }
+  /** Claude asks you something (AskUserQuestion); answer with the question's options. */
+  | { kind: "question"; id: string; questions: Question[] }
+  /** Claude presents a plan in plan mode (ExitPlanMode) and waits for your approval. */
+  | { kind: "plan_review"; id: string; plan: string }
   | { kind: "permission_decision"; tool: string; allowed: boolean; reason: string; by: "playground" | "you" }
   | { kind: "hook"; event: string; tool: string; note: string }
   | { kind: "error"; message: string }

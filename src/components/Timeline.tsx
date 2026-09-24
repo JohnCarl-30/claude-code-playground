@@ -1,13 +1,25 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { RunEvent, SdkMessageLike } from "@/lib/run-types";
+import { useState } from "react";
+import type { Answer, Question, RunEvent, SdkMessageLike } from "@/lib/run-types";
+import { TASK_TOOL_NAMES } from "@/lib/tasks";
 import { ClaudeText } from "./ClaudeText";
 
 type Block = { type: string; [key: string]: unknown };
 
 export type Choice = "allow" | "always" | "deny";
-const CHOICE_LABEL: Record<Choice, string> = { allow: "Allow", always: "Always allow", deny: "Deny" };
+export const CHOICE_LABEL: Record<Choice, string> = { allow: "Allow", always: "Always allow", deny: "Deny" };
+
+// Harness tools whose calls the page shows in its own way (task list, question and plan cards).
+const HARNESS_NOTES: Record<string, (input: Record<string, unknown>) => string> = {
+  TaskCreate: (i) => `☐ added to the task list: ${String(i.subject ?? "")}`,
+  TaskUpdate: (i) => `☑ task #${String(i.taskId ?? "?")}${i.status ? ` → ${String(i.status).replace("_", " ")}` : " updated"}`,
+  TaskList: () => "☰ checked the task list",
+  TaskGet: (i) => `☰ looked at task #${String(i.taskId ?? "?")}`,
+  AskUserQuestion: () => "❓ Claude asked you a question (below)",
+  ExitPlanMode: () => "📋 Claude presented its plan (below)",
+};
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
@@ -122,7 +134,10 @@ function SdkMessage({
   followUp,
   project,
   stoppedByYou,
+  hiddenIds,
 }: {
+  /** tool_use ids of harness tools, whose results aren't shown as cards. */
+  hiddenIds?: Set<string>;
   /** This result came right after you pressed Stop (or steered). */
   stoppedByYou?: boolean;
   message: SdkMessageLike;
@@ -227,6 +242,13 @@ function SdkMessage({
           }
           if (block.type === "tool_use") {
             const name = str(block.name);
+            if (HARNESS_NOTES[name] && !showRaw) {
+              return (
+                <li key={i} className={`pl-3 text-xs text-muted ${isSub ? "ml-6" : ""}`}>
+                  {HARNESS_NOTES[name]((block.input ?? {}) as Record<string, unknown>)} {subTag}
+                </li>
+              );
+            }
             return (
               <Card
                 key={i}
@@ -251,7 +273,9 @@ function SdkMessage({
   }
 
   if (message.type === "user" && Array.isArray(inner.content)) {
-    const results = (inner.content as Block[]).filter((b) => b.type === "tool_result");
+    const results = (inner.content as Block[]).filter(
+      (b) => b.type === "tool_result" && (showRaw || !hiddenIds?.has(str(b.tool_use_id))),
+    );
     if (!results.length) return showRaw ? <Card icon="↩" title="user message">{raw}</Card> : null;
     return (
       <>
@@ -310,6 +334,21 @@ function SdkMessage({
   }
 
   // Command hooks from .claude/settings.json (the SDK streams these with includeHookEvents).
+  if (message.type === "system" && message.subtype === "compact_boundary") {
+    const meta = (message.compact_metadata ?? {}) as { trigger?: string; pre_tokens?: number; post_tokens?: number };
+    return (
+      <Card
+        tone="info"
+        icon="🗜"
+        title="Context compacted"
+        sub={`${meta.trigger === "auto" ? "automatically" : "you asked"} · ${meta.pre_tokens ?? "?"}${meta.post_tokens ? ` → ${meta.post_tokens}` : ""} tokens`}
+      >
+        <p className="text-sm">Claude Code replaced the conversation so far with a summary, so there&apos;s room for more.</p>
+        {raw}
+      </Card>
+    );
+  }
+
   if (message.type === "system" && message.subtype === "hook_response") {
     const output = [str(message.stdout) || str(message.output), str(message.stderr)].filter(Boolean).join("\n").trim();
     const failed = typeof message.exit_code === "number" && message.exit_code !== 0;
@@ -338,6 +377,7 @@ export function Timeline({
   running,
   answered,
   onDecide,
+  onAnswer = () => {},
   followUp,
   project,
   workspacePath,
@@ -352,11 +392,21 @@ export function Timeline({
   events: RunEvent[];
   showRaw: boolean;
   running: boolean;
-  answered: Record<string, Choice>;
+  /** What you chose on each card, as a label ("Allow", "Filipino", "Approved"...). */
+  answered: Record<string, string>;
   onDecide: (id: string, choice: Choice) => void;
+  /** Answers to Claude's questions and plan reviews. */
+  onAnswer?: (id: string, answer: Answer, label: string) => void;
 }) {
   const workspace = workspacePath ?? "";
   const agents = subagentsById(events);
+  const hiddenIds = new Set<string>();
+  for (const e of events) {
+    if (e.kind !== "sdk" || e.message.type !== "assistant") continue;
+    for (const b of ((e.message.message as { content?: Block[] } | undefined)?.content ?? []) as Block[]) {
+      if (b.type === "tool_use" && (TASK_TOOL_NAMES.has(str(b.name)) || HARNESS_NOTES[str(b.name)])) hiddenIds.add(str(b.id));
+    }
+  }
 
   return (
     <ol className="space-y-2" aria-live="polite">
@@ -367,6 +417,7 @@ export function Timeline({
                 agents={agents}
                 followUp={followUp}
                 project={project}
+                hiddenIds={hiddenIds}
                 stoppedByYou={
                   event.message.type === "result" &&
                   events.slice(Math.max(0, i - 3), i).some((p) => p.kind === "control" && /stopped|steered/i.test(p.note))
@@ -380,7 +431,7 @@ export function Timeline({
                   {tidy(JSON.stringify(event.input, null, 2), workspace)}
                 </pre>
                 {decided ? (
-                  <p className="mt-2 text-sm text-muted">You chose {CHOICE_LABEL[answered[event.id]]}.</p>
+                  <p className="mt-2 text-sm text-muted">You chose {answered[event.id]}.</p>
                 ) : running ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
@@ -409,6 +460,26 @@ export function Timeline({
               </Card>
             );
           }
+          case "question":
+            return (
+              <QuestionCard
+                key={i}
+                questions={event.questions}
+                answered={answered[event.id]}
+                running={running}
+                onAnswer={(answer, label) => onAnswer(event.id, answer, label)}
+              />
+            );
+          case "plan_review":
+            return (
+              <PlanCard
+                key={i}
+                plan={event.plan}
+                answered={answered[event.id]}
+                running={running}
+                onAnswer={(answer, label) => onAnswer(event.id, answer, label)}
+              />
+            );
           case "permission_decision":
             if (event.by === "you") return null; // Already shown on the prompt card.
             return (
@@ -450,5 +521,147 @@ export function Timeline({
         </Card>
       )}
     </ol>
+  );
+}
+
+/** Claude's AskUserQuestion: pick an option (or type your own answer) for each question. */
+function QuestionCard({
+  questions,
+  answered,
+  running,
+  onAnswer,
+}: {
+  questions: Question[];
+  answered?: string;
+  running: boolean;
+  onAnswer: (answer: Answer, label: string) => void;
+}) {
+  const [picked, setPicked] = useState<Record<string, string[]>>({});
+  const [other, setOther] = useState<Record<string, string>>({});
+  const answerFor = (q: Question) => (other[q.question]?.trim() ? other[q.question].trim() : (picked[q.question] ?? []).join(", "));
+  const ready = questions.every((q) => answerFor(q));
+  const toggle = (q: Question, label: string) =>
+    setPicked((p) => {
+      const cur = p[q.question] ?? [];
+      return { ...p, [q.question]: q.multiSelect ? (cur.includes(label) ? cur.filter((l) => l !== label) : [...cur, label]) : [label] };
+    });
+
+  return (
+    <Card tone="info" icon="❓" title="Claude has a question for you">
+      <div className="mt-2 space-y-4">
+        {questions.map((q) => (
+          <fieldset key={q.question} disabled={!!answered || !running} className="space-y-2">
+            <legend className="text-sm">
+              <span className="mr-2 rounded bg-info px-1.5 py-0.5 text-[11px] font-medium text-white">{q.header}</span>
+              {q.question}
+              {q.multiSelect && <span className="ml-1 text-xs text-muted">(pick any)</span>}
+            </legend>
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {q.options.map((o) => {
+                const on = (picked[q.question] ?? []).includes(o.label);
+                return (
+                  <button
+                    key={o.label}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggle(q, o.label)}
+                    className={`rounded-lg border px-3 py-2 text-left text-sm ${on ? "border-info bg-surface" : "border-line bg-surface/60 hover:bg-surface"}`}
+                  >
+                    <span className="block font-medium">{o.label}</span>
+                    <span className="block text-xs text-muted">{o.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              value={other[q.question] ?? ""}
+              onChange={(e) => setOther((x) => ({ ...x, [q.question]: e.target.value }))}
+              placeholder="Or type your own answer"
+              aria-label={`Your own answer to: ${q.question}`}
+              className="h-8 w-full rounded-lg border border-line bg-surface px-2 text-sm"
+            />
+          </fieldset>
+        ))}
+      </div>
+      {answered ? (
+        <p className="mt-3 text-sm text-muted">You answered: {answered}</p>
+      ) : running ? (
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => {
+              const answers = Object.fromEntries(questions.map((q) => [q.question, answerFor(q)]));
+              onAnswer({ allow: true, answers }, Object.values(answers).join(" · "));
+            }}
+            disabled={!ready}
+            className="h-9 rounded-lg bg-info px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+          >
+            Send answer
+          </button>
+          <button onClick={() => onAnswer({ allow: false }, "skipped")} className="h-9 rounded-lg border border-line bg-surface px-3 text-sm hover:bg-surface-2">
+            Skip
+          </button>
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-muted">The conversation moved on before you answered.</p>
+      )}
+    </Card>
+  );
+}
+
+/** Claude's plan from plan mode: approve it (and choose how to continue) or keep planning. */
+function PlanCard({
+  plan,
+  answered,
+  running,
+  onAnswer,
+}: {
+  plan: string;
+  answered?: string;
+  running: boolean;
+  onAnswer: (answer: Answer, label: string) => void;
+}) {
+  const [feedback, setFeedback] = useState("");
+  return (
+    <Card tone="info" icon="📋" title="Claude's plan is ready for your review">
+      <div className="mt-2 max-h-96 overflow-auto rounded-lg border border-line bg-surface p-3">
+        <ClaudeText text={plan} />
+      </div>
+      {answered ? (
+        <p className="mt-3 text-sm text-muted">You chose: {answered}</p>
+      ) : running ? (
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => onAnswer({ allow: true, mode: "acceptEdits" }, "Approve and auto-accept edits")}
+              className="h-9 rounded-lg bg-ok px-3 text-sm font-medium text-white hover:opacity-90"
+            >
+              ✓ Approve, auto-accept edits
+            </button>
+            <button
+              onClick={() => onAnswer({ allow: true, mode: "default" }, "Approve and ask before each edit")}
+              className="h-9 rounded-lg border border-ok/40 bg-surface px-3 text-sm font-medium text-ok hover:bg-ok-soft"
+            >
+              ✓ Approve, ask before edits
+            </button>
+            <button
+              onClick={() => onAnswer({ allow: false, message: feedback.trim() || undefined }, feedback.trim() ? `Keep planning: ${feedback.trim()}` : "Keep planning")}
+              className="h-9 rounded-lg border border-line bg-surface px-3 text-sm hover:bg-surface-2"
+            >
+              ✎ Keep planning
+            </button>
+          </div>
+          <textarea
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            rows={2}
+            placeholder="Optional: what should change in the plan? (sent with Keep planning)"
+            aria-label="Feedback on the plan"
+            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+          />
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-muted">The conversation moved on before you reviewed it.</p>
+      )}
+    </Card>
   );
 }

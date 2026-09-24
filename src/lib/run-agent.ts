@@ -1,4 +1,5 @@
 import "server-only";
+import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import {
   type AgentDefinition,
@@ -9,24 +10,45 @@ import {
   type Options,
 } from "@anthropic-ai/claude-agent-sdk";
 import { createDemoMcpServer, DEMO_MCP_TOOLS } from "./demo-mcp";
-import { BUDGET_LIMITS, type CustomMcpServer, type RunConfig, type RunEvent } from "./run-types";
+import { BUDGET_LIMITS, HARNESS_TOOLS, type Answer, type CustomMcpServer, type Question, type RunConfig, type RunEvent } from "./run-types";
 import { guardTool, pathsIn, precheckTool } from "./permissions";
 import { WORKSPACE_DIR, ensureWorkspace } from "./workspace";
 
 // Permission prompts waiting for a click in the browser, keyed by request id.
 // Kept on globalThis so the /api/permission route sees the same map in dev.
-type Decision = { allow: boolean; always: boolean };
-type Pending = { resolve: (decision: Decision) => void };
+type Pending = { resolve: (decision: Answer) => void };
 const g = globalThis as unknown as { __pendingPermissions?: Map<string, Pending> };
 const pending = (g.__pendingPermissions ??= new Map());
 
-/** `always` = allow this tool for the rest of the run without asking again. */
-export function answerPermission(id: string, allow: boolean, always = false) {
+/** Deliver your answer to a waiting permission card, question or plan review. */
+export function answerPermission(id: string, answer: Answer | boolean) {
   const entry = pending.get(id);
   if (!entry) return false;
   pending.delete(id);
-  entry.resolve({ allow, always: allow && always });
+  const a = typeof answer === "boolean" ? { allow: answer } : answer;
+  entry.resolve({ ...a, always: a.allow && a.always === true });
   return true;
+}
+
+/** Wait for your answer to a card the browser shows. Aborting (Stop, closing) counts as "no". */
+function waitForAnswer(signal: AbortSignal, show: (id: string) => void): Promise<Answer> {
+  const id = crypto.randomUUID();
+  return new Promise<Answer>((resolve) => {
+    pending.set(id, { resolve });
+    signal.addEventListener("abort", () => answerPermission(id, false), { once: true });
+    show(id);
+  });
+}
+
+/** The plan Claude presents: from the tool call, or the newest file in .claude/plans. */
+async function readPlan(input: Record<string, unknown>) {
+  if (typeof input.plan === "string" && input.plan.trim()) return input.plan;
+  const dir = path.join(WORKSPACE_DIR, ".claude", "plans");
+  const files = await readdir(dir).catch(() => [] as string[]);
+  const newest = (
+    await Promise.all(files.filter((f) => f.endsWith(".md")).map(async (f) => ({ f, t: (await stat(path.join(dir, f))).mtimeMs })))
+  ).sort((a, b) => b.t - a.t)[0];
+  return newest ? readFile(path.join(dir, newest.f), "utf8") : "(Claude didn't write a plan file.)";
 }
 
 /** Turn the playground's server list into Agent SDK mcpServers config. */
@@ -89,12 +111,41 @@ export async function buildOptions(config: RunConfig, emit: (event: RunEvent) =>
 
   const useAgents = config.subagents || config.team || config.projectConfig;
   // Project config brings slash commands, skills and subagents, which need these tools.
-  const extraTools = [...(useAgents ? ["Agent"] : []), ...(config.projectConfig ? ["Skill"] : [])];
+  const extraTools = [...HARNESS_TOOLS, ...(useAgents ? ["Agent"] : []), ...(config.projectConfig ? ["Skill"] : [])];
   const enabled = new Set<string>([...config.tools, ...extraTools]);
   // Tools the person chose "Always allow" for during this run.
   const alwaysAllowed = new Set<string>();
 
   const canUseTool: CanUseTool = async (toolName, input, { signal: toolSignal }) => {
+    // Claude asks you something: show the questions and send back your answers.
+    if (toolName === "AskUserQuestion") {
+      const questions = (Array.isArray(input.questions) ? input.questions : []) as Question[];
+      const answer = await waitForAnswer(toolSignal, (id) => emit({ kind: "question", id, questions }));
+      return answer.allow && answer.answers
+        ? { behavior: "allow" as const, updatedInput: { ...input, answers: answer.answers } }
+        : { behavior: "deny" as const, message: "The user skipped the question. Continue with your best judgment or ask in plain text." };
+    }
+    // Claude presents a plan (plan mode): approve and pick how to continue, or keep planning.
+    if (toolName === "ExitPlanMode") {
+      const plan = await readPlan(input);
+      const answer = await waitForAnswer(toolSignal, (id) => emit({ kind: "plan_review", id, plan }));
+      if (answer.allow) {
+        const mode = answer.mode ?? "default";
+        emit({ kind: "control", note: `You approved the plan. Permission mode is now ${mode}.`, permissionMode: mode });
+        return {
+          behavior: "allow" as const,
+          updatedInput: input,
+          updatedPermissions: [{ type: "setMode" as const, mode, destination: "session" as const }],
+        };
+      }
+      emit({ kind: "control", note: "You asked Claude to keep planning." });
+      return {
+        behavior: "deny" as const,
+        message: `The user wants to keep planning${answer.message ? `: ${answer.message}` : "."} Update the plan, then present it again.`,
+        interrupt: !answer.message, // no feedback: stop and wait for the user
+      };
+    }
+
     const check = precheckTool(toolName, input, enabled, alwaysAllowed);
     if (check.decision === "deny") {
       emit({ kind: "permission_decision", tool: toolName, allowed: false, reason: check.reason, by: "playground" });
@@ -106,12 +157,9 @@ export async function buildOptions(config: RunConfig, emit: (event: RunEvent) =>
     }
 
     // Anything else (Write, Edit, Bash, MCP tools you added, ...) is up to the person in the browser.
-    const id = crypto.randomUUID();
-    const { allow: allowed, always } = await new Promise<Decision>((resolve) => {
-      pending.set(id, { resolve });
-      toolSignal.addEventListener("abort", () => answerPermission(id, false), { once: true });
-      emit({ kind: "permission_request", id, tool: toolName, input });
-    });
+    const { allow: allowed, always } = await waitForAnswer(toolSignal, (id) =>
+      emit({ kind: "permission_request", id, tool: toolName, input }),
+    );
     if (always) alwaysAllowed.add(toolName);
     emit({
       kind: "permission_decision",
@@ -244,7 +292,8 @@ export async function buildOptions(config: RunConfig, emit: (event: RunEvent) =>
     maxBudgetUsd: clampBudget(config.maxBudgetUsd),
     // Word-by-word replies: stream_event messages with text deltas.
     includePartialMessages: true,
-    // No cross-session memory files: a conversation remembers only its own turns.
-    settings: { autoMemoryEnabled: false },
+    // No cross-session memory files (a conversation remembers only its own turns), and
+    // plan files go in the project's .claude/plans/ instead of ~/.claude/plans/.
+    settings: { autoMemoryEnabled: false, plansDirectory: ".claude/plans" },
   };
 }

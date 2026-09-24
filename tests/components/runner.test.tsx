@@ -70,6 +70,23 @@ beforeEach(() => {
       setTimeout(() => reply(body.text, working ? body.how : "start"), 0);
       return json({ ok: true });
     }
+    if (url === "/api/session/s1/context") {
+      return json({
+        model: "m",
+        totalTokens: 24_000,
+        maxTokens: 200_000,
+        percentage: 12,
+        isAutoCompactEnabled: true,
+        autoCompactThreshold: 167_000,
+        categories: [
+          { name: "System tools", tokens: 20_000, kind: "used" },
+          { name: "Messages", tokens: 4_000, kind: "used" },
+          { name: "Free space", tokens: 176_000, kind: "free" },
+        ],
+        memoryFiles: [],
+        mcpTools: [],
+      });
+    }
     if (url.startsWith("/api/session/s1")) return json({ ok: true }); // control, DELETE
     if (url === "/api/workspace" && method === "POST") workspaceTemplate = body.template;
     if (url === "/api/workspace/config") {
@@ -191,6 +208,20 @@ describe("Runner (live session)", () => {
     await user.click(screen.getByRole("button", { name: "▶ Run" }));
     await screen.findByText("Answer 1");
     expect(posted("/api/session")[0]).toMatchObject({ prompt: "/add-route GET /time", projectConfig: true });
+  });
+});
+
+describe("Runner: inside the session", () => {
+  it("shows the context meter after a reply, and Compact now sends /compact", async () => {
+    const user = userEvent.setup();
+    render(<Runner preset={{ prompt: "Hello", tools: ["Read"] }} />);
+    await user.click(screen.getByRole("button", { name: "▶ Run" }));
+    await screen.findByText("Answer 1");
+    await user.click(await screen.findByRole("button", { name: /context 12%/ }));
+    expect(screen.getByText(/24k \/ 200k tokens/)).toBeInTheDocument();
+    expect(screen.getByText("System tools")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Compact now/ }));
+    await waitFor(() => expect(posted("/api/session/s1/message")).toContainEqual({ text: "/compact", how: "queue" }));
   });
 });
 

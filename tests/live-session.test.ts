@@ -25,6 +25,7 @@ function fakeQuery() {
     interrupt: jest.Mock;
     setModel: jest.Mock;
     setPermissionMode: jest.Mock;
+    getContextUsage: jest.Mock;
     close: jest.Mock;
     [Symbol.asyncIterator]: () => AsyncGenerator<unknown>;
   } = {
@@ -40,6 +41,17 @@ function fakeQuery() {
     interrupt: jest.fn(async () => ({ still_queued: [] })),
     setModel: jest.fn(async () => {}),
     setPermissionMode: jest.fn(async () => {}),
+    getContextUsage: jest.fn(async () => ({
+      model: "m",
+      totalTokens: 5000,
+      maxTokens: 200000,
+      percentage: 2.5,
+      isAutoCompactEnabled: true,
+      autoCompactThreshold: 167000,
+      categories: [{ name: "Messages", tokens: 5000, kind: "used", color: "x" }],
+      memoryFiles: [],
+      mcpTools: [],
+    })),
     close: jest.fn(() => fake.finish()),
     async *[Symbol.asyncIterator](): AsyncGenerator<unknown> {
       while (true) {
@@ -136,6 +148,14 @@ describe("LiveSession", () => {
     session.subscribe(1, (e) => replay.push(e));
     expect(replay.map((e) => e.seq)).toEqual([1, 2]); // user_prompt, result
     session.close();
+  });
+
+  it("reports context usage while open, and nothing once closed", async () => {
+    const { session, fake } = await startSession();
+    expect(await session.contextUsage()).toMatchObject({ totalTokens: 5000, maxTokens: 200000, categories: [{ name: "Messages", tokens: 5000 }] });
+    session.close();
+    expect(await session.contextUsage()).toBeNull();
+    expect(fake.getContextUsage).toHaveBeenCalledTimes(1);
   });
 
   it("closing ends the session for everyone", async () => {

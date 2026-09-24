@@ -8,6 +8,7 @@ Build a real REST API, MCP server or agent with Claude, then run and test it rig
 - **No API key.** It uses your own Claude login, the same one Claude Code uses.
 - **Build real projects.** Start from a REST API, MCP server or Agent SDK starter; Claude writes the code, and you start the server, send requests, plug in your MCP server or run your agent.
 - **Configure Claude the real way.** Each starter has a `.claude/` folder: permission rules, hooks, slash commands, skills and subagents. Edit them in the playground and they load exactly as they would for `claude` in a terminal.
+- **See inside the harness.** A context-window meter with **Compact now**, Claude's live task list, multiple-choice questions from Claude, and plan-mode reviews where you approve the plan or send it back.
 - **A live session, like the terminal.** Replies stream in word by word. While Claude works you can **Steer** it (switch to a new message now), **Queue** a message for when it's done, or **Stop** the turn, and you can change the model or permission mode mid-conversation. See every change as a diff, and download your project as a .zip.
 - **Plug in any MCP server.** Add a local program (stdio) or a remote URL (HTTP), test the connection, and let Claude use it.
 - **Safe to experiment.** Claude only works inside a small sample project, and it asks you before it edits a file, runs a command or calls a tool from a server you added.
@@ -54,6 +55,7 @@ The **Workspace** panel under the prompt holds the project Claude works on. Pick
 
 A typical loop: pick **Build a REST API** in the sidebar → **Run** → **Start server** → send `POST /todos` → **Send follow-up** ("now add pagination") → check the **Changes** tab → **⤓ .zip** to keep it.
 
+- **Inside the session:** the **context** meter in the conversation header shows how full Claude's context window is (click it for the breakdown and **🗜 Compact now**). Claude's task list appears above the prompt box. When Claude asks a question you get a ❓ card with choices, and in `plan` mode a 📋 card lets you approve the plan (auto-accept edits or ask first) or keep planning with feedback.
 - **A live session:** your first message starts one Claude Code session; everything after goes into it, and Claude remembers the whole conversation. While Claude works, type and press **↪ Steer** (switch now, ⇧⌘/Ctrl + Enter) or **⏎ Queue** (after it's done, ⌘/Ctrl + Enter), or **■ Stop** the turn. Model and permission mode change live; other settings apply to your next conversation. **＋ New conversation** starts fresh (your files stay as they are).
 - **Changes:** a colored diff of everything changed since the starter's starting point.
 - **Your work is kept:** switching starters parks the current workspace (files and git history) and brings it back when you switch back; the starter list marks those as "saved". **Reset** is the only thing that throws work away.

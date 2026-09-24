@@ -13,7 +13,7 @@ const post = (url: string, body: unknown) =>
  * queue while Claude works), stop the current turn, change model or mode, and
  * read its event stream, reconnecting and replaying if the connection drops.
  */
-export function useLiveSession({ onResult }: { onResult?: (success: boolean) => void } = {}) {
+export function useLiveSession({ onResult }: { onResult?: (success: boolean, sessionId: string) => void } = {}) {
   const [id, setId] = useState<string | null>(null);
   const [events, setEvents] = useState<SessionEvent[]>([]);
   // The main agent's reply as it streams in, word by word, until the full message arrives.
@@ -22,6 +22,7 @@ export function useLiveSession({ onResult }: { onResult?: (success: boolean) => 
   const idRef = useRef<string | null>(null);
   const lastSeq = useRef(-1);
   const readerAbort = useRef<AbortController | null>(null);
+  const closingRef = useRef(false);
   const onResultRef = useRef(onResult);
   useEffect(() => {
     onResultRef.current = onResult;
@@ -45,8 +46,14 @@ export function useLiveSession({ onResult }: { onResult?: (success: boolean) => 
       lastSeq.current = event.seq;
     }
     if (event.kind === "sdk" && (event.message.type === "assistant" || event.message.type === "result")) setStreaming("");
-    if (event.kind === "sdk" && event.message.type === "result") onResultRef.current?.(event.message.subtype === "success");
-    if (event.kind === "closed") setClosedReason(event.reason);
+    // Results that arrive while a session is being closed don't need follow-up work.
+    if (event.kind === "sdk" && event.message.type === "result" && idRef.current && !closingRef.current) {
+      onResultRef.current?.(event.message.subtype === "success", idRef.current);
+    }
+    if (event.kind === "closed") {
+      closingRef.current = true;
+      setClosedReason(event.reason);
+    }
     setEvents((prev) => [...prev, event]);
   }
 
@@ -89,6 +96,7 @@ export function useLiveSession({ onResult }: { onResult?: (success: boolean) => 
     const data = (await res?.json().catch(() => null)) as { id?: string; error?: string } | null;
     if (!data?.id) return data?.error ?? "Couldn't start Claude Code.";
     idRef.current = data.id;
+    closingRef.current = false;
     lastSeq.current = -1;
     setEvents([]);
     setStreaming("");
@@ -112,6 +120,7 @@ export function useLiveSession({ onResult }: { onResult?: (success: boolean) => 
 
   /** Close the session (New conversation). */
   function end() {
+    closingRef.current = true;
     const current = idRef.current;
     idRef.current = null;
     readerAbort.current?.abort();

@@ -2,6 +2,8 @@ import "server-only";
 import { isInsideWorkspace } from "./workspace";
 
 const READ_ONLY_TOOLS = new Set(["Read", "Glob", "Grep"]);
+// Claude's own task list: no files, no commands, so no need to ask.
+const TASK_TOOLS = new Set(["TaskCreate", "TaskUpdate", "TaskList", "TaskGet"]);
 const PATH_KEYS = ["file_path", "path", "notebook_path"];
 
 /** The file paths a tool call wants to touch. */
@@ -28,6 +30,7 @@ export function precheckTool(
   const outside = pathsIn(input).find((p) => !isInsideWorkspace(p));
   if (outside) return { decision: "deny", reason: `${outside} is outside this project. Only files inside the workspace are allowed.` };
   if (READ_ONLY_TOOLS.has(toolName)) return { decision: "allow", reason: "Read-only tool inside workspace/" };
+  if (TASK_TOOLS.has(toolName)) return { decision: "allow", reason: "Claude's task list" };
   if (alwaysAllowed.has(toolName)) return { decision: "allow", reason: "You chose Always allow for this run" };
   return { decision: "ask" };
 }

@@ -216,12 +216,58 @@ export const EXAMPLES: Example[] = [
   },
   {
     id: "claude-code/plan-mode",
-    template: "tiny-shop",
     group: "Claude Code",
-    title: "Plan mode",
-    blurb: "Claude plans the change but can't make it.",
-    config: { prompt: "Fix the discount code bug in src/cart.js.", tools: [...READ_ONLY, "Edit"], permissionMode: "plan" },
-    notice: ["Same prompt as **Approve or deny an edit**, but in `plan` mode nothing changes."],
+    title: "Plan, then approve",
+    blurb: "Claude plans in plan mode, then waits for your approval.",
+    template: "tiny-shop",
+    config: {
+      prompt: "Plan how to fix the discount code bug in src/cart.js and add a test for the HALFOFF code. Present the plan for my approval.",
+      tools: [...READ_ONLY, "Edit", "Write"],
+      permissionMode: "plan",
+    },
+    notice: [
+      "In `plan` mode Claude can look but not change anything; it writes its plan to `.claude/plans/`.",
+      "The 📋 card is the plan: **Approve** (choose auto-accept or ask-before-edits) or **Keep planning** with feedback.",
+    ],
+  },
+  {
+    id: "claude-code/task-list",
+    group: "Claude Code",
+    title: "Claude's task list",
+    blurb: "Watch Claude plan its steps and tick them off.",
+    template: "tiny-shop",
+    config: {
+      prompt: "Fix the discount code bug, add a test for the HALFOFF code, and make sure the tests pass. Track your steps with a task list.",
+      tools: [...READ_ONLY, "Edit", "Bash"],
+      permissionMode: "acceptEdits",
+    },
+    notice: ["The task list above the prompt box updates live: ○ to do, ● in progress, ✓ done."],
+  },
+  {
+    id: "claude-code/questions",
+    group: "Claude Code",
+    title: "Claude asks you",
+    blurb: "Claude stops to ask a multiple-choice question.",
+    template: "tiny-shop",
+    config: {
+      prompt:
+        "I want to add a new discount code. Before changing anything, ask me (with the AskUserQuestion tool) what the code should be called and how big the discount is, then add it to DISCOUNT_CODES.",
+      tools: [...READ_ONLY, "Edit"],
+      permissionMode: "acceptEdits",
+    },
+    notice: ["Pick an option or type your own answer on the ❓ card; Claude continues with what you chose."],
+  },
+  {
+    id: "claude-code/context",
+    group: "Claude Code",
+    title: "Watch the context window",
+    blurb: "See what fills Claude's context, then compact it.",
+    template: "tiny-shop",
+    config: { prompt: "Read every file in this project and summarize each one in a line.", tools: [...READ_ONLY] },
+    notice: [
+      "Open the **context** meter in the conversation header to see what's using space (system tools, messages…).",
+      "Click **Compact now** (the same as `/compact`): the 🗜 card shows the size before and after.",
+    ],
   },
   {
     id: "claude-code/claude-md",

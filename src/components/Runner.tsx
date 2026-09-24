@@ -2,15 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ClaudeConfig } from "@/lib/claude-config";
-import { DEFAULT_CONFIG, type CustomMcpServer, type RunConfig, type SessionEvent } from "@/lib/run-types";
+import { DEFAULT_CONFIG, type Answer, type CustomMcpServer, type RunConfig, type SessionEvent } from "@/lib/run-types";
 import { loadSavedMcpServers, mergeServers, saveMcpServers, useSavedMcpServers } from "@/lib/saved-mcp";
 import { WORKSPACE_MCP_SERVER, findTemplate, type TemplateId } from "@/lib/templates";
+import { taskListFrom } from "@/lib/tasks";
 import { markTried } from "@/lib/tried";
 import { CodePreview } from "./CodePreview";
+import { ContextMeter, type ContextUsage } from "./ContextMeter";
 import { McpPanel } from "./McpPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { SetupBanner } from "./SetupStatus";
-import { Timeline, type Choice } from "./Timeline";
+import { TaskListPanel } from "./TaskListPanel";
+import { CHOICE_LABEL, Timeline, type Choice } from "./Timeline";
 import { useLiveSession } from "./useLiveSession";
 import { WorkspacePanel, type WorkspaceSnapshot } from "./WorkspacePanel";
 
@@ -62,18 +65,34 @@ export function Runner({
   const [sendError, setSendError] = useState("");
   const [showRaw, setShowRaw] = useState(showRawByDefault);
   const [tab, setTab] = useState<Tab | null>(null);
-  const [answered, setAnswered] = useState<Record<string, Choice>>({});
+  const [answered, setAnswered] = useState<Record<string, string>>({});
+  const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
   const [claudeConfig, setClaudeConfig] = useState<ClaudeConfig | null>(null);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
   const live = useLiveSession({
-    onResult: (success) => {
+    onResult: (success, sessionId) => {
       if (success && exampleId) markTried(exampleId);
       void loadWorkspace(); // Claude may have changed files
+      void loadContext(sessionId);
     },
   });
+  const tasks = taskListFrom(live.events);
+  // The session's permission mode can change without you touching Settings (approving a plan).
+  const liveMode = [...live.events].reverse().find((e) => e.kind === "control" && e.permissionMode);
+  const mode = (liveMode?.kind === "control" && liveMode.permissionMode) || config.permissionMode;
+
+  async function loadContext(sessionId: string) {
+    const data = await fetch(`/api/session/${sessionId}/context`)
+      .then((r) => r.json())
+      .catch(() => null);
+    // Only trust a well-formed report; anything else just leaves the meter as it was.
+    if (data && typeof data.totalTokens === "number" && typeof data.maxTokens === "number" && Array.isArray(data.categories)) {
+      setContextUsage(data as ContextUsage);
+    }
+  }
   const turns = toTurns(live.events);
   const running = live.working || starting;
   const workspacePath = live.events.find((e) => e.kind === "session")?.workspace;
@@ -93,6 +112,7 @@ export function Runner({
 
   function newConversation(prompt = initial.prompt) {
     live.end();
+    setContextUsage(null);
     setSessionConfig(null);
     setSendError("");
     setConfig((c) => ({ ...c, prompt }));
@@ -160,7 +180,7 @@ export function Runner({
   /** Settings changes: model and permission mode apply to the live session right away. */
   function changeSettings(next: RunConfig) {
     if (live.active) {
-      if (next.permissionMode !== config.permissionMode) void live.control("permissionMode", next.permissionMode);
+      if (next.permissionMode !== mode) void live.control("permissionMode", next.permissionMode);
       if (next.model !== config.model) void live.control("model", next.model);
     }
     setConfig(next);
@@ -169,11 +189,16 @@ export function Runner({
     live.active && !!sessionConfig && RESTART_FIELDS.some((k) => JSON.stringify(sessionConfig[k]) !== JSON.stringify(effective[k]));
 
   async function decide(id: string, choice: Choice) {
-    setAnswered((prev) => ({ ...prev, [id]: choice }));
+    await answer(id, { allow: choice !== "deny", always: choice === "always" }, CHOICE_LABEL[choice]);
+  }
+
+  /** Your answer to a permission card, one of Claude's questions, or a plan review. */
+  async function answer(id: string, a: Answer, label: string) {
+    setAnswered((prev) => ({ ...prev, [id]: label }));
     await fetch("/api/permission", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, allow: choice !== "deny", always: choice === "always" }),
+      body: JSON.stringify({ id, ...a }),
     }).catch(() => {});
   }
 
@@ -223,7 +248,7 @@ export function Runner({
 
   const mcpCount = effective.mcpServers.length + (config.demoMcp ? 1 : 0);
   const tabs: { id: Tab; label: string; hint: string }[] = [
-    { id: "settings", label: "Settings", hint: `${config.permissionMode} · ${config.tools.length} tools` },
+    { id: "settings", label: "Settings", hint: `${mode} · ${config.tools.length} tools` },
     { id: "mcp", label: "MCP", hint: mcpCount ? `${mcpCount} server${mcpCount === 1 ? "" : "s"}` : "none" },
     { id: "code", label: "Code", hint: "SDK call" },
   ];
@@ -261,6 +286,7 @@ export function Runner({
                 </span>
               )}
             </h2>
+            <ContextMeter usage={contextUsage} working={live.working} onCompact={() => void live.send("/compact")} />
             <label className="flex h-8 cursor-pointer items-center gap-2 text-sm text-muted hover:text-ink">
               <input type="checkbox" checked={showRaw} onChange={(e) => setShowRaw(e.target.checked)} className="accent-[var(--accent)]" />
               Show raw messages
@@ -296,6 +322,7 @@ export function Runner({
                     running={live.working && last}
                     answered={answered}
                     onDecide={decide}
+                    onAnswer={answer}
                   />
                   {live.working && last && (
                     <p className="flex items-center gap-2 text-sm text-muted">
@@ -309,6 +336,7 @@ export function Runner({
           </div>
         </section>
       )}
+      <TaskListPanel tasks={tasks} />
       <section
         aria-label="Composer"
         className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm transition-shadow focus-within:border-accent/50 focus-within:shadow-md"
@@ -458,7 +486,9 @@ export function Runner({
                 ✕
               </button>
             </div>
-            {tab === "settings" && <SettingsPanel config={config} onChange={changeSettings} disabled={starting} />}
+            {tab === "settings" && (
+              <SettingsPanel config={{ ...config, permissionMode: mode }} onChange={changeSettings} disabled={starting} />
+            )}
             {tab === "mcp" && <McpPanel config={effective} onChange={setConfig} onServersChange={rememberServers} disabled={starting} />}
             {tab === "code" && <CodePreview config={effective} />}
           </div>

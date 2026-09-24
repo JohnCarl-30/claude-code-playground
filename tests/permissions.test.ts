@@ -27,6 +27,12 @@ describe("precheckTool", () => {
     },
   );
 
+  it("lets Claude manage its task list without asking", () => {
+    for (const tool of ["TaskCreate", "TaskUpdate", "TaskList", "TaskGet"]) {
+      expect(precheckTool(tool, { subject: "x" }, new Set([...enabled, tool]))).toMatchObject({ decision: "allow" });
+    }
+  });
+
   it("remembers Always allow for the run", () => {
     expect(precheckTool("Edit", { file_path: inWs("a.js") }, enabled, new Set(["Edit"]))).toMatchObject({ decision: "allow" });
   });
