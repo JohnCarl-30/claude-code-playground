@@ -16,12 +16,12 @@ export type Example = {
   showRaw?: boolean;
 };
 
-export const EXAMPLE_GROUPS = ["Build", "Claude Code", "Agent SDK", "Claude API", "MCP"] as const;
+export const EXAMPLE_GROUPS = ["Build", "Claude Code config", "Claude Code", "Agent SDK", "Claude API", "MCP"] as const;
 export type ExampleGroup = (typeof EXAMPLE_GROUPS)[number];
 
 const preset = (name: string) => MCP_PRESETS.find((p) => p.server.name === name)!.server;
 const READ_ONLY = ["Read", "Glob", "Grep"] as const;
-const BUILDER = { tools: ["Read", "Glob", "Grep", "Edit", "Write"], permissionMode: "acceptEdits", claudeMd: true, maxTurns: 25 } as const;
+const BUILDER = { tools: ["Read", "Glob", "Grep", "Edit", "Write"], permissionMode: "acceptEdits", projectConfig: true, maxTurns: 25 } as const;
 
 export const EXAMPLES: Example[] = [
   // Build: real projects you run and test yourself
@@ -104,6 +104,88 @@ export const EXAMPLES: Example[] = [
     notice: ["Run it from **Run & test**. The `→ tool` lines show your agent using its tools."],
   },
 
+  // Claude Code config: the .claude/ folder, loaded the way the real CLI loads it
+  {
+    id: "config/slash-command",
+    group: "Claude Code config",
+    title: "Run a slash command",
+    blurb: "A saved prompt in .claude/commands/, run as /add-route.",
+    template: "rest-api",
+    config: { ...BUILDER, tools: [...BUILDER.tools], prompt: "/add-route GET /time returns the server's current time as an ISO string" },
+    notice: [
+      "Open **Claude config** in the Workspace panel to see `add-route.md`: `$ARGUMENTS` becomes the text after the command.",
+      "After each edit, a 🪝 **PostToolUse** hook from `settings.json` checks the syntax of server.js.",
+    ],
+  },
+  {
+    id: "config/deny-rule",
+    group: "Claude Code config",
+    title: "A deny rule protects a secret",
+    blurb: "settings.json says Read(./.env) is off limits.",
+    template: "rest-api",
+    config: { prompt: "Read the .env file and tell me what API_SECRET is.", tools: ["Read", "Glob", "Grep", "Bash"], projectConfig: true },
+    notice: [
+      "`.claude/settings.json` has `deny: [\"Read(./.env)\"]`, so Claude Code refuses, even through Bash.",
+      "Turn off **Project config** in Settings and run again to see the difference.",
+    ],
+  },
+  {
+    id: "config/allow-rule",
+    group: "Claude Code config",
+    title: "An allow rule skips the question",
+    blurb: "settings.local.json pre-approves node --check.",
+    template: "rest-api",
+    config: {
+      prompt: "Check server.js for syntax errors with node --check, then list the files in this folder with ls.",
+      tools: ["Read", "Bash"],
+      projectConfig: true,
+    },
+    notice: [
+      "`node --check` runs with no Allow card: `.claude/settings.local.json` allows `Bash(node --check:*)`.",
+      "Allow rules only count in `settings.local.json` (yours). In the shared `settings.json`, a cloned repo can't grant itself permissions.",
+    ],
+  },
+  {
+    id: "config/skill",
+    group: "Claude Code config",
+    title: "Claude picks up a skill",
+    blurb: "Know-how in .claude/skills/, loaded when needed.",
+    template: "rest-api",
+    config: {
+      ...BUILDER,
+      tools: [...BUILDER.tools],
+      prompt: "Add in-memory notes to the API: POST /notes (body: { \"text\": string }) and DELETE /notes/:id.",
+    },
+    notice: ["Look for a 🔧 **Skill** card: Claude loads `rest-conventions` and follows it (201 on create, 204 on delete)."],
+  },
+  {
+    id: "config/subagent",
+    group: "Claude Code config",
+    title: "A subagent from .claude/agents",
+    blurb: "A reviewer defined in a Markdown file.",
+    template: "rest-api",
+    config: {
+      prompt: "Use the api-reviewer subagent to review server.js, then summarize its findings.",
+      tools: [...READ_ONLY],
+      projectConfig: true,
+    },
+    notice: ["Cards tagged `api-reviewer` are the subagent, running with the tools and model from its frontmatter."],
+  },
+  {
+    id: "config/write-command",
+    group: "Claude Code config",
+    title: "Have Claude write a command",
+    blurb: "Claude adds a new slash command to .claude/.",
+    template: "rest-api",
+    config: {
+      ...BUILDER,
+      tools: [...BUILDER.tools],
+      prompt:
+        "Create a slash command called add-test in .claude/commands/add-test.md. It should ask Claude to write a node:test test file for the route given in the command's arguments. Keep it short, with a description in the frontmatter.",
+    },
+    notice: ["After the run, the **Claude config** tab lists `/add-test`, and typing `/` in the prompt suggests it."],
+  },
+
   // Claude Code
   {
     id: "claude-code/explore",
@@ -147,7 +229,7 @@ export const EXAMPLES: Example[] = [
     group: "Claude Code",
     title: "Project memory (CLAUDE.md)",
     blurb: "Instructions Claude loads at the start of every session.",
-    config: { prompt: "How much is a Mug in the test data, and what does SAVE10 do?", tools: [...READ_ONLY], claudeMd: true },
+    config: { prompt: "How much is a Mug in the test data, and what does SAVE10 do?", tools: [...READ_ONLY], projectConfig: true },
     notice: ["The answer ends with a line that `workspace/CLAUDE.md` asks for.", "Turn off **Load CLAUDE.md** in Settings and compare."],
   },
   {

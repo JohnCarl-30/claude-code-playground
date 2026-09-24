@@ -121,7 +121,14 @@ sequenceDiagram
 
 ## 3. Permissions: the Allow / Deny cards
 
-Claude never touches your computer directly. It asks Claude Code to run a tool, and Claude Code asks the playground's **`canUseTool`** callback whenever a tool isn't pre-approved.
+Claude never touches your computer directly. It asks Claude Code to run a tool. Before anything else, the playground's always-on **workspace guard** hook checks the call; then Claude Code applies permission modes and rules; and whenever a tool still isn't approved, it asks the playground's **`canUseTool`** callback.
+
+**The workspace guard** (`guardTool()` in `src/lib/permissions.ts`, registered as a `PreToolUse` hook on every run) can't be switched off. Because hooks run before permission rules, it holds even when an allow rule in `.claude/settings.local.json` would skip `canUseTool`:
+
+- a file path outside `workspace/` is **denied**. Paths are compared by their real location (symlinks followed), so `/var` vs `/private/var` aliases still match and a symlink pointing out of the workspace doesn't count as inside;
+- an `Edit`/`Write` to `.claude/settings.json` or `.claude/settings.local.json` returns **ask**, so it always shows a card (even in `acceptEdits`), because those files can grant permissions and run shell commands.
+
+Then `canUseTool` decides the rest:
 
 ```mermaid
 flowchart TD
@@ -148,6 +155,7 @@ Things to know:
 - **Claude Code has its own read-only allowlist.** Simple commands like `ls` can run without a card when Bash is on.
 - **The demo MCP server's tools are pre-approved** (`allowedTools`), so they skip `canUseTool`. Tools from MCP servers you add always ask.
 - **Hooks run before permissions.** A `PreToolUse` hook that returns `deny` blocks the tool whatever the permission mode says.
+- **With project config on, `.claude/` rules apply too** (see section 5): deny rules block, allow rules in `settings.local.json` approve without a card.
 
 ---
 
@@ -167,7 +175,34 @@ The timeline links each subagent's messages to the `Agent` call that started it 
 
 ---
 
-## 5. MCP servers
+## 5. Claude Code config: the `.claude/` folder
+
+With **Project config** on (a checkbox in Settings and in the Workspace panel's **Claude config** tab), a run loads the workspace the way `claude` would when started in that folder:
+
+| File | What it does | How it's loaded |
+|---|---|---|
+| `CLAUDE.md` | project instructions read at the start of every session | `settingSources: ["project", "local"]` |
+| `.claude/settings.json` | shared settings: `permissions` (`allow`/`ask`/`deny` rules like `Bash(npm test:*)`, `Read(./.env)`) and command `hooks` | same |
+| `.claude/settings.local.json` | your personal settings (git-ignored in the workspace) | same |
+| `.claude/commands/<name>.md` | a **slash command**: a saved prompt run as `/name args`; `$ARGUMENTS` is replaced by `args` | Claude Code expands it |
+| `.claude/skills/<name>/SKILL.md` | a **skill**: know-how Claude loads when a task needs it | adds the `Skill` tool |
+| `.claude/agents/<name>.md` | a **subagent** with its own prompt, `tools` and `model` in the frontmatter | adds the `Agent` tool |
+
+Each starter ships a small `.claude/` folder (in `templates/*/.claude/`) that shows these off: the REST API starter has a deny rule for `.env`, a `PostToolUse` hook that runs `node --check server.js`, an allow rule for `node --check` in the local file, the `/add-route` command, the `rest-conventions` skill and the `api-reviewer` subagent.
+
+Behaviors worth knowing, all taken from real Claude Code (and checked by the e2e tests):
+
+- **Allow rules only count in `settings.local.json`.** In the shared, committed `settings.json`, deny rules and hooks apply but allow rules are ignored: a repo you clone can restrict Claude, but can't grant itself permissions.
+- **Command hooks are real shell commands.** Their output streams into the timeline as 🪝 cards (`includeHookEvents: true`, `system` messages with `subtype: "hook_response"`). That's why the workspace guard always asks before settings files change.
+- **Claude Code also brings built-in skills, commands and subagents.** The Session started card lists only the ones that came from your `.claude/`.
+
+The **Claude config** tab (`src/components/ClaudeConfigPanel.tsx`) reads the folder through `GET /api/workspace/config` (`readClaudeConfig()` in `src/lib/claude-config.ts`: settings JSON with invalid-JSON warnings, and Markdown frontmatter for commands, skills and subagents). **＋ New command / skill / subagent** opens a starter file in the Files tab; **Use** puts `/name ` in the prompt; typing `/` in the prompt suggests your commands. Workspaces created before starters had `.claude/` get an **Add the starter's .claude/ config** button (`POST /api/workspace/config`), which only adds missing files.
+
+**Editing files.** The Files tab is an editor (`PUT` / `DELETE /api/workspace/file`, `writeWorkspaceFile()`): paths must be inside the workspace and not in `.git` or `node_modules`, files are limited to 200 KB, and PUTs must be JSON like every other write.
+
+---
+
+## 6. MCP servers
 
 A run can connect to three kinds of MCP servers at once:
 
@@ -183,7 +218,7 @@ A run can connect to three kinds of MCP servers at once:
 
 ---
 
-## 6. The workspace and starter projects
+## 7. The workspace and starter projects
 
 Claude always works in **`workspace/`**. It's ignored by the playground's own git repo and created from a **starter** in `templates/`:
 
@@ -212,7 +247,7 @@ The list lives in `src/lib/templates.ts`.
 
 ---
 
-## 7. Run & test
+## 8. Run & test
 
 The **Run & test** tab (`src/components/RunPanel.tsx`) runs your project without leaving the page.
 
@@ -230,26 +265,28 @@ The **Run & test** tab (`src/components/RunPanel.tsx`) runs your project without
 
 ---
 
-## 8. Security model
+## 9. Security model
 
 The playground can edit files and run programs on your computer, so it's locked down in layers:
 
 | Layer | Protection | Where |
 |---|---|---|
 | Network | The server listens on `127.0.0.1` only, so other devices on your network can't reach it | `package.json` (`--hostname 127.0.0.1`) |
-| Every API route | `Host` must be localhost (blocks DNS rebinding); an `Origin`, when present, must match (blocks other websites); POSTs must be JSON (forces a CORS preflight) | `src/lib/local-only.ts` |
-| Files | Tool paths outside `workspace/` are denied | `canUseTool` in `run-agent.ts` |
+| Every API route | `Host` must be localhost (blocks DNS rebinding); an `Origin`, when present, must match (blocks other websites); POSTs and PUTs must be JSON (forces a CORS preflight) | `src/lib/local-only.ts` |
+| Files | Tool paths outside `workspace/` are denied by an always-on `PreToolUse` hook, using real paths (symlinks followed), before any allow rule applies | `guardTool()` in `permissions.ts` |
+| Settings files | Changes to `.claude/settings*.json` always ask, even in `acceptEdits` | `guardTool()` |
+| File editor | Saves and deletes only inside the workspace, never `.git` or `node_modules` | `writeWorkspaceFile()` in `workspace.ts` |
 | Actions | Edits, commands and your MCP tools wait for your click | `canUseTool` |
 | Programs | Run & test runs only declared starter scripts | `processes.ts` |
 | Requests | The request tester only reaches `127.0.0.1:4100` | `processes.ts` |
 | Config | Your `~/.claude` settings and MCP servers are ignored | `settingSources`, `strictMcpConfig` |
 | Spend | Every run has a spending cap ($1 by default) | `maxBudgetUsd` |
 
-What it does **not** protect against: code **you** approve or run. A server Claude writes, an MCP server you add, or a Bash command you allow runs with your user's permissions. Read what you approve.
+What it does **not** protect against: code **you** approve or run. A server Claude writes, an MCP server you add, a Bash command you allow (or allow-list in `settings.local.json`), or a command hook in `settings.json` runs with your user's permissions. Bash can't be confined to the workspace the way file tools are. Read what you approve.
 
 ---
 
-## 9. Browser-only state
+## 10. Browser-only state
 
 Some preferences are kept in your browser's `localStorage`, for this browser only:
 
@@ -264,7 +301,7 @@ If storage is blocked (private windows, strict settings), everything still works
 
 ---
 
-## 10. Where to change things
+## 11. Where to change things
 
 | I want to… | Edit |
 |---|---|
@@ -276,6 +313,8 @@ If storage is blocked (private windows, strict settings), everything still works
 | Change hooks or subagents | `hooks`, `SUBAGENTS`, `TEAM` in `src/lib/run-agent.ts` |
 | Change how a message is displayed | `src/components/Timeline.tsx` |
 | Change the generated code in the Code tab | `src/components/CodePreview.tsx` |
+| Change a starter's Claude Code config | `templates/<starter>/.claude/` |
+| Change how `.claude/` is read or shown | `src/lib/claude-config.ts`, `src/components/ClaudeConfigPanel.tsx` |
 | Change the Changes diff view | `src/components/ChangesView.tsx`, `workspaceDiff()` in `src/lib/workspace.ts` |
 
 **Checks** (the same ones CI runs on every push, `.github/workflows/ci.yml`):
@@ -295,13 +334,16 @@ npm run build
 |---|---|
 | `run-types.test.ts` | MCP server validation (names, URLs, limits) |
 | `local-only.test.ts` | the localhost-only request guard |
-| `permissions.test.ts` | the permission rules: switched-off tools, paths outside the workspace, read-only auto-allow, Always allow |
+| `permissions.test.ts` | the permission rules and the always-on guard: switched-off tools, paths outside the workspace, settings edits ask, read-only auto-allow, Always allow |
+| `claude-config.test.ts` | reading `.claude/`: frontmatter, rules, hooks, invalid JSON, every starter's config is valid |
 | `zip.test.ts` | the ZIP writer round-trips files, and `unzip -t` accepts its output |
-| `workspace.test.ts` | creating, diffing, switching (work kept), exporting and resetting the workspace |
+| `workspace.test.ts` | creating, diffing, switching (work kept), exporting, resetting, file editing limits, adding starter config, symlink-aware path checks |
 | `processes.test.ts` | Run & test: only declared scripts run, the API server starts, answers and stops quickly |
 | `examples.test.ts` | every sidebar example is well-formed |
 | `code-preview.test.ts` | the Code tab mirrors settings, adds `resume`, wraps long prompts |
-| `components/*.test.tsx` | the UI in a simulated browser: timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), and the Runner (follow-ups send the session id, New conversation, Switch banner, connecting your MCP server) |
+| `components/*.test.tsx` | the UI in a simulated browser: timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner (follow-ups send the session id, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
 
-The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something else is using port 4100.
+The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something answers on port 4100 (for example your own API server).
+
+**Real-Claude end-to-end tests** (`npm run test:e2e`, `tests/e2e/`): builds the app, starts a separate production server on a free port with `PLAYGROUND_ROOT` pointing at a temporary folder, and refuses to run unless it can prove the server answering is that one (its workspace appears in the temporary folder). Then it drives it over HTTP with real Claude calls on Haiku (a few cents): a deny rule keeps `.env` private, an allow rule skips the question, `/add-route` edits the API and the `settings.json` hook checks it, settings edits always ask, and follow-ups remember the conversation. They are not part of `npm test` or CI.
 

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { precheckTool } from "@/lib/permissions";
+import { guardTool, precheckTool } from "@/lib/permissions";
 import { WORKSPACE_DIR } from "@/lib/workspace";
 
 const enabled = new Set(["Read", "Glob", "Grep", "Edit"]);
@@ -35,5 +35,27 @@ describe("precheckTool", () => {
     expect(precheckTool("mcp__memory__read_graph", {}, enabled)).toEqual({ decision: "ask" });
     expect(precheckTool("Agent", { prompt: "review" }, enabled)).toEqual({ decision: "ask" });
     expect(precheckTool("mcp__fs__read", { path: "/etc/hosts" }, enabled)).toMatchObject({ decision: "deny" });
+  });
+});
+
+describe("guardTool (always-on PreToolUse hook)", () => {
+  it("lets normal work through", () => {
+    expect(guardTool("Edit", { file_path: inWs("server.js") })).toBeNull();
+    expect(guardTool("Read", { file_path: inWs(".claude/settings.json") })).toBeNull(); // reading is fine
+    expect(guardTool("Bash", { command: "npm test" })).toBeNull();
+  });
+
+  it("denies paths outside the workspace, whatever the allow rules say", () => {
+    expect(guardTool("Read", { file_path: "/etc/passwd" })).toMatchObject({ decision: "deny" });
+    expect(guardTool("Glob", { pattern: "*", path: inWs("..") })).toMatchObject({ decision: "deny" });
+  });
+
+  it.each([".claude/settings.json", ".claude/settings.local.json"])("always asks before changing %s", (file) => {
+    expect(guardTool("Edit", { file_path: inWs(file) })).toMatchObject({ decision: "ask" });
+    expect(guardTool("Write", { file_path: inWs(file) })).toMatchObject({ decision: "ask" });
+  });
+
+  it("doesn't ask for other .claude files", () => {
+    expect(guardTool("Write", { file_path: inWs(".claude/commands/review.md") })).toBeNull();
   });
 });

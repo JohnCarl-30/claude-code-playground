@@ -11,7 +11,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { createDemoMcpServer, DEMO_MCP_TOOLS } from "./demo-mcp";
 import { BUDGET_LIMITS, type CustomMcpServer, type RunConfig, type RunEvent, type SdkMessageLike } from "./run-types";
-import { pathsIn, precheckTool } from "./permissions";
+import { guardTool, pathsIn, precheckTool } from "./permissions";
 import { WORKSPACE_DIR, ensureWorkspace } from "./workspace";
 
 // Permission prompts waiting for a click in the browser, keyed by request id.
@@ -91,7 +91,10 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
     wake?.();
   };
 
-  const enabled = new Set<string>(config.tools);
+  const useAgents = config.subagents || config.team || config.projectConfig;
+  // Project config brings slash commands, skills and subagents, which need these tools.
+  const extraTools = [...(useAgents ? ["Agent"] : []), ...(config.projectConfig ? ["Skill"] : [])];
+  const enabled = new Set<string>([...config.tools, ...extraTools]);
   // Tools the person chose "Always allow" for during this run.
   const alwaysAllowed = new Set<string>();
 
@@ -183,10 +186,27 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
     ],
   };
 
-  const useAgents = config.subagents || config.team;
+  // Always on: keeps every tool call inside the workspace, even when allow rules
+  // in .claude/settings.local.json would skip canUseTool.
+  const workspaceGuard: HookCallbackMatcher = {
+    hooks: [
+      async (input) => {
+        if (input.hook_event_name !== "PreToolUse") return {};
+        const guard = guardTool(input.tool_name, (input.tool_input ?? {}) as Record<string, unknown>);
+        if (!guard) return {};
+        if (guard.decision === "deny") {
+          emit({ kind: "permission_decision", tool: input.tool_name, allowed: false, reason: guard.reason, by: "playground" });
+        }
+        return {
+          hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: guard.decision, permissionDecisionReason: guard.reason },
+        };
+      },
+    ],
+  };
+
   const activeHooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> = {
     ...(config.hooks ? hooks : {}),
-    PreToolUse: [...(useAgents ? [foregroundSubagents] : []), ...(config.hooks ? hooks.PreToolUse ?? [] : [])],
+    PreToolUse: [workspaceGuard, ...(useAgents ? [foregroundSubagents] : []), ...(config.hooks ? hooks.PreToolUse ?? [] : [])],
   };
 
   // Drop ANTHROPIC_API_KEY so the SDK uses your Claude Code login rather than a key.
@@ -202,7 +222,7 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
     abortController,
     model: config.model || undefined,
     permissionMode: config.permissionMode,
-    tools: [...config.tools, ...(useAgents ? ["Agent"] : [])],
+    tools: [...config.tools, ...extraTools],
     // The demo MCP tools are harmless, so they're pre-approved and skip canUseTool
     // (the SDK logs a CLAUDE_SDK_CAN_USE_TOOL_SHADOWED warning about this; expected).
     allowedTools: config.demoMcp ? DEMO_MCP_TOOLS : [],
@@ -213,9 +233,13 @@ export async function* runAgent(config: RunConfig, signal: AbortSignal): AsyncGe
     },
     // Ignore MCP servers from your own Claude Code config, so every run is reproducible.
     strictMcpConfig: true,
-    // Ignore ~/.claude settings; only load the workspace's CLAUDE.md when asked.
-    settingSources: config.claudeMd ? ["project"] : [],
-    agents: useAgents ? { ...(config.subagents ? SUBAGENTS : {}), ...(config.team ? TEAM : {}) } : undefined,
+    // Ignore ~/.claude. With project config: CLAUDE.md, .claude/settings.json (shared: deny
+    // rules and hooks apply, allow rules don't) and .claude/settings.local.json (personal).
+    settingSources: config.projectConfig ? ["project", "local"] : [],
+    // Stream command hooks from settings.json into the timeline.
+    includeHookEvents: true,
+    // Subagents defined in code; project config adds its own from .claude/agents/.
+    agents: config.subagents || config.team ? { ...(config.subagents ? SUBAGENTS : {}), ...(config.team ? TEAM : {}) } : undefined,
     hooks: activeHooks,
     systemPrompt: {
       type: "preset",

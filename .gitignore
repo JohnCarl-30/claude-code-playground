@@ -43,3 +43,7 @@ next-env.d.ts
 # playground sandbox (created from a starter in templates/)
 /workspace
 /.workspaces
+
+# Starter projects ship these on purpose (demo secret, personal-settings example).
+!templates/**/.env
+!templates/**/.claude/settings.local.json

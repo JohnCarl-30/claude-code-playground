@@ -11,8 +11,8 @@ function hostname(hostHeader: string) {
  * requests from this computer's own browser tab:
  * - the Host must be localhost (blocks other devices and DNS-rebinding tricks)
  * - an Origin, when sent, must be that same host (blocks other websites)
- * - POSTs must be JSON (forces a CORS preflight, which other sites fail;
- *   DELETE always gets a preflight)
+ * - POSTs and PUTs must be JSON (forces a CORS preflight, which other sites
+ *   fail; DELETE always gets a preflight)
  */
 export function rejectNonLocal(request: Request): Response | null {
   const host = request.headers.get("host") ?? "";
@@ -27,7 +27,7 @@ export function rejectNonLocal(request: Request): Response | null {
     } catch {}
     if (originHost !== host) return Response.json({ error: "Cross-site requests are not allowed." }, { status: 403 });
   }
-  if (request.method === "POST" && !request.headers.get("content-type")?.includes("application/json")) {
+  if ((request.method === "POST" || request.method === "PUT") && !request.headers.get("content-type")?.includes("application/json")) {
     return Response.json({ error: "Expected a JSON request." }, { status: 415 });
   }
   return null;

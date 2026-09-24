@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { createTempPlaygroundRoot } from "./helpers";
 
@@ -21,7 +22,9 @@ describe("workspace", () => {
     expect(await ws.currentTemplate()).toBe("tiny-shop");
     const files = (await ws.readWorkspace()).map((f) => f.path);
     expect(files).toEqual(expect.arrayContaining(["README.md", "src/cart.js"]));
-    expect(files.some((f) => f.startsWith("."))).toBe(false); // .git, markers are hidden
+    // Claude Code config is visible; git internals and the playground's marker are not.
+    expect(files).toEqual(expect.arrayContaining([".claude/settings.json", ".claude/commands/fix-and-test.md"]));
+    expect(files.some((f) => f.startsWith(".git/") || f === ".playground-template")).toBe(false);
     expect((await ws.workspaceDiff()).changes).toEqual([]);
   });
 
@@ -67,6 +70,37 @@ describe("workspace", () => {
     expect(readFileSync(file("src/cart.js"), "utf8")).not.toContain("// edited");
     expect((await ws.readWorkspace()).map((f) => f.path)).not.toContain("notes.md");
     expect((await ws.workspaceDiff()).changes).toEqual([]);
+  });
+
+  it("saves and deletes files you edit, but only inside the workspace", async () => {
+    expect(await ws.writeWorkspaceFile(".claude/commands/review.md", "Review $ARGUMENTS")).toBeNull();
+    expect(readFileSync(file(".claude/commands/review.md"), "utf8")).toBe("Review $ARGUMENTS");
+    expect(await ws.deleteWorkspaceFile(".claude/commands/review.md")).toBeNull();
+    expect((await ws.readWorkspace()).map((f) => f.path)).not.toContain(".claude/commands/review.md");
+
+    for (const bad of ["../escape.txt", "/etc/passwd", ".git/config", "node_modules/x.js", ".playground-template", ""]) {
+      expect(await ws.writeWorkspaceFile(bad, "x")).toEqual(expect.any(String));
+    }
+    expect(await ws.deleteWorkspaceFile("../package.json")).toEqual(expect.any(String));
+  });
+
+  it("adds a starter's .claude/ config without overwriting anything", async () => {
+    rmSync(file(".claude"), { recursive: true, force: true });
+    writeFileSync(file("CLAUDE.md"), "my own instructions\n");
+    const added = await ws.addStarterConfig();
+    expect(added).toEqual(expect.arrayContaining([".claude/settings.json", ".claude/commands/fix-and-test.md"]));
+    expect(added).not.toContain("CLAUDE.md");
+    expect(readFileSync(file("CLAUDE.md"), "utf8")).toBe("my own instructions\n");
+    expect(await ws.addStarterConfig()).toEqual([]); // nothing left to add
+  });
+
+  it("follows symlinks: real-path aliases are inside, links pointing outside are not", () => {
+    const real = realpathSync(ws.WORKSPACE_DIR); // e.g. /private/var/... for /var/... on macOS
+    expect(ws.isInsideWorkspace(path.join(real, "src/cart.js"))).toBe(true);
+    symlinkSync(tmpdir(), file("escape-link"));
+    expect(ws.isInsideWorkspace("escape-link/anything.txt")).toBe(false);
+    expect(ws.isInsideWorkspace(file("escape-link"))).toBe(false);
+    rmSync(file("escape-link"));
   });
 
   it("knows what is inside the workspace", () => {

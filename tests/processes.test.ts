@@ -22,10 +22,12 @@ const until = async (check: () => boolean, ms = 10_000) => {
   }
 };
 
+/** True when nothing answers on the port (connecting is what the request tester does). */
 const portFree = (port: number) =>
   new Promise<boolean>((resolve) => {
-    const server = net.createServer().once("error", () => resolve(false));
-    server.listen(port, "127.0.0.1", () => server.close(() => resolve(true)));
+    const socket = net.connect(port, "127.0.0.1");
+    socket.once("connect", () => (socket.destroy(), resolve(false)));
+    socket.once("error", () => resolve(true));
   });
 
 describe("Run & test", () => {
@@ -44,12 +46,12 @@ describe("Run & test", () => {
   });
 
   it("gives a friendly error when no API server is running", async () => {
-    if (!(await portFree(4100))) return; // something else is on the port (e.g. your own server)
+    if (!(await portFree(4100))) return console.warn("Skipped: something is running on port 4100 (maybe your own API server).");
     expect(await proc.sendToApi("GET", "/health", "")).toEqual({ error: expect.stringMatching(/Start server/) });
   });
 
   it("starts the API server, forwards requests to it, and stops it quickly", async () => {
-    if (!(await portFree(4100))) return console.warn("Skipped: port 4100 is in use.");
+    if (!(await portFree(4100))) return console.warn("Skipped: something is running on port 4100 (maybe your own API server).");
     await proc.startProcess("start");
     await until(() => proc.getProcessStatus().logs.some((l) => l.includes("listening")));
 

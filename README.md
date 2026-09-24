@@ -7,6 +7,7 @@ Build a real REST API, MCP server or agent with Claude, then run and test it rig
 
 - **No API key.** It uses your own Claude login, the same one Claude Code uses.
 - **Build real projects.** Start from a REST API, MCP server or Agent SDK starter; Claude writes the code, and you start the server, send requests, plug in your MCP server or run your agent.
+- **Configure Claude the real way.** Each starter has a `.claude/` folder: permission rules, hooks, slash commands, skills and subagents. Edit them in the playground and they load exactly as they would for `claude` in a terminal.
 - **Keep the conversation going.** Follow-ups continue the same Claude Code session, so Claude remembers what it just did. See every change as a diff, and download your project as a .zip.
 - **Plug in any MCP server.** Add a local program (stdio) or a remote URL (HTTP), test the connection, and let Claude use it.
 - **Safe to experiment.** Claude only works inside a small sample project, and it asks you before it edits a file, runs a command or calls a tool from a server you added.
@@ -60,11 +61,25 @@ A typical loop: pick **Build a REST API** in the sidebar → **Run** → **Start
 
 Each starter has a `CLAUDE.md` that tells Claude its conventions, and the examples turn it on.
 
+## Claude Code config (`.claude/`)
+
+Turn on **Project config** (in Settings, or in the Workspace panel's **Claude config** tab) and every run loads the workspace's config like the real CLI:
+
+- `CLAUDE.md`: project instructions
+- `.claude/settings.json`: shared **permission rules** (`deny: ["Read(./.env)"]`) and **hooks** (a command that runs after every edit)
+- `.claude/settings.local.json`: your personal settings; **allow rules only count here**, so a cloned repo can't grant itself permissions
+- `.claude/commands/*.md`: **slash commands**, run as `/add-route GET /time …` (type `/` in the prompt to see them)
+- `.claude/skills/*/SKILL.md`: **skills** Claude loads when needed
+- `.claude/agents/*.md`: **subagents**
+
+The **Claude config** tab shows all of it, and **＋ New command / skill / subagent** creates a file you edit and save in the Files tab. The **Claude Code config** examples in the sidebar try each piece. Whatever the rules say, Claude stays inside the workspace, and changes to settings files always ask you first.
+
 ## What you can try
 
 | Area | Examples in the sidebar |
 |---|---|
 | Build | build a REST API, build an MCP server, use your MCP server, build an agent with a custom tool, give your agent file tools |
+| Claude Code config | run a slash command, a deny rule protects a secret, an allow rule skips the question, Claude picks up a skill, a subagent from `.claude/agents`, have Claude write a command |
 | Claude Code | explore a project, read-only vs editing tools, approve/deny edits, plan mode, CLAUDE.md, hooks, subagents, a team of subagents in parallel |
 | Agent SDK | raw `query()` messages, custom system prompt, fix-and-test with Bash, the spending cap |
 | Claude API | raw Messages API responses, `tool_use`/`tool_result` blocks, tokens, caching and cost |
@@ -124,5 +139,6 @@ Start with [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) for the architecture, re
 - `templates/`: the starter projects `workspace/` is created from; `src/lib/templates.ts` lists them and their scripts
 - `src/lib/processes.ts`, `src/components/RunPanel.tsx`: running a starter's scripts and the request tester
 - `npm test`: the Jest test suite in `tests/` (logic and UI, no Claude calls). CI runs it with lint, type-check and build on every push.
+- `npm run test:e2e`: end-to-end tests with real Claude calls (Haiku, a few cents) against a separate, isolated server. Run it yourself before big changes.
 
 > This playground signs in with your personal Claude account, which is right for learning on your own computer. If you build an app that other people use, give that app its own API key.

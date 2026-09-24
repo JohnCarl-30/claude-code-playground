@@ -1,5 +1,6 @@
 import "server-only";
 import { execFile } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -44,7 +45,8 @@ const git = (...args: string[]) =>
 async function initGit() {
   try {
     await git("init", "-q", "-b", "main");
-    await writeFile(path.join(WORKSPACE_DIR, ".gitignore"), ".playground-template\nnode_modules/\n");
+    // settings.local.json holds personal settings, so (as in Claude Code) it isn't committed.
+    await writeFile(path.join(WORKSPACE_DIR, ".gitignore"), ".playground-template\nnode_modules/\n.claude/settings.local.json\n");
     await git("add", "-A");
     await git("commit", "-q", "-m", "Starting point");
   } catch {
@@ -126,10 +128,34 @@ export async function workspaceDiff(): Promise<{ available: boolean; changes: Fi
   }
 }
 
-/** True when `target` (absolute or workspace-relative) stays inside workspace/. */
+/**
+ * The real location of a path, following symlinks. For a path that doesn't exist
+ * yet (a file Claude is about to create), resolve its nearest existing folder.
+ */
+function realLocation(p: string): string {
+  const rest: string[] = [];
+  let current = p;
+  while (true) {
+    try {
+      return path.join(realpathSync.native(current), ...rest.reverse());
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return p;
+      rest.push(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+/**
+ * True when `target` (absolute or workspace-relative) really is inside workspace/.
+ * Compares real paths, so /var vs /private/var style aliases still match, and a
+ * symlink inside the workspace that points outside it doesn't count as inside.
+ */
 export function isInsideWorkspace(target: string) {
-  const resolved = path.resolve(WORKSPACE_DIR, target);
-  return resolved === WORKSPACE_DIR || resolved.startsWith(WORKSPACE_DIR + path.sep);
+  const root = realLocation(WORKSPACE_DIR);
+  const resolved = realLocation(path.resolve(WORKSPACE_DIR, target));
+  return resolved === root || resolved.startsWith(root + path.sep);
 }
 
 export type WorkspaceFile = { path: string; content: string };
@@ -150,12 +176,73 @@ export async function workspaceFilesForExport(): Promise<{ path: string; data: B
   return out;
 }
 
+/**
+ * Copy the current starter's Claude Code config (.claude/, CLAUDE.md) into the
+ * workspace without overwriting anything, for workspaces created before the
+ * starters had it. Returns the files that were added.
+ */
+export async function addStarterConfig(): Promise<string[]> {
+  await ensureWorkspace();
+  const starter = path.join(TEMPLATES_DIR, await currentTemplate());
+  const added: string[] = [];
+  async function copy(rel: string) {
+    const from = path.join(starter, rel);
+    const info = await stat(from).catch(() => null);
+    if (!info) return;
+    if (info.isDirectory()) {
+      for (const name of await readdir(from)) await copy(path.join(rel, name));
+    } else if (!(await exists(path.join(WORKSPACE_DIR, rel)))) {
+      await mkdir(path.dirname(path.join(WORKSPACE_DIR, rel)), { recursive: true });
+      await cp(from, path.join(WORKSPACE_DIR, rel));
+      added.push(rel.split(path.sep).join("/"));
+    }
+  }
+  await copy(".claude");
+  await copy("CLAUDE.md");
+  return added;
+}
+
+/** Checks a workspace-relative path you want to edit. Returns an error message, or null when it's fine. */
+export function checkEditablePath(rel: string): string | null {
+  if (typeof rel !== "string" || !rel.trim()) return "Enter a file path, e.g. .claude/commands/review.md";
+  if (path.isAbsolute(rel) || !isInsideWorkspace(rel) || path.resolve(WORKSPACE_DIR, rel) === WORKSPACE_DIR) {
+    return "The path must be a file inside the workspace.";
+  }
+  const parts = rel.split(/[\\/]/);
+  if (parts.includes(".git") || parts.includes("node_modules") || parts.at(-1) === ".playground-template") {
+    return "That file is managed by the playground.";
+  }
+  return null;
+}
+
+const MAX_EDIT_BYTES = 200_000;
+
+/** Create or overwrite a text file in the workspace (the Files tab's Save). */
+export async function writeWorkspaceFile(rel: string, content: string): Promise<string | null> {
+  const problem = checkEditablePath(rel);
+  if (problem) return problem;
+  if (typeof content !== "string" || Buffer.byteLength(content) > MAX_EDIT_BYTES) return "The file is too large to edit here.";
+  await ensureWorkspace();
+  const full = path.resolve(WORKSPACE_DIR, rel);
+  await mkdir(path.dirname(full), { recursive: true });
+  await writeFile(full, content);
+  return null;
+}
+
+export async function deleteWorkspaceFile(rel: string): Promise<string | null> {
+  const problem = checkEditablePath(rel);
+  if (problem) return problem;
+  await rm(path.resolve(WORKSPACE_DIR, rel), { force: true });
+  return null;
+}
+
 export async function readWorkspace(): Promise<WorkspaceFile[]> {
   await ensureWorkspace();
   const files: WorkspaceFile[] = [];
   async function walk(dir: string) {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
-      if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+      // Show dotfiles like .claude/ and .env; hide git internals and the playground's marker.
+      if (entry.name === "node_modules" || entry.name === ".git" || entry.name === ".playground-template") continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) await walk(full);
       else {

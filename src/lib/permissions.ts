@@ -31,3 +31,23 @@ export function precheckTool(
   if (alwaysAllowed.has(toolName)) return { decision: "allow", reason: "You chose Always allow for this run" };
   return { decision: "ask" };
 }
+
+const WRITE_TOOLS = new Set(["Edit", "Write", "NotebookEdit"]);
+
+export type Guard = { decision: "deny" | "ask"; reason: string } | null;
+
+/**
+ * Runs as a PreToolUse hook on every tool call, before Claude Code applies
+ * permission rules. It can't be switched off, so allow rules in
+ * .claude/settings.local.json never let Claude leave the workspace, and edits
+ * to settings files (whose hooks run shell commands) always ask you first.
+ */
+export function guardTool(toolName: string, input: Record<string, unknown>): Guard {
+  const paths = pathsIn(input);
+  const outside = paths.find((p) => !isInsideWorkspace(p));
+  if (outside) return { decision: "deny", reason: `${outside} is outside this project. Only files inside the workspace are allowed.` };
+  if (WRITE_TOOLS.has(toolName) && paths.some((p) => /(^|[\\/])\.claude[\\/]settings(\.local)?\.json$/.test(p))) {
+    return { decision: "ask", reason: "Settings files can run shell commands (hooks) and grant permissions, so changes always need your OK." };
+  }
+  return null;
+}

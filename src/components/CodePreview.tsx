@@ -37,7 +37,7 @@ export function sdkCodeFor(config: RunConfig, sessionId?: string | null) {
   if (config.appendSystemPrompt) {
     opt(`systemPrompt: { type: "preset", preset: "claude_code", append: ${q(config.appendSystemPrompt)} },`);
   }
-  opt(`settingSources: ${config.claudeMd ? '["project"], // loads CLAUDE.md' : "[],"}`);
+  opt(`settingSources: ${config.projectConfig ? '["project", "local"], // CLAUDE.md + .claude/' : "[],"}`);
 
   const servers: string[] = [];
   if (config.demoMcp) servers.push(`      demo: demoServer, // createSdkMcpServer({ name: "demo", tools: [...] })`);

@@ -16,7 +16,11 @@ function tidy(value: string, workspace: string) {
   return workspace ? value.split(workspace + "/").join("").split(workspace).join("workspace/") : value;
 }
 
+/** Names from the workspace's .claude/ config, to show what Claude Code actually loaded. */
+export type ProjectNames = { commands: string[]; skills: string[]; agents: string[] };
+
 function toolSummary(name: string, input: Record<string, unknown>, workspace: string) {
+  if (typeof input.skill === "string") return `${input.skill}${input.args ? ` ${input.args}` : ""}`;
   const pick = input.command ?? input.file_path ?? input.pattern ?? input.path ?? input.url ?? input.query ?? input.description;
   if (typeof pick === "string") return tidy(pick, workspace);
   const json = JSON.stringify(input);
@@ -116,11 +120,13 @@ function SdkMessage({
   showRaw,
   agents,
   followUp,
+  project,
 }: {
   message: SdkMessageLike;
   workspace: string;
   showRaw: boolean;
   agents: Record<string, AgentInfo>;
+  project?: ProjectNames;
   /** A follow-up turn: the session already started earlier in the conversation. */
   followUp?: boolean;
 }) {
@@ -144,6 +150,14 @@ function SdkMessage({
     const tools = (message.tools as string[]) ?? [];
     const servers = (message.mcp_servers as { name: string; status: string }[]) ?? [];
     const auth = message.apiKeySource === "none" ? "Your Claude Code login (no API key)" : String(message.apiKeySource);
+    // Only the project's own items (Claude Code also has built-in commands, skills and agents).
+    const loaded = project
+      ? [
+          ...project.commands.filter((c) => ((message.slash_commands as string[]) ?? []).includes(c)).map((c) => `/${c}`),
+          ...project.skills.filter((c) => ((message.skills as string[]) ?? []).includes(c)).map((c) => `${c} (skill)`),
+          ...project.agents.filter((c) => ((message.agents as string[]) ?? []).includes(c)).map((c) => `${c} (subagent)`),
+        ]
+      : [];
     return (
       <Card tone="info" icon="▶" title="Session started" sub={`${message.model} · ${message.permissionMode} mode`}>
         <dl className="mt-1.5 grid gap-1.5 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-3">
@@ -151,6 +165,16 @@ function SdkMessage({
           <dd>{auth}</dd>
           <dt className="text-muted">Tools</dt>
           <dd className="flex flex-wrap gap-1">{tools.length ? tools.map((t) => <Chip key={t}>{t}</Chip>) : "none"}</dd>
+          {loaded.length > 0 && (
+            <>
+              <dt className="text-muted">.claude/</dt>
+              <dd className="flex flex-wrap gap-1">
+                {loaded.map((l) => (
+                  <Chip key={l}>{l}</Chip>
+                ))}
+              </dd>
+            </>
+          )}
           {servers.length > 0 && (
             <>
               <dt className="text-muted">MCP</dt>
@@ -281,6 +305,20 @@ function SdkMessage({
     );
   }
 
+  // Command hooks from .claude/settings.json (the SDK streams these with includeHookEvents).
+  if (message.type === "system" && message.subtype === "hook_response") {
+    const output = [str(message.stdout) || str(message.output), str(message.stderr)].filter(Boolean).join("\n").trim();
+    const failed = typeof message.exit_code === "number" && message.exit_code !== 0;
+    return (
+      <Card tone={failed ? "danger" : "hook"} icon="🪝" title={`${str(message.hook_event)} hook`} sub={`${str(message.hook_name)} · from settings`}>
+        {output && <pre className="mt-1 max-h-40 overflow-auto rounded-md bg-surface p-2 font-mono text-[12px] whitespace-pre-wrap">{tidy(output, workspace)}</pre>}
+        {failed && <p className="mt-1 text-xs text-danger">Exited with code {String(message.exit_code)}</p>}
+        {raw}
+      </Card>
+    );
+  }
+  if (message.type === "system" && (message.subtype === "hook_started" || message.subtype === "hook_progress") && !showRaw) return null;
+
   // Status pings, rate-limit info and other bookkeeping messages.
   if (!showRaw) return null;
   return (
@@ -297,8 +335,10 @@ export function Timeline({
   answered,
   onDecide,
   followUp,
+  project,
 }: {
   followUp?: boolean;
+  project?: ProjectNames;
   events: RunEvent[];
   showRaw: boolean;
   running: boolean;
@@ -313,7 +353,7 @@ export function Timeline({
       {events.map((event, i) => {
         switch (event.kind) {
           case "sdk":
-            return <SdkMessage key={i} message={event.message} workspace={workspace} showRaw={showRaw} agents={agents} followUp={followUp} />;
+            return <SdkMessage key={i} message={event.message} workspace={workspace} showRaw={showRaw} agents={agents} followUp={followUp} project={project} />;
           case "permission_request": {
             const decided = event.id in answered;
             return (

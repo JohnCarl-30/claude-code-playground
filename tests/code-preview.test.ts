@@ -8,12 +8,12 @@ describe("sdkCodeFor (Code tab)", () => {
       prompt: "hi",
       model: "claude-haiku-4-5",
       permissionMode: "acceptEdits",
-      claudeMd: true,
+      projectConfig: true,
       mcpServers: [{ name: "wiki", type: "http", url: "https://mcp.example.com/mcp" }],
     });
     expect(code).toContain('model: "claude-haiku-4-5"');
     expect(code).toContain('permissionMode: "acceptEdits"');
-    expect(code).toContain('settingSources: ["project"]');
+    expect(code).toContain('settingSources: ["project", "local"]');
     expect(code).toContain('"wiki": { type: "http", url: "https://mcp.example.com/mcp" }');
     expect(code).not.toContain("resume:");
   });

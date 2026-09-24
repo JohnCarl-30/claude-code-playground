@@ -31,6 +31,19 @@ beforeEach(() => {
     calls.push({ url, method: init?.method ?? "GET", body });
     if (url === "/api/run") return { ok: true, body: runStream(`Answer ${calls.filter((c) => c.url === "/api/run").length}`) };
     if (url === "/api/workspace" && init?.method === "POST") workspaceTemplate = body.template;
+    if (url === "/api/workspace/config") {
+      return {
+        ok: true,
+        json: async () => ({
+          claudeMd: true,
+          settings: { file: ".claude/settings.json", exists: false, allow: [], deny: [], ask: [], hooks: [] },
+          localSettings: { file: ".claude/settings.local.json", exists: false, allow: [], deny: [], ask: [], hooks: [] },
+          commands: [{ name: "add-route", description: "Add a new route", file: ".claude/commands/add-route.md", detail: "<METHOD> <path>" }],
+          skills: [],
+          agents: [],
+        }),
+      };
+    }
     const json =
       url === "/api/status"
         ? { signedIn: true, plan: "Claude Max" }
@@ -89,5 +102,21 @@ describe("Runner", () => {
     await user.click(screen.getByRole("button", { name: "▶ Run" }));
     await screen.findByText("Answer 1");
     expect(runBodies()[0].mcpServers).toEqual([{ name: "my-server", type: "stdio", command: "node", args: ["server.js"] }]);
+  });
+
+  it("suggests the project's slash commands and turns project config on for them", async () => {
+    const user = userEvent.setup();
+    render(<Runner preset={{ prompt: "", tools: ["Read"] }} />);
+    const prompt = screen.getByLabelText("Prompt");
+    await user.type(prompt, "/ad");
+    await user.click(await screen.findByRole("button", { name: /\/add-route/ }));
+    expect(prompt).toHaveValue("/add-route ");
+
+    // The command comes from .claude/, so it needs project config.
+    await user.click(screen.getByRole("button", { name: "Turn it on" }));
+    await user.type(prompt, "GET /time");
+    await user.click(screen.getByRole("button", { name: "▶ Run" }));
+    await screen.findByText("Answer 1");
+    expect(runBodies()[0]).toMatchObject({ prompt: "/add-route GET /time", projectConfig: true });
   });
 });

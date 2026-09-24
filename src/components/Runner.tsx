@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ClaudeConfig } from "@/lib/claude-config";
 import { DEFAULT_CONFIG, type CustomMcpServer, type RunConfig, type RunEvent } from "@/lib/run-types";
 import { loadSavedMcpServers, mergeServers, saveMcpServers, useSavedMcpServers } from "@/lib/saved-mcp";
 import { WORKSPACE_MCP_SERVER, findTemplate, type TemplateId } from "@/lib/templates";
@@ -40,6 +41,7 @@ export function Runner({
   const [tab, setTab] = useState<Tab | null>(null);
   const [answered, setAnswered] = useState<Record<string, Choice>>({});
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
+  const [claudeConfig, setClaudeConfig] = useState<ClaudeConfig | null>(null);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -48,6 +50,13 @@ export function Runner({
     const res = await fetch("/api/workspace", init).catch(() => null);
     const data = (await res?.json().catch(() => null)) as (WorkspaceSnapshot & { error?: string }) | null;
     if (data && !data.error) setWorkspace(data);
+    await loadClaudeConfig();
+  }
+
+  async function loadClaudeConfig(init?: RequestInit) {
+    const res = await fetch("/api/workspace/config", init).catch(() => null);
+    const data = (await res?.json().catch(() => null)) as (ClaudeConfig & { config?: ClaudeConfig; error?: string }) | null;
+    if (data && !data.error) setClaudeConfig(data.config ?? data);
   }
 
   /** Append events to the turn that's running. */
@@ -81,6 +90,12 @@ export function Runner({
       .then((r) => r.json())
       .then((data: WorkspaceSnapshot & { error?: string }) => {
         if (!cancelled && !data.error) setWorkspace(data);
+      })
+      .catch(() => {});
+    fetch("/api/workspace/config")
+      .then((r) => r.json())
+      .then((data: ClaudeConfig & { error?: string }) => {
+        if (!cancelled && !data.error) setClaudeConfig(data);
       })
       .catch(() => {});
     return () => {
@@ -173,6 +188,27 @@ export function Runner({
     promptRef.current?.focus();
   }
 
+  // Slash commands and skills from .claude/ can be run as /name, like in the terminal.
+  const slashItems = [
+    ...(claudeConfig?.commands ?? []).map((c) => ({ name: c.name, hint: c.detail ?? "", description: c.description })),
+    ...(claudeConfig?.skills ?? []).map((s) => ({ name: s.name, hint: "skill", description: s.description })),
+  ];
+  const typedCommand = /^\/([\w-]*)$/.exec(config.prompt.trim())?.[1];
+  const suggestions = typedCommand !== undefined ? slashItems.filter((i) => i.name.startsWith(typedCommand)) : [];
+  const usedCommand = /^\/([\w-]+)/.exec(config.prompt.trim())?.[1];
+  const commandNeedsConfig = !!usedCommand && !config.projectConfig && slashItems.some((i) => i.name === usedCommand);
+
+  function insertCommand(name: string) {
+    setConfig((c) => ({ ...c, prompt: `/${name} ` }));
+    promptRef.current?.focus();
+  }
+
+  const projectNames = {
+    commands: (claudeConfig?.commands ?? []).map((c) => c.name),
+    skills: (claudeConfig?.skills ?? []).map((c) => c.name),
+    agents: (claudeConfig?.agents ?? []).map((c) => c.name),
+  };
+
   const needed = template ? findTemplate(template) : undefined;
   const mismatch = needed && workspace && workspace.template !== needed.id;
 
@@ -233,7 +269,7 @@ export function Runner({
                   <div className="flex justify-end">
                     <p className="max-w-[85%] rounded-2xl rounded-br-md bg-accent px-4 py-2.5 whitespace-pre-wrap text-white">{turn.prompt}</p>
                   </div>
-                  <Timeline followUp={i > 0} events={turn.events} showRaw={showRaw} running={running && last} answered={answered} onDecide={decide} />
+                  <Timeline followUp={i > 0} project={projectNames} events={turn.events} showRaw={showRaw} running={running && last} answered={answered} onDecide={decide} />
                   {running && last && (
                     <p className="flex items-center gap-2 text-sm text-muted">
                       <span className="inline-block size-2 animate-pulse rounded-full bg-accent" aria-hidden />
@@ -263,9 +299,34 @@ export function Runner({
           }}
           rows={3}
           disabled={running}
-          placeholder={sessionId ? "Ask a follow-up… Claude remembers this conversation." : "Ask Claude to do something in your workspace…"}
+          placeholder={
+            sessionId
+              ? "Ask a follow-up… Claude remembers this conversation."
+              : "Ask Claude to do something in your workspace… (type / for your project's commands)"
+          }
           className="field-sizing-content block max-h-80 min-h-28 w-full resize-none bg-transparent px-4 pt-4 pb-2 leading-relaxed placeholder:text-muted/80 focus:outline-none focus-visible:outline-none disabled:opacity-60"
         />
+        {suggestions.length > 0 && (
+          <ul aria-label="Slash commands" className="mx-3 mb-1 overflow-hidden rounded-lg border border-line bg-surface text-sm shadow-sm">
+            {suggestions.map((s) => (
+              <li key={s.name}>
+                <button onClick={() => insertCommand(s.name)} className="flex w-full items-baseline gap-2 px-3 py-1.5 text-left hover:bg-surface-2">
+                  <span className="font-mono font-medium">/{s.name}</span>
+                  <span className="font-mono text-xs text-muted">{s.hint}</span>
+                  <span className="truncate text-xs text-muted">{s.description}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {commandNeedsConfig && (
+          <p className="mx-3 mb-1 flex flex-wrap items-center gap-2 rounded-lg bg-warn-soft px-3 py-1.5 text-xs text-warn">
+            /{usedCommand} comes from .claude/, which is only loaded with project config.
+            <button onClick={() => setConfig((c) => ({ ...c, projectConfig: true }))} className="font-medium underline">
+              Turn it on
+            </button>
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2 px-3 pt-1 pb-3">
           <div role="tablist" aria-label="Run options" className="flex min-w-0 flex-wrap items-center gap-1.5">
             {tabs.map((t) => (
@@ -348,6 +409,22 @@ export function Runner({
         mcpConnected={mcpConnected}
         onConnectMcp={connectWorkspaceMcp}
         onTryMcp={tryWorkspaceMcp}
+        claudeConfig={claudeConfig}
+        projectConfig={config.projectConfig}
+        onToggleProjectConfig={(on) => setConfig((c) => ({ ...c, projectConfig: on }))}
+        onUseCommand={(name) => {
+          setConfig((c) => ({ ...c, projectConfig: true }));
+          insertCommand(name);
+          promptRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }}
+        onAddStarterConfig={() =>
+          loadClaudeConfig({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "add-starter-config" }),
+          }).then(() => loadWorkspace())
+        }
+        onFilesChanged={() => loadWorkspace()}
       />
     </div>
   );

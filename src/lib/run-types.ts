@@ -72,8 +72,12 @@ export type RunConfig = {
   demoMcp: boolean;
   /** Extra MCP servers the person added (stdio programs or HTTP URLs). */
   mcpServers: CustomMcpServer[];
-  /** Load workspace/CLAUDE.md (settingSources: ["project"]). */
-  claudeMd: boolean;
+  /**
+   * Load the workspace's Claude Code config like the real CLI does: CLAUDE.md,
+   * .claude/settings.json + settings.local.json (permission rules, hooks),
+   * slash commands, skills and subagents (settingSources: ["project", "local"]).
+   */
+  projectConfig: boolean;
   /** Register a "code-reviewer" subagent Claude can delegate to. */
   subagents: boolean;
   /** Register a three-subagent review team for the orchestration example. */
@@ -97,7 +101,7 @@ export const DEFAULT_CONFIG: RunConfig = {
   tools: ["Read", "Glob", "Grep"],
   demoMcp: false,
   mcpServers: [],
-  claudeMd: false,
+  projectConfig: false,
   subagents: false,
   team: false,
   hooks: false,
