@@ -60,16 +60,16 @@ export function WorkspacePanel({
     Object.keys(previous).length > 0 && !(f.path in previous);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-line bg-surface">
-      <header className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
-        <div className="mr-auto">
-          <h3 className="font-medium">Workspace</h3>
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <header className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:gap-4">
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <h2 className="font-medium">Workspace</h2>
           <p className="text-xs text-muted">
             {template ? template.blurb : "Loading…"}
           </p>
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2">
+          <label className="flex min-w-0 flex-1 items-center gap-2 text-sm sm:flex-none">
             <span className="text-muted">Starter</span>
             <select
               value={workspace?.template ?? ""}
@@ -78,7 +78,7 @@ export function WorkspacePanel({
                 const next = e.target.value as TemplateId;
                 onSwitch(next);
               }}
-              className="rounded-md border border-line bg-surface px-2 py-1.5"
+              className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2"
             >
               {TEMPLATES.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -93,7 +93,7 @@ export function WorkspacePanel({
             download
             aria-disabled={!workspace}
             title="Download this project as a .zip"
-            className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-surface-2"
+            className="flex h-9 shrink-0 items-center rounded-lg border border-line px-3 text-sm hover:bg-surface-2"
           >
             ⤓ .zip
           </a>
@@ -104,7 +104,7 @@ export function WorkspacePanel({
               ) && onReset()
             }
             disabled={busy || !workspace}
-            className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-surface-2 disabled:opacity-50"
+            className="h-9 shrink-0 rounded-lg border border-line px-3 text-sm hover:bg-surface-2 disabled:opacity-50"
           >
             Reset
           </button>
@@ -114,7 +114,7 @@ export function WorkspacePanel({
       <div
         role="tablist"
         aria-label="Workspace"
-        className="flex gap-1 border-b border-line px-3 pt-2"
+        className="flex gap-1 overflow-x-auto border-b border-line px-2"
       >
         {(
           [
@@ -128,7 +128,7 @@ export function WorkspacePanel({
             role="tab"
             aria-selected={tab === id}
             onClick={() => setTab(id)}
-            className={`-mb-px rounded-t-md border-b-2 px-3 py-1.5 text-sm ${
+            className={`-mb-px h-10 shrink-0 border-b-2 px-3 text-sm ${
               tab === id
                 ? "border-accent font-medium text-accent"
                 : "border-transparent text-muted hover:text-ink"
@@ -164,7 +164,7 @@ export function WorkspacePanel({
               <li key={f.path} className="shrink-0">
                 <button
                   onClick={() => setSelected(f.path)}
-                  className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left font-mono text-[13px] ${
+                  className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left font-mono text-[13px] ${
                     current?.path === f.path
                       ? "bg-accent-soft text-accent"
                       : "hover:bg-surface-2"
@@ -185,7 +185,7 @@ export function WorkspacePanel({
               </li>
             ))}
           </ul>
-          <pre className="max-h-96 min-w-0 overflow-auto p-3 font-mono text-[12px] leading-relaxed">
+          <pre className="max-h-96 min-w-0 overflow-auto p-4 font-mono text-[12px] leading-relaxed">
             {current?.content ?? "Loading…"}
           </pre>
         </div>

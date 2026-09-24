@@ -30,13 +30,13 @@ export function SettingsPanel({
   const set = <K extends keyof RunConfig>(key: K, value: RunConfig[K]) => onChange({ ...config, [key]: value });
 
   return (
-    <fieldset disabled={disabled} className="grid gap-5 text-sm disabled:opacity-60 md:grid-cols-2">
+    <fieldset disabled={disabled} className="grid gap-6 text-sm disabled:opacity-60 md:grid-cols-2">
       <div>
         <span className={label}>Model</span>
         <select
           value={config.model}
           onChange={(e) => set("model", e.target.value)}
-          className="w-full rounded-md border border-line bg-surface px-2 py-1.5"
+          className="w-full h-9 rounded-lg border border-line bg-surface px-2"
         >
           {MODEL_CHOICES.map((m) => (
             <option key={m.id} value={m.id}>
@@ -46,7 +46,7 @@ export function SettingsPanel({
         </select>
       </div>
 
-      <div className="flex flex-wrap gap-5">
+      <div className="flex flex-wrap gap-6">
         <label>
           <span className={label}>Max turns</span>
           <input
@@ -55,7 +55,7 @@ export function SettingsPanel({
             max={40}
             value={config.maxTurns}
             onChange={(e) => set("maxTurns", Number(e.target.value) || 1)}
-            className="w-24 rounded-md border border-line bg-surface px-2 py-1.5"
+            className="w-24 h-9 rounded-lg border border-line bg-surface px-2"
           />
         </label>
         <label>
@@ -69,7 +69,7 @@ export function SettingsPanel({
               step={0.05}
               value={config.maxBudgetUsd}
               onChange={(e) => set("maxBudgetUsd", Number(e.target.value))}
-              className="w-24 rounded-md border border-line bg-surface px-2 py-1.5"
+              className="w-24 h-9 rounded-lg border border-line bg-surface px-2"
             />
           </span>
           <span className="mt-1 block text-xs text-muted">
@@ -84,7 +84,7 @@ export function SettingsPanel({
           {MODES.map((m) => (
             <label
               key={m.id}
-              className={`cursor-pointer rounded-md border px-3 py-2 ${
+              className={`cursor-pointer rounded-lg border px-3 py-2.5 transition-colors ${
                 config.permissionMode === m.id ? "border-accent bg-accent-soft" : "border-line bg-surface hover:bg-surface-2"
               }`}
             >
@@ -110,7 +110,7 @@ export function SettingsPanel({
             return (
               <label
                 key={t}
-                className={`cursor-pointer rounded-full border px-3 py-1 font-mono text-[13px] ${
+                className={`flex h-8 cursor-pointer items-center rounded-full border px-3 font-mono text-[13px] ${
                   on ? "border-accent bg-accent-soft text-accent" : "border-line bg-surface text-muted hover:text-ink"
                 }`}
               >
@@ -126,7 +126,7 @@ export function SettingsPanel({
           })}
         </div>
         {config.tools.includes("Bash") && (
-          <p className="mt-2 rounded-md bg-warn-soft px-3 py-2 text-xs text-warn">
+          <p className="mt-3 rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">
             Bash runs real commands on your computer. Claude Code lets simple read-only commands (like ls) run without asking; everything else waits for you, so read it before clicking Allow.
           </p>
         )}
@@ -136,7 +136,7 @@ export function SettingsPanel({
         <span className={label}>Extras</span>
         <div className="grid gap-2 sm:grid-cols-2">
           {TOGGLES.map((t) => (
-            <label key={t.key} className="flex cursor-pointer items-start gap-2.5 rounded-md border border-line bg-surface px-3 py-2">
+            <label key={t.key} className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-line bg-surface px-3 py-2.5 hover:bg-surface-2">
               <input
                 type="checkbox"
                 className="mt-0.5 accent-[var(--accent)]"
@@ -159,7 +159,7 @@ export function SettingsPanel({
           onChange={(e) => set("appendSystemPrompt", e.target.value)}
           rows={2}
           placeholder="e.g. Always answer in Filipino."
-          className="w-full rounded-md border border-line bg-surface px-3 py-2"
+          className="w-full rounded-lg border border-line bg-surface px-3 py-2"
         />
       </div>
     </fieldset>

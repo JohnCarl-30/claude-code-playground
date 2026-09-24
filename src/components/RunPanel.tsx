@@ -71,7 +71,7 @@ export function RunPanel({
             <button
               key={s.id}
               onClick={() => act(isRunning ? { action: "stop" } : { action: "start", script: s.id })}
-              className={`rounded-md px-3 py-1.5 font-medium ${
+              className={`h-9 rounded-lg px-3 font-medium ${
                 isRunning ? "bg-danger text-white hover:opacity-90" : "border border-line hover:bg-surface-2"
               }`}
             >
@@ -103,22 +103,22 @@ export function RunPanel({
       {template.apiPort && <RequestTester port={template.apiPort} />}
 
       {template.mcpServer && (
-        <div className="rounded-md border border-line bg-surface-2 p-3">
+        <div className="rounded-lg border border-line bg-surface-2 p-4">
           <p className="font-medium">Use your MCP server in the playground</p>
           <p className="mt-0.5 text-muted">
             Adds <code className="font-mono">my-server</code> (<code className="font-mono">node server.js</code>, stdio) to the MCP servers
             tab, so Claude can call the tools you built. It restarts fresh on every run, so your latest code is used.
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {mcpConnected ? (
               <>
-                <span className="rounded-md bg-ok-soft px-3 py-1.5 font-medium text-ok">✓ Connected</span>
-                <button onClick={onTryMcp} className="rounded-md bg-accent px-3 py-1.5 font-medium text-white hover:opacity-90">
+                <span className="flex h-9 items-center rounded-lg bg-ok-soft px-3 font-medium text-ok">✓ Connected</span>
+                <button onClick={onTryMcp} className="h-9 rounded-lg bg-accent px-3 font-medium text-white hover:opacity-90">
                   Ask Claude to try my tools
                 </button>
               </>
             ) : (
-              <button onClick={onConnectMcp} className="rounded-md bg-accent px-3 py-1.5 font-medium text-white hover:opacity-90">
+              <button onClick={onConnectMcp} className="h-9 rounded-lg bg-accent px-3 font-medium text-white hover:opacity-90">
                 Connect to the playground
               </button>
             )}
@@ -157,8 +157,8 @@ function RequestTester({ port }: { port: number }) {
   const ok = response?.status !== undefined && response.status < 400;
 
   return (
-    <form onSubmit={send} className="rounded-md border border-line p-3">
-      <p className="mb-2 font-medium">
+    <form onSubmit={send} className="rounded-lg border border-line p-4">
+      <p className="mb-3 font-medium">
         Send a request <span className="font-normal text-muted">to http://localhost:{port}</span>
       </p>
       <div className="flex gap-2">
@@ -166,7 +166,7 @@ function RequestTester({ port }: { port: number }) {
           value={method}
           onChange={(e) => setMethod(e.target.value as (typeof METHODS)[number])}
           aria-label="HTTP method"
-          className="rounded-md border border-line bg-surface px-2 py-1.5 font-mono text-[13px]"
+          className="h-9 rounded-lg border border-line bg-surface px-2 font-mono text-[13px]"
         >
           {METHODS.map((m) => (
             <option key={m}>{m}</option>
@@ -177,9 +177,9 @@ function RequestTester({ port }: { port: number }) {
           onChange={(e) => setPath(e.target.value)}
           aria-label="Path"
           placeholder="/todos"
-          className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2 py-1.5 font-mono text-[13px]"
+          className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 font-mono text-[13px]"
         />
-        <button type="submit" disabled={sending} className="rounded-md bg-accent px-3 py-1.5 font-medium text-white hover:opacity-90 disabled:opacity-50">
+        <button type="submit" disabled={sending} className="h-9 rounded-lg bg-accent px-4 font-medium text-white hover:opacity-90 disabled:opacity-50">
           {sending ? "…" : "Send"}
         </button>
       </div>
@@ -189,11 +189,11 @@ function RequestTester({ port }: { port: number }) {
           onChange={(e) => setBody(e.target.value)}
           aria-label="JSON body"
           rows={4}
-          className="mt-2 w-full rounded-md border border-line bg-surface px-2 py-1.5 font-mono text-[12px]"
+          className="mt-2 w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-[12px]"
         />
       )}
       {response && (
-        <div className="mt-2">
+        <div className="mt-3">
           {response.error ? (
             <p className="rounded-md bg-danger-soft px-3 py-2 text-xs text-danger">{response.error}</p>
           ) : (
@@ -204,7 +204,7 @@ function RequestTester({ port }: { port: number }) {
                 </span>
                 <span className="text-muted">{response.ms} ms</span>
               </p>
-              <pre className="mt-1 max-h-60 overflow-auto rounded-md bg-surface-2 p-2 font-mono text-[12px] whitespace-pre-wrap">
+              <pre className="mt-2 max-h-60 overflow-auto rounded-lg bg-surface-2 p-3 font-mono text-[12px] whitespace-pre-wrap">
                 {pretty(response.body ?? "", response.contentType ?? "") || "(empty body)"}
               </pre>
             </>
