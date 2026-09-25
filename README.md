@@ -9,7 +9,7 @@ Build a real REST API, MCP server or agent with Claude, then run and test it rig
 - **Build real projects.** Start from a REST API, MCP server or Agent SDK starter; Claude writes the code, and you start the server, send requests, plug in your MCP server or run your agent.
 - **Configure Claude the real way.** Each starter has a `.claude/` folder: permission rules, hooks, slash commands, skills and subagents. Edit them in the playground and they load exactly as they would for `claude` in a terminal.
 - **Certification track.** Preparing for **Claude Certified Developer – Foundations (CCDV-F)**? The official exam blueprint is in the sidebar: all 8 domains and 25 skills, weighted like the exam, each linked to what practices it here, plus a knowledge check per domain whose answers link to the official docs.
-- **Practice challenges.** Twenty-six tasks (REST APIs, the Claude API, MCP servers, Claude Code config, prompting, security, debugging, the Agent SDK). You solve them with Claude, then **Check my work** tests your actual code and config and shows ✅ / ❌ per requirement, with the reason.
+- **Practice challenges.** Twenty-seven tasks (REST APIs, the Claude API, MCP servers, Claude Code config, prompting, security, debugging, the Agent SDK). You solve them with Claude, then **Check my work** tests your actual code and config and shows ✅ / ❌ per requirement, with the reason.
 - **The Claude API without a key.** The Claude API starter's programs run against a **practice API** on your computer: canned replies in the real shapes (tool_use, streaming events, usage and cache fields, errors, batches), so you can write and test real `@anthropic-ai/sdk` code for free.
 - **See inside the harness.** A context-window meter with **Compact now**, Claude's live task list, multiple-choice questions from Claude, and plan-mode reviews where you approve the plan or send it back.
 - **A live session, like the terminal.** Replies stream in word by word. While Claude works you can **Steer** it (switch to a new message now), **Queue** a message for when it's done, or **Stop** the turn, and you can change the model or permission mode mid-conversation. See every change as a diff, and download your project as a .zip.
@@ -101,7 +101,7 @@ Pick a challenge in the **Challenges** section of the sidebar. Each one has a go
 | Prompting | A few-shot classifier · Keep the context small | inspects the prompt your code sends (examples, delimiters, max_tokens), feeds it messy replies, and checks your trimmed conversation is still one the API accepts |
 | Security | Guard secrets with a hook · Untrusted email, gated refunds | feeds your PreToolUse hook the same JSON Claude Code sends and checks what it blocks; plays a Claude that falls for a prompt injection and checks your code still won't refund without a person's yes |
 | Debugging | Fix the discount bug | runs your `cart.js` and your tests |
-| Agent SDK | An agent with a custom tool | checks `agent.mjs` and its syntax |
+| Agent SDK | An agent with a custom tool · Guardrails for an agent | checks `agent.mjs`; calls your PreToolUse hook, `canUseTool` and subagent definition the way the SDK does (including a `../` path trick) |
 
 Checking never calls Claude, so it's free and gives the same answer every time. Hints unlock one at a time, and passed challenges get a 🏆 in the sidebar (saved in your browser).
 
@@ -115,7 +115,7 @@ The **Certification** section of the sidebar follows the official [Claude Certif
 - **Mistakes deck:** every question you miss in a knowledge check or a mock exam goes into a deck you practice in rounds of 10; each one leaves after you get it right twice in a row.
 - Every example and challenge shows which exam skills it practices.
 
-The questions are written for this playground and checked against the official docs; they are not questions from the real exam. Every question carries the exact quote from the docs that backs its answer, and `npm run verify:quizzes` re-checks every source page and quote against the live docs, so questions that go out of date get caught. Answer length is balanced so the longest option isn't a giveaway (a test enforces it). Weight tells you where to spend time: Applications and Integration (33.1%) and Model Selection and Optimization (16.8%) are half the exam, so the Claude API challenges matter more than the Claude Code ones (3.1%).
+The questions are written for this playground and checked against the official docs; they are not questions from the real exam. Every question carries the exact quote from the docs that backs its answer, and `npm run verify:quizzes` re-checks every source page and quote against the live docs. A GitHub Action runs that check every Monday and opens an issue when something changed, so questions that go out of date get caught. Answer length is balanced so the longest option isn't a giveaway (a test enforces it). Weight tells you where to spend time: Applications and Integration (33.1%) and Model Selection and Optimization (16.8%) are half the exam, so the Claude API challenges matter more than the Claude Code ones (3.1%).
 
 ## What you can try
 

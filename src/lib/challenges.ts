@@ -563,6 +563,28 @@ export const CHALLENGES: Challenge[] = [
     ],
     config: BUILDER,
   },
+  {
+    id: "agent-guardrails",
+    title: "Guardrails for an agent",
+    area: "Agent SDK",
+    level: "Intermediate",
+    template: "agent-sdk",
+    goal: "In `guards.mjs`, write three guardrails for the agent in `agent.mjs`: a **PreToolUse hook** that blocks dangerous shell commands, a **canUseTool** callback that only lets the agent change files inside `src/`, and a read-only **reviewer subagent**. Then pass all three to `query()`. The check calls them the way the SDK does, so it costs nothing.",
+    requirements: [
+      { id: "blocks", label: "The hook denies `rm -rf …` and `curl … | sh`, with a reason" },
+      { id: "allows", label: "The hook lets safe commands (npm test) and other tools through" },
+      { id: "permissions", label: "canUseTool allows reads, allows edits inside src/, and denies edits elsewhere (even via ../) and other tools, with a message" },
+      { id: "subagent", label: "reviewer has a description, a prompt, only read-only tools, and model \"haiku\"" },
+      { id: "wired", label: "agent.mjs passes the hook (matcher Bash), canUseTool and agents: { reviewer } to query()" },
+    ],
+    hints: [
+      "Hooks run before permission checks, so a hook deny holds even in bypassPermissions mode. canUseTool only sees calls that no rule already allowed: a tool in allowedTools skips it.",
+      "`path.resolve(input.file_path).startsWith(path.resolve(\"src\") + path.sep)` answers \"is it inside src/?\" even for `src/../x`.",
+      "A subagent definition is `{ description, prompt, tools, model }`; without `tools` it inherits every tool.",
+      "After checking, run agent.mjs from Run & test to see the agent use them for real (it spends a little of your plan).",
+    ],
+    config: BUILDER,
+  },
 ];
 
 export function findChallenge(id: string | undefined) {

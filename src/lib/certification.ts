@@ -47,7 +47,7 @@ export const DOMAINS: Domain[] = [
         name: "Agent Construction with Claude",
         weight: 5.3,
         summary: "The Agent SDK, custom agent loops and harnesses, self-hosted vs. Anthropic-hosted agents, and hooks for deterministic actions.",
-        practice: [ex("agent-sdk/hello"), ex("build/agent-tool"), ex("claude-code/hooks"), ch("agent-tool")],
+        practice: [ex("agent-sdk/hello"), ex("build/agent-tool"), ex("claude-code/hooks"), ch("agent-tool"), ch("agent-guardrails")],
       },
       {
         name: "Agent Patterns and Frameworks",
@@ -209,7 +209,7 @@ export const DOMAINS: Domain[] = [
         name: "Claude Hooks",
         weight: 1.0,
         summary: "Hooks as guardrails that stop destructive actions.",
-        practice: [ex("claude-code/hooks"), ch("security-hook")],
+        practice: [ex("claude-code/hooks"), ch("security-hook"), ch("agent-guardrails")],
       },
       {
         name: "Identity, Secrets, and Key Management",

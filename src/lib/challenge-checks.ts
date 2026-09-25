@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { findChallenge, type CheckResult } from "./challenges";
-import { API_CHECKERS } from "./challenge-checks-api";
+import { MODULE_CHECKERS } from "./challenge-checks-api";
 import { childEnv, crashSummary, fail, isObj, ok, readText, type Results } from "./check-utils";
 import { parseFrontmatter, readClaudeConfig } from "./claude-config";
 import { WORKSPACE_DIR, currentTemplate, ensureWorkspace } from "./workspace";
@@ -510,7 +510,7 @@ async function checkSecurityHook(): Promise<Results> {
 }
 
 const CHECKERS: Record<string, () => Promise<Results>> = {
-  ...API_CHECKERS,
+  ...MODULE_CHECKERS,
   "mcp-resources": checkResourcesAndPrompts,
   "security-hook": checkSecurityHook,
   "api-todos": checkTodos,

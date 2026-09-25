@@ -44,6 +44,7 @@ const SOLUTION: Record<string, string> = {
   "api-documents": "claude-api",
   "api-few-shot": "claude-api",
   "api-context-trim": "claude-api",
+  "agent-guardrails": "agent-guardrails",
 };
 
 async function freshStarter(template: string) {
@@ -128,5 +129,41 @@ if (JSON.stringify(tool_input).includes(".env")) {
   it("fails a matcher that leaves out Read", async () => {
     const r = await withHook(readFileSync(path.join(FIXTURES, "security-hook", HOOK), "utf8"), (s) => s.replace('"Read|Edit|Write|Bash"', '"Bash"'));
     expect(r.registered).toMatchObject({ pass: false, detail: expect.stringMatching(/should cover Read and Bash/) });
+  });
+});
+
+describe("agent guardrails check", () => {
+  async function withGuards(change: (code: string) => string, file = "guards.mjs") {
+    await freshStarter("agent-sdk");
+    cpSync(path.join(FIXTURES, "agent-guardrails"), ws.WORKSPACE_DIR, { recursive: true });
+    const { writeFileSync } = await import("node:fs");
+    const target = path.join(ws.WORKSPACE_DIR, file);
+    const before = readFileSync(target, "utf8");
+    const after = change(before);
+    if (after === before) throw new Error("Test setup: nothing changed");
+    writeFileSync(target, after);
+    return Object.fromEntries((await check("agent-guardrails")).map((r) => [r.id, r]));
+  }
+
+  it("catches a path check that ../ can escape", async () => {
+    const r = await withGuards((c) => c.replace("const target = path.resolve(String(input.file_path ?? \"\"));", "const target = String(input.file_path ?? \"\");").replace("target.startsWith(SRC)", "target.includes(\"/src/\")"));
+    expect(r.permissions).toMatchObject({ pass: false, detail: expect.stringMatching(/src\/\.\.\/package\.json/) });
+  });
+
+  it("fails a hook that blocks everything", async () => {
+    const r = await withGuards((c) => c.replace("if (!hit) return {};", ""));
+    expect(r.allows.pass).toBe(false);
+    expect(r.blocks.pass).toBe(true);
+  });
+
+  it("fails a reviewer that can run commands", async () => {
+    const r = await withGuards((c) => c.replace('tools: ["Read", "Grep", "Glob"],', 'tools: ["Read", "Grep", "Bash"],'));
+    expect(r.subagent).toMatchObject({ pass: false, detail: expect.stringMatching(/Bash/) });
+  });
+
+  it("fails when agent.mjs doesn't pass the guardrails to query()", async () => {
+    const r = await withGuards((c) => c.replace("    canUseTool,\n", ""), "agent.mjs");
+    expect(r.wired).toMatchObject({ pass: false, detail: expect.stringMatching(/canUseTool/) });
+    expect(r.blocks.pass).toBe(true);
   });
 });
