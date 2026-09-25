@@ -2,19 +2,21 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CertificationPanel } from "@/components/CertificationPanel";
-import { QuizPanel, optionOrder } from "@/components/QuizPanel";
+import { QuizPanel, optionOrder, questionSet } from "@/components/QuizPanel";
 import { DOMAINS } from "@/lib/certification";
 import { QUIZZES } from "@/lib/quizzes";
 
 const none = { tried: new Set<string>(), passed: new Set<string>(), quizzes: new Set<string>() };
 const evalDomain = DOMAINS.find((d) => d.id === "eval")!;
+// The first set a domain's knowledge check shows (all of a small bank, or 8 of a bigger one).
+const shown = questionSet(QUIZZES.eval, 0);
 
 beforeEach(() => localStorage.clear());
 
 /** Click the options for these answers, wherever the shuffle put them. */
 async function answer(pick: (q: (typeof QUIZZES)["eval"][number]) => number[]) {
   const groups = screen.getAllByRole("group");
-  for (const [n, q] of QUIZZES.eval.entries()) {
+  for (const [n, q] of shown.entries()) {
     for (const i of pick(q)) {
       const shownAt = optionOrder(q.id, q.options.length).indexOf(i);
       const inputs = within(groups[n]).getAllByRole(q.answer.length > 1 ? "checkbox" : "radio");
@@ -28,7 +30,7 @@ describe("QuizPanel", () => {
     render(<QuizPanel domain={evalDomain} passedBefore={false} />);
     await answer((q) => q.answer);
     await userEvent.click(screen.getByRole("button", { name: /Check answers/ }));
-    expect(screen.getByRole("status")).toHaveTextContent(`${QUIZZES.eval.length}/${QUIZZES.eval.length} correct`);
+    expect(screen.getByRole("status")).toHaveTextContent(`${shown.length}/${shown.length} correct`);
     expect(screen.getByRole("status")).toHaveTextContent(/Passed/);
     expect(JSON.parse(localStorage.getItem("claude-code-playground:quizzes-passed:v1") ?? "[]")).toEqual(["eval"]);
   });
@@ -38,12 +40,12 @@ describe("QuizPanel", () => {
     // Pick one wrong option everywhere (and for "choose 2", the right count of wrong ones).
     await answer((q) => q.options.map((_, i) => i).filter((i) => !q.answer.includes(i)).slice(0, q.answer.length));
     await userEvent.click(screen.getByRole("button", { name: /Check answers/ }));
-    expect(screen.getByRole("status")).toHaveTextContent(`0/${QUIZZES.eval.length} correct`);
-    expect(screen.getAllByText("Not quite.")).toHaveLength(QUIZZES.eval.length);
-    const source = screen.getAllByRole("link", { name: /Source: API errors/ })[0];
-    expect(source).toHaveAttribute("href", "https://platform.claude.com/docs/en/api/errors");
+    expect(screen.getByRole("status")).toHaveTextContent(`0/${shown.length} correct`);
+    expect(screen.getAllByText("Not quite.")).toHaveLength(shown.length);
+    const first = shown[0];
+    expect(screen.getAllByRole("link", { name: `Source: ${first.source.label} ↗` })[0]).toHaveAttribute("href", first.source.url);
     expect(localStorage.getItem("claude-code-playground:quizzes-passed:v1")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: /Try again/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Try again|New set of questions/ }));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
