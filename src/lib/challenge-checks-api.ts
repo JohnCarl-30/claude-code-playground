@@ -71,7 +71,7 @@ type Call = { name: string; args: unknown[]; collectAt?: number; answer?: { at: 
 async function callExports(file: string, calls: Call[], api: MockApi, opts: { env?: Record<string, string> } = {}): Promise<CallResult[]> {
   if ((await readText(file)) === null) {
     // Workspaces created before a challenge existed don't have its file.
-    const missing = `${file} is missing. Create it (Claude can), or Reset the workspace to get the latest starter files (Reset discards your changes).`;
+    const missing = `${file} is missing. Click "Add them" in the Workspace panel to get the new starter files (your changes are kept), or create it.`;
     return calls.map(() => ({ missing }));
   }
   const results = await new Promise<CallResult[] | CallResult>((resolve) => {
@@ -861,7 +861,7 @@ async function checkTriage(): Promise<Results> {
 async function checkDocs(): Promise<Results> {
   const png = await readFile(path.join(WORKSPACE_DIR, "samples/receipt.png")).catch(() => null);
   const pdf = await readFile(path.join(WORKSPACE_DIR, "samples/policy.pdf")).catch(() => null);
-  if (!png || !pdf) return failAll(["image", "pdf", "upload", "byid"], "samples/receipt.png or samples/policy.pdf is missing. Reset the workspace to get them back.");
+  if (!png || !pdf) return failAll(["image", "pdf", "upload", "byid"], 'samples/receipt.png or samples/policy.pdf is missing. Click "Add them" in the Workspace panel to get them back.');
   const FILE_ID = "file_check_1";
   let uploads = 0;
   let uploadedName = "";

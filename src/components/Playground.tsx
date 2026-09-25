@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { DOMAINS, EXAM, domainProgress, findDomain, readiness, skillsFor, type PracticeRef } from "@/lib/certification";
+import { DOMAINS, EXAM, findDomain, readiness, skillsFor, type PracticeRef } from "@/lib/certification";
 import { useMistakes } from "@/lib/mistakes";
 import { MOCK_EXAM } from "@/lib/mock-exam";
+import { CERT, CERT_EXAM, CERT_MISTAKES, CERT_OVERVIEW, CHALLENGE } from "@/lib/selection";
 import { CHALLENGES, findChallenge } from "@/lib/challenges";
 import { BLANK_EXAMPLE_ID, EXAMPLES, EXAMPLE_GROUPS, findExample } from "@/lib/examples";
 import type { RunConfig } from "@/lib/run-types";
@@ -12,18 +13,13 @@ import { usePassed, useQuizzesPassed, useTried } from "@/lib/tried";
 import { CertificationPanel } from "./CertificationPanel";
 import { MistakesPanel } from "./MistakesPanel";
 import { MockExamPanel } from "./MockExamPanel";
+import { Sidebar } from "./Sidebar";
 import { ChallengePanel } from "./ChallengePanel";
 import { Markdownish } from "./Markdownish";
 import { Runner } from "./Runner";
 
 const BLANK: Partial<RunConfig> = { prompt: "", tools: ["Read", "Glob", "Grep", "Edit"], demoMcp: true };
 
-// Challenges and the certification track share the sidebar with examples; their ids carry these prefixes.
-const CHALLENGE = "challenge:";
-const CERT = "cert:";
-const CERT_OVERVIEW = "cert:overview";
-const CERT_EXAM = "cert:exam";
-const CERT_MISTAKES = "cert:mistakes";
 
 function initialSelection(exampleId?: string, challengeId?: string, certId?: string) {
   if (certId !== undefined) return findDomain(certId) || certId === "exam" || certId === "mistakes" ? CERT + certId : CERT_OVERVIEW;
@@ -138,186 +134,7 @@ export function Playground({
           </select>
         </label>
 
-        <nav aria-label="Examples" className="hidden space-y-6 text-sm lg:block">
-          <div className="px-2">
-            <div className="mb-2 flex items-baseline justify-between">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted">Your progress</p>
-              <p className="text-xs tabular-nums text-muted">
-                {doneCount}/{EXAMPLES.length}
-              </p>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
-              <div className="h-full rounded-full bg-ok transition-[width]" style={{ width: `${(doneCount / EXAMPLES.length) * 100}%` }} />
-            </div>
-          </div>
-
-          <button
-            onClick={() => select(BLANK_EXAMPLE_ID)}
-            aria-current={selectedId === BLANK_EXAMPLE_ID ? "true" : undefined}
-            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-              selectedId === BLANK_EXAMPLE_ID ? "border-accent bg-accent-soft" : "border-line bg-surface hover:bg-surface-2"
-            }`}
-          >
-            <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-md bg-accent text-base leading-none text-white">
-              +
-            </span>
-            <span className="min-w-0">
-              <span className={`block font-medium ${selectedId === BLANK_EXAMPLE_ID ? "text-accent" : ""}`}>Blank</span>
-              <span className="block text-xs text-muted">Write your own prompt</span>
-            </span>
-          </button>
-
-          <div>
-            <div className="mb-2 flex items-baseline justify-between px-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted">Certification · {EXAM.code}</p>
-              <p className={`text-xs tabular-nums ${ready === 100 ? "text-ok" : "text-muted"}`}>{ready}% ready</p>
-            </div>
-            <ul className="space-y-0.5">
-              <li>
-                <button
-                  onClick={() => select(CERT_OVERVIEW)}
-                  aria-current={selectedId === CERT_OVERVIEW ? "true" : undefined}
-                  className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
-                    selectedId === CERT_OVERVIEW ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
-                  }`}
-                >
-                  <span aria-hidden className="w-4 shrink-0 text-center text-xs leading-none">
-                    ◎
-                  </span>
-                  <span className="min-w-0 flex-1">Exam blueprint</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={openExam}
-                  aria-current={selectedId === CERT_EXAM ? "true" : undefined}
-                  className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
-                    selectedId === CERT_EXAM ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
-                  }`}
-                >
-                  <span aria-hidden className="w-4 shrink-0 text-center text-xs leading-none">
-                    ⏱
-                  </span>
-                  <span className="min-w-0 flex-1">Mock exam</span>
-                  <span className="shrink-0 text-[10px] text-muted">{MOCK_EXAM.items} Qs</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={openMistakes}
-                  aria-current={selectedId === CERT_MISTAKES ? "true" : undefined}
-                  className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
-                    selectedId === CERT_MISTAKES ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
-                  }`}
-                >
-                  <span aria-hidden className="w-4 shrink-0 text-center text-xs leading-none">
-                    ↺
-                  </span>
-                  <span className="min-w-0 flex-1">Mistakes deck</span>
-                  <span className={`shrink-0 text-[10px] tabular-nums ${mistakes ? "text-accent" : "text-muted"}`}>{mistakes}</span>
-                </button>
-              </li>
-              {DOMAINS.map((d) => {
-                const active = selectedId === CERT + d.id;
-                const share = domainProgress(d, progress).share;
-                return (
-                  <li key={d.id}>
-                    <button
-                      onClick={() => select(CERT + d.id)}
-                      aria-current={active ? "true" : undefined}
-                      title={`${d.weight.toFixed(1)}% of the exam`}
-                      className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
-                        active ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
-                      }`}
-                    >
-                      <span aria-label={quizzes.has(d.id) ? "quiz passed" : undefined} className="w-4 shrink-0 text-center font-mono text-xs leading-none">
-                        {quizzes.has(d.id) ? "✓" : d.number}
-                      </span>
-                      <span className="min-w-0 flex-1">{d.name}</span>
-                      <span className={`shrink-0 text-[10px] tabular-nums ${share === 1 ? "text-ok" : "text-muted"}`}>{Math.round(share * 100)}%</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-baseline justify-between px-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted">Challenges</p>
-              <p className={`text-xs tabular-nums ${passedCount === CHALLENGES.length ? "text-ok" : "text-muted"}`}>
-                {passedCount}/{CHALLENGES.length}
-              </p>
-            </div>
-            <ul className="space-y-0.5">
-              {CHALLENGES.map((c) => {
-                const active = selectedId === CHALLENGE + c.id;
-                const isPassed = passed.has(c.id);
-                return (
-                  <li key={c.id}>
-                    <button
-                      onClick={() => select(CHALLENGE + c.id)}
-                      aria-current={active ? "true" : undefined}
-                      title={`${c.area} · ${c.level}`}
-                      className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
-                        active ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
-                      }`}
-                    >
-                      <span aria-label={isPassed ? "passed" : undefined} className="w-4 shrink-0 text-center text-xs leading-none">
-                        {isPassed ? "🏆" : "◇"}
-                      </span>
-                      <span className="min-w-0 flex-1">{c.title}</span>
-                      <span className="shrink-0 text-[10px] text-muted">{c.level === "Beginner" ? "B" : "I"}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          {EXAMPLE_GROUPS.map((group) => {
-            const items = EXAMPLES.filter((e) => e.group === group);
-            const done = items.filter((e) => tried.has(e.id)).length;
-            return (
-              <div key={group}>
-                <div className="mb-2 flex items-baseline justify-between px-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted">{group}</p>
-                  <p className={`text-xs tabular-nums ${done === items.length ? "text-ok" : "text-muted"}`}>
-                    {done}/{items.length}
-                  </p>
-                </div>
-                <ul className="space-y-0.5">
-                  {items.map((e) => {
-                    const active = e.id === selectedId;
-                    const isDone = tried.has(e.id);
-                    return (
-                      <li key={e.id}>
-                        <button
-                          onClick={() => select(e.id)}
-                          aria-current={active ? "true" : undefined}
-                          title={e.blurb}
-                          className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
-                            active ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
-                          }`}
-                        >
-                          <span
-                            aria-label={isDone ? "tried" : undefined}
-                            className={`grid size-4 shrink-0 place-items-center rounded-full border text-[10px] leading-none ${
-                              isDone ? "border-ok bg-ok text-white" : active ? "border-accent" : "border-line"
-                            }`}
-                          >
-                            {isDone ? "✓" : ""}
-                          </span>
-                          <span className="min-w-0 flex-1">{e.title}</span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            );
-          })}
-        </nav>
+        <Sidebar selectedId={selectedId} onSelect={select} progress={progress} />
       </aside>
 
       <main className="min-w-0 space-y-6">

@@ -1,7 +1,7 @@
 "use client";
 
 import { findChallenge } from "@/lib/challenges";
-import { DOMAINS, EXAM, domainProgress, isDone, readiness, type Domain, type PracticeRef, type Progress } from "@/lib/certification";
+import { DOMAINS, EXAM, domainProgress, focusDomain, isDone, readiness, type Domain, type PracticeRef, type Progress } from "@/lib/certification";
 import { useExamState } from "@/lib/exam-store";
 import { findExample } from "@/lib/examples";
 import { MOCK_EXAM } from "@/lib/mock-exam";
@@ -36,11 +36,6 @@ function PracticeChip({ item, progress, onOpen }: { item: PracticeRef; progress:
       {title ?? item.id}
     </button>
   );
-}
-
-/** Where to focus next: the domain with the most exam weight you haven't practiced yet. */
-function nextFocus(progress: Progress) {
-  return [...DOMAINS].sort((a, b) => b.weight * (1 - domainProgress(b, progress).share) - a.weight * (1 - domainProgress(a, progress).share))[0];
 }
 
 /** The exam blueprint with your progress, or one domain with its quiz. */
@@ -98,7 +93,7 @@ export function CertificationPanel({
   }
 
   const ready = readiness(progress);
-  const focus = nextFocus(progress);
+  const focus = focusDomain(progress);
   return (
     <div className="space-y-6">
       <header className="space-y-2">

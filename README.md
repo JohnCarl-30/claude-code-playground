@@ -71,6 +71,7 @@ A typical loop: pick **Build a REST API** in the sidebar → **Run** → **Start
 - **A live session:** your first message starts one Claude Code session; everything after goes into it, and Claude remembers the whole conversation. While Claude works, type and press **↪ Steer** (switch now, ⇧⌘/Ctrl + Enter) or **⏎ Queue** (after it's done, ⌘/Ctrl + Enter), or **■ Stop** the turn. Model and permission mode change live; other settings apply to your next conversation. **＋ New conversation** starts fresh (your files stay as they are).
 - **Changes:** a colored diff of everything changed since the starter's starting point.
 - **Your work is kept:** switching starters parks the current workspace (files and git history) and brings it back when you switch back; the starter list marks those as "saved". **Reset** is the only thing that throws work away.
+- **New starter files:** when a starter gains files after you started (new challenges add some), the Workspace panel says so; **Add them** copies in just those files and leaves your changes alone.
 - **⤓ .zip:** download the current project to keep or open elsewhere.
 
 Each starter has a `CLAUDE.md` that tells Claude its conventions, and the examples turn it on.

@@ -288,3 +288,8 @@ export function skillsFor(item: PracticeRef) {
     domain.skills.filter((s) => s.practice.some((p) => p.kind === item.kind && p.id === item.id)).map((skill) => ({ domain, skill })),
   );
 }
+
+/** Where to focus next: the domain with the most exam weight you haven't practiced yet. */
+export function focusDomain(progress: Progress): Domain {
+  return [...DOMAINS].sort((a, b) => b.weight * (1 - domainProgress(b, progress).share) - a.weight * (1 - domainProgress(a, progress).share))[0];
+}

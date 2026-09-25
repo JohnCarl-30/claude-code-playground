@@ -121,4 +121,21 @@ describe("workspace", () => {
     const png = exported.find((f) => f.path === "samples/receipt.png")!;
     expect(png.data.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   });
+
+  it("adds starter files the workspace is missing, without touching your changes", async () => {
+    await ws.switchWorkspace("claude-api");
+    await ws.resetWorkspace();
+    // An older workspace: without two newer files, and with your own edit.
+    rmSync(file("cost.mjs"));
+    rmSync(file("samples"), { recursive: true });
+    writeFileSync(file("ask.mjs"), "// my own version\n");
+    expect(await ws.missingStarterFiles()).toEqual(["cost.mjs", "samples/policy.pdf", "samples/receipt.png"]);
+
+    expect(await ws.addMissingStarterFiles()).toEqual(["cost.mjs", "samples/policy.pdf", "samples/receipt.png"]);
+    expect(await ws.missingStarterFiles()).toEqual([]);
+    expect(readFileSync(file("ask.mjs"), "utf8")).toBe("// my own version\n");
+    // The Changes tab still shows only your edit (and the removal you didn't undo is gone), not the added files.
+    const { changes } = await ws.workspaceDiff();
+    expect(changes.map((c) => c.path)).toEqual(["ask.mjs"]);
+  });
 });

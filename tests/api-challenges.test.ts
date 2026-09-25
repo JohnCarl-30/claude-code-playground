@@ -294,7 +294,7 @@ it("explains a file missing from an older workspace", async () => {
   rmSync(path.join(ws.WORKSPACE_DIR, "cost.mjs"));
   const result = await checks.runChallengeChecks("api-cost");
   if ("error" in result) throw new Error(result.error);
-  expect(result.results.find((x) => x.id === "live")).toMatchObject({ pass: false, detail: expect.stringMatching(/cost\.mjs is missing.*Reset/) });
+  expect(result.results.find((x) => x.id === "live")).toMatchObject({ pass: false, detail: expect.stringMatching(/cost\.mjs is missing.*Add them/) });
 });
 
 describe("untrusted email, gated refunds", () => {

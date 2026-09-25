@@ -12,7 +12,7 @@ function hostname(hostHeader: string) {
  * - the Host must be localhost (blocks other devices and DNS-rebinding tricks)
  * - an Origin, when sent, must be that same host (blocks other websites)
  * - POSTs and PUTs must be JSON (forces a CORS preflight, which other sites
- *   fail; DELETE always gets a preflight)
+ *   fail; DELETE and PATCH always get a preflight)
  */
 export function rejectNonLocal(request: Request): Response | null {
   const host = request.headers.get("host") ?? "";

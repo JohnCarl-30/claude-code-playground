@@ -8,8 +8,11 @@ import { ClaudeConfigPanel, scaffold, type NewItemKind } from "./ClaudeConfigPan
 import { RunPanel } from "./RunPanel";
 
 export type WorkspaceFile = { path: string; content: string; binary?: boolean };
-/** parked: other starters with saved work, restored when you switch back. */
-export type WorkspaceSnapshot = { template: TemplateId; files: WorkspaceFile[]; parked?: TemplateId[] };
+/**
+ * parked: other starters with saved work, restored when you switch back.
+ * missing: starter files this workspace doesn't have (added to the starter later, or deleted).
+ */
+export type WorkspaceSnapshot = { template: TemplateId; files: WorkspaceFile[]; parked?: TemplateId[]; missing?: string[] };
 
 type Tab = "run" | "config" | "changes" | "files";
 
@@ -37,6 +40,7 @@ export function WorkspacePanel({
   onToggleProjectConfig = () => {},
   onUseCommand = () => {},
   onAddStarterConfig = () => {},
+  onAddMissing = () => {},
   onFilesChanged = () => {},
 }: {
   workspace: WorkspaceSnapshot | null;
@@ -51,6 +55,8 @@ export function WorkspacePanel({
   onToggleProjectConfig?: (on: boolean) => void;
   onUseCommand?: (name: string) => void;
   onAddStarterConfig?: () => void;
+  /** Add the starter files the workspace doesn't have, keeping everything else. */
+  onAddMissing?: () => void;
   /** Called after you save, create or delete a file here. */
   onFilesChanged?: () => void;
 }) {
@@ -171,6 +177,27 @@ export function WorkspacePanel({
           </button>
         </div>
       </header>
+
+      {!!workspace?.missing?.length && (
+        <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-info-soft px-4 py-2.5 text-sm text-info">
+          <p className="min-w-0 flex-1">
+            {workspace.missing.length === 1 ? "1 starter file isn't" : `${workspace.missing.length} starter files aren't`} in your workspace
+            (new since you started, or deleted):{" "}
+            <span className="font-mono text-xs">
+              {workspace.missing.slice(0, 4).join(", ")}
+              {workspace.missing.length > 4 ? `, +${workspace.missing.length - 4} more` : ""}
+            </span>
+          </p>
+          <button
+            onClick={onAddMissing}
+            disabled={busy}
+            title="Copies in only the missing files. Nothing you've changed is touched."
+            className="h-8 shrink-0 rounded-lg bg-accent px-3 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            Add {workspace.missing.length === 1 ? "it" : "them"}
+          </button>
+        </div>
+      )}
 
       <div role="tablist" aria-label="Workspace" className="flex gap-1 overflow-x-auto border-b border-line px-2">
         {tabs.map(([id, label]) => (

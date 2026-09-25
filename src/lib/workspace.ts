@@ -186,22 +186,63 @@ export async function workspaceFilesForExport(): Promise<{ path: string; data: B
  */
 export async function addStarterConfig(): Promise<string[]> {
   await ensureWorkspace();
+  return copyMissing([".claude", "CLAUDE.md"]);
+}
+
+/** The current starter's files (under `roots`) that aren't in the workspace, as "/" paths. */
+async function missingFrom(roots: string[]): Promise<string[]> {
   const starter = path.join(TEMPLATES_DIR, await currentTemplate());
-  const added: string[] = [];
-  async function copy(rel: string) {
+  const missing: string[] = [];
+  async function walk(rel: string) {
     const from = path.join(starter, rel);
     const info = await stat(from).catch(() => null);
     if (!info) return;
     if (info.isDirectory()) {
-      for (const name of await readdir(from)) await copy(path.join(rel, name));
+      for (const name of await readdir(from)) await walk(path.join(rel, name));
     } else if (!(await exists(path.join(WORKSPACE_DIR, rel)))) {
-      await mkdir(path.dirname(path.join(WORKSPACE_DIR, rel)), { recursive: true });
-      await cp(from, path.join(WORKSPACE_DIR, rel));
-      added.push(rel.split(path.sep).join("/"));
+      missing.push(rel.split(path.sep).join("/"));
     }
   }
-  await copy(".claude");
-  await copy("CLAUDE.md");
+  for (const root of roots) await walk(root);
+  return missing.sort();
+}
+
+/** Copy the starter's files under `roots` that the workspace doesn't have. Never overwrites. */
+async function copyMissing(roots: string[]): Promise<string[]> {
+  const starter = path.join(TEMPLATES_DIR, await currentTemplate());
+  const added = await missingFrom(roots);
+  for (const rel of added) {
+    await mkdir(path.dirname(path.join(WORKSPACE_DIR, rel)), { recursive: true });
+    await cp(path.join(starter, rel), path.join(WORKSPACE_DIR, rel));
+  }
+  return added;
+}
+
+/**
+ * Starter files your workspace doesn't have: usually files added to the starter
+ * after your workspace was created (new challenges), or ones you deleted.
+ */
+export async function missingStarterFiles(): Promise<string[]> {
+  await ensureWorkspace();
+  return missingFrom(await readdir(path.join(TEMPLATES_DIR, await currentTemplate())));
+}
+
+/**
+ * Add the missing starter files without touching anything you've changed, and
+ * commit just those files in the workspace's git repo, so the Changes tab keeps
+ * showing only your own changes.
+ */
+export async function addMissingStarterFiles(): Promise<string[]> {
+  await ensureWorkspace();
+  const added = await copyMissing(await readdir(path.join(TEMPLATES_DIR, await currentTemplate())));
+  if (added.length) {
+    try {
+      await git("add", "--", ...added);
+      await git("commit", "-q", "-m", "Add new starter files", "--", ...added);
+    } catch {
+      // No git: the files are still there.
+    }
+  }
   return added;
 }
 

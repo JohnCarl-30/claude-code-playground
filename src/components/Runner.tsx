@@ -523,6 +523,15 @@ export function Runner({
             body: JSON.stringify({ action: "add-starter-config" }),
           }).then(() => loadWorkspace())
         }
+        onAddMissing={async () => {
+          setWorkspaceBusy(true);
+          try {
+            // Only adds files; the conversation can carry on.
+            await loadWorkspace({ method: "PATCH" });
+          } finally {
+            setWorkspaceBusy(false);
+          }
+        }}
         onFilesChanged={() => loadWorkspace()}
       />
     </div>
