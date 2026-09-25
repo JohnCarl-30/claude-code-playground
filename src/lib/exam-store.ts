@@ -1,7 +1,9 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { localStore } from "./local-store";
+import { recordAnswers } from "./mistakes";
 import { drawExam, findQuestion, MOCK_EXAM, scoreExam, type ExamItem, type ExamResult } from "./mock-exam";
+import { isCorrect } from "./quizzes";
 
 // The mock exam you're taking and your past results, kept in this browser so
 // a reload (or closing the tab) doesn't lose your place or restart the clock.
@@ -23,57 +25,17 @@ export type PastExam = { finishedAt: number; minutes: number; scaled: number; pa
 
 export type ExamState = { current: Attempt | null; history: PastExam[] };
 
-const KEY = "claude-code-playground:mock-exam:v1";
 const EMPTY: ExamState = { current: null, history: [] };
-const listeners = new Set<() => void>();
-let cachedRaw: string | null | undefined;
-let cached: ExamState = EMPTY;
 
-function read(): ExamState {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(KEY);
-  } catch {}
-  if (raw !== cachedRaw) {
-    cachedRaw = raw;
-    try {
-      const parsed = raw ? (JSON.parse(raw) as Partial<ExamState>) : null;
-      // Drop questions that no longer exist (the bank changes over time).
-      const current = parsed?.current ? { ...parsed.current, items: parsed.current.items.filter((i) => findQuestion(i.id)) } : null;
-      cached = { current, history: Array.isArray(parsed?.history) ? parsed.history : [] };
-    } catch {
-      cached = EMPTY;
-    }
-  }
-  return cached;
-}
+const store = localStore<ExamState>("claude-code-playground:mock-exam:v1", EMPTY, (raw) => {
+  const parsed = (raw ?? {}) as Partial<ExamState>;
+  // Drop questions that no longer exist (the bank changes over time).
+  const current = parsed.current ? { ...parsed.current, items: parsed.current.items.filter((i) => findQuestion(i.id)) } : null;
+  return { current, history: Array.isArray(parsed.history) ? parsed.history : [] };
+});
 
-function write(next: ExamState) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(next));
-  } catch {
-    // Storage blocked: keep going in memory for this page.
-    cachedRaw = JSON.stringify(next);
-    cached = next;
-  }
-  listeners.forEach((l) => l());
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  const onStorage = (e: StorageEvent) => e.key === KEY && listener();
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-export const useExamState = () => useSyncExternalStore(subscribe, read, () => EMPTY);
-
-function update(change: (state: ExamState) => ExamState) {
-  write(change(read()));
-}
+export const useExamState = store.useValue;
+const update = store.update;
 
 export const examActions = {
   start(seed: number, now = Date.now()) {
@@ -95,6 +57,10 @@ export const examActions = {
     });
   },
   finish(now = Date.now()) {
+    const attempt = store.read().current;
+    if (!attempt || attempt.finishedAt) return;
+    // Every question counts for the mistakes deck, unanswered ones as missed (as in the score).
+    recordAnswers(attempt.items.map((i) => ({ id: i.id, right: isCorrect(findQuestion(i.id)!.question, attempt.answers[i.id] ?? []) })), now);
     update((s) => {
       const a = s.current;
       if (!a || a.finishedAt) return s;

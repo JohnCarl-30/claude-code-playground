@@ -349,3 +349,53 @@ describe("images, PDFs and the Files API", () => {
     expect(r.upload.pass).toBe(true);
   });
 });
+
+describe("a few-shot classifier", () => {
+  it("fails with too few examples", async () => {
+    const r = await checkWith("api-few-shot", "classify.mjs", (c) => replaced(c, /<example>\n<ticket>I can't reset[\s\S]*?<\/example>\n<example>\n<ticket>Do you sell[\s\S]*?<\/example>/, ""));
+    expect(r.examples).toMatchObject({ pass: false, detail: expect.stringMatching(/found 2/) });
+  });
+
+  it("fails when the reply is passed through unchecked", async () => {
+    const r = await checkWith("api-few-shot", "classify.mjs", (c) => replaced(c, 'return LABELS.includes(label) ? label : "other";', "return label;"));
+    expect(r.validated.pass).toBe(false);
+    expect(r.normalized.pass).toBe(true);
+  });
+
+  it("fails without trimming and lowercasing, and with a large max_tokens", async () => {
+    const r = await checkWith("api-few-shot", "classify.mjs", (c) =>
+      replaced(replaced(c, '.join("").trim().toLowerCase();', '.join("");'), "max_tokens: 10,", "max_tokens: 1000,"),
+    );
+    expect(r.normalized.pass).toBe(false);
+    expect(r.short).toMatchObject({ pass: false, detail: expect.stringMatching(/it's 1000/) });
+  });
+});
+
+describe("keeping the context small", () => {
+  it("fails when old tool results are deleted instead of cleared", async () => {
+    const r = await checkWith("api-context-trim", "history.mjs", (c) =>
+      replaced(
+        c,
+        'content: m.content.map((b) => (b.type === "tool_result" && clear.has(b.tool_use_id) ? { ...b, content: "[cleared to save context]" } : b)),',
+        'content: m.content.filter((b) => !(b.type === "tool_result" && clear.has(b.tool_use_id))),',
+      ),
+    );
+    expect(r.valid).toMatchObject({ pass: false, detail: expect.stringMatching(/tool_result/) });
+  });
+
+  it("fails when the input array is changed in place", async () => {
+    const r = await checkWith("api-context-trim", "history.mjs", () => `export function clearOldToolResults(messages, keep = 3) {
+  const results = messages.flatMap((m) => (Array.isArray(m.content) ? m.content.filter((b) => b.type === "tool_result") : []));
+  for (const b of results.slice(0, results.length - keep)) b.content = "[cleared]";
+  return messages;
+}
+`);
+    expect(r.pure).toMatchObject({ pass: false, detail: expect.stringMatching(/changed the messages array/) });
+    expect(r.cleared.pass).toBe(true);
+  });
+
+  it("fails when every tool result is cleared", async () => {
+    const r = await checkWith("api-context-trim", "history.mjs", (c) => replaced(c, "ids.length - keep", "ids.length"));
+    expect(r.kept.pass).toBe(false);
+  });
+});

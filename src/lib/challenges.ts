@@ -10,7 +10,7 @@ export type Requirement = { id: string; label: string };
 export type Challenge = {
   id: string;
   title: string;
-  area: "REST API" | "MCP" | "Claude Code config" | "Debugging" | "Agent SDK" | "Claude API" | "Security";
+  area: "REST API" | "MCP" | "Claude Code config" | "Debugging" | "Agent SDK" | "Claude API" | "Security" | "Prompting";
   level: "Beginner" | "Intermediate";
   template: TemplateId;
   /** What to build, in a few sentences. Supports **bold** and `code`. */
@@ -518,6 +518,48 @@ export const CHALLENGES: Challenge[] = [
       "Images: `{ type: \"image\", source: { type: \"base64\", media_type, data } }`. PDFs use `type: \"document\"` the same way.",
       "`client.files.upload({ file: fs.createReadStream(path) })` returns `{ id }`; later use `source: { type: \"file\", file_id }`.",
       PRACTICE_HINT,
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "api-few-shot",
+    title: "A few-shot classifier",
+    area: "Prompting",
+    level: "Beginner",
+    template: "claude-api",
+    goal: "In `classify.mjs`, label support tickets as billing, shipping, account or other. Steer the format with a few examples, keep the ticket clearly apart from your instructions, ask for just the label, and don't trust the reply blindly: the check sends back a messy answer and a rambling one.",
+    requirements: [
+      { id: "examples", label: "The prompt has 3–5 examples, each in <example> tags" },
+      { id: "delimited", label: "The ticket goes in the user turn inside <ticket> tags, not in the system prompt" },
+      { id: "short", label: "It asks for just a label, with max_tokens of 50 or less" },
+      { id: "normalized", label: "A reply of \"  Billing\\n\" comes back as \"billing\"" },
+      { id: "validated", label: "A reply that isn't one of the labels comes back as \"other\"" },
+    ],
+    hints: [
+      "Anthropic's prompting guide suggests 3–5 relevant, varied examples wrapped in `<example>` tags, and XML tags to separate instructions from input.",
+      "`reply.trim().toLowerCase()`, then check it against `LABELS`.",
+      PRACTICE_HINT,
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "api-context-trim",
+    title: "Keep the context small",
+    area: "Prompting",
+    level: "Intermediate",
+    template: "claude-api",
+    goal: "Long agent runs fill the context window with old tool results. In `history.mjs`, write `clearOldToolResults(messages, keep)`: replace the content of all but the last `keep` tool results with a short placeholder, without breaking the conversation. (The API can do this for you server-side with context editing; here you do it yourself to see how it works.)",
+    requirements: [
+      { id: "valid", label: "The conversation stays valid: every message kept, every tool_use still answered" },
+      { id: "cleared", label: "Older tool results keep only a short placeholder" },
+      { id: "kept", label: "The last `keep` tool results and all text and tool_use blocks are unchanged" },
+      { id: "pure", label: "It returns a new array and doesn't change the one it was given" },
+    ],
+    hints: [
+      "Collect the tool_use_ids of every tool_result in order; the ones before the last `keep` get cleared.",
+      "Don't delete the tool_result block itself: the API needs one for every tool_use. Replace its `content` instead.",
+      "`messages.map((m) => ({ ...m, content: … }))` builds a copy instead of changing the original.",
+      "Server-side versions: context editing (`clear_tool_uses_20250919`) and compaction.",
     ],
     config: BUILDER,
   },

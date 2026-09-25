@@ -28,7 +28,7 @@ import { WORKSPACE_DIR } from "./workspace";
 
 type Json = Record<string, unknown>;
 type Scenario = (req: RecordedRequest, call: number) => MockReply;
-type CallResult = { value?: unknown; thrown?: string; chunks?: string[]; asked?: unknown[][]; crash?: string; missing?: string };
+type CallResult = { value?: unknown; thrown?: string; chunks?: string[]; asked?: unknown[][]; mutated?: boolean; crash?: string; missing?: string };
 
 // Imports one workspace file, calls exported functions one after another, and prints the outcomes on a marked line.
 const HARNESS = `
@@ -48,7 +48,8 @@ for (const call of calls) {
     i === call.collectAt ? (t) => chunks.push(String(t))
     : call.answer && i === call.answer.at ? async (...got) => (asked.push(got), call.answer.returns)
     : a);
-  try { const value = await mod[call.name](...args); results.push({ value: value === undefined ? null : value, chunks, asked }); }
+  const before = JSON.stringify(call.args);
+  try { const value = await mod[call.name](...args); results.push({ value: value === undefined ? null : value, chunks, asked, mutated: JSON.stringify(call.args) !== before }); }
   catch (e) { results.push({ thrown: String(e?.message ?? e), chunks, asked }); }
 }
 process.stdout.write("\\n@@PLAYGROUND_RESULT@@" + JSON.stringify(results) + "\\n", () => process.exit(0));
@@ -911,7 +912,100 @@ async function checkDocs(): Promise<Results> {
   };
 }
 
+// ---------- Prompting: examples, delimiters, output checks ----------
+
+async function checkClassify(): Promise<Results> {
+  const TICKET = "TICKET-5K: My card was charged twice for order 1042.";
+  const replies = ["  Billing\n", "I think this one is about a refund.", "shipping"];
+  const run = await withScenario(
+    (_req, call) => ({ json: message([textBlock(replies[Math.min(call, replies.length - 1)])], "end_turn") }),
+    async (api) => ({
+      results: await callExports("classify.mjs", [
+        { name: "classifyTicket", args: [TICKET] },
+        { name: "classifyTicket", args: [TICKET] },
+        { name: "classifyTicket", args: [TICKET] },
+      ], api),
+      requests: messageRequests(api),
+    }),
+  );
+  const [messy, rambling, clean] = run.results;
+  const why = problem(messy);
+  const first = run.requests[0];
+  const system = typeof first?.body?.system === "string" ? first.body.system : contentText(first?.body?.system);
+  const messagesText = contentText(((first?.body?.messages as Json[] | undefined) ?? []).flatMap(blocksOrText));
+  const examples = (system + "\n" + messagesText).match(/<example>/g)?.length ?? 0;
+  const at = messagesText.indexOf("TICKET-5K");
+  return {
+    examples: !first
+      ? fail(why ?? "classifyTicket didn't call the API.")
+      : examples >= 3 && examples <= 5
+        ? ok()
+        : fail(`Include 3–5 examples, each in <example> tags; found ${examples}.`),
+    delimited: !first
+      ? fail(why ?? "classifyTicket didn't call the API.")
+      : system.includes("TICKET-5K")
+        ? fail("The ticket is in the system prompt. Keep instructions there, and the ticket in the user turn.")
+        : at > -1 && messagesText.lastIndexOf("<ticket>", at) > -1 && messagesText.indexOf("</ticket>", at) > -1
+          ? ok()
+          : fail("Put the ticket in the user turn inside <ticket>…</ticket> tags."),
+    short: !first
+      ? fail(why ?? "classifyTicket didn't call the API.")
+      : typeof first.body?.max_tokens === "number" && first.body.max_tokens <= 50
+        ? ok()
+        : fail(`A one-word answer needs few tokens: set max_tokens to 50 or less (it's ${show(first.body?.max_tokens ?? null)}).`),
+    normalized: why ? fail(why) : messy.value === "billing" && clean.value === "shipping" ? ok() : fail(`A reply of "  Billing\\n" should give "billing"; got ${show(messy.value)}`),
+    validated: problem(rambling)
+      ? fail(problem(rambling)!)
+      : rambling.value === "other"
+        ? ok()
+        : fail(`A reply that isn't one of LABELS ("I think this one is about a refund.") should give "other"; got ${show(rambling.value)}`),
+  };
+}
+
+/** A message's content as a list of blocks, turning plain-string content into a text block. */
+const blocksOrText = (m: Json): Json[] => (typeof m.content === "string" ? [{ type: "text", text: m.content }] : blocksOf(m));
+
+// ---------- Context: clearing old tool results ----------
+
+async function checkHistory(): Promise<Results> {
+  const FILE = (i: number) => `FILE-${i}: ${"lorem ipsum ".repeat(180)}`;
+  const messages: Json[] = [{ role: "user", content: "USER-ASK: read the six config files and compare them." }];
+  for (let i = 1; i <= 6; i++) {
+    messages.push({ role: "assistant", content: [textBlock(`Reading file ${i}.`), toolUseBlock(`toolu_h${i}`, "read_file", { path: `config-${i}.json` })] });
+    messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: `toolu_h${i}`, content: FILE(i) }] });
+  }
+  messages.push({ role: "assistant", content: [textBlock("SUMMARY-TEXT: all six files set the same port.")] });
+
+  const run = await withScenario(
+    () => ({ json: message([textBlock("ok")], "end_turn") }),
+    async (api) => ({ results: await callExports("history.mjs", [{ name: "clearOldToolResults", args: [messages, 3] }], api) }),
+  );
+  const [result] = run.results;
+  const why = problem(result);
+  const out = Array.isArray(result.value) ? (result.value as Json[]) : null;
+  if (why || !out) return failAll(["valid", "cleared", "kept", "pure"], why ?? `Return the new messages array; got ${show(result.value)}`);
+
+  const resultFor = (id: string) => out.flatMap(blocksOf).find((b) => b.type === "tool_result" && b.tool_use_id === id);
+  const invalid = invalidMessagesRequest({ model: "claude-haiku-4-5", max_tokens: 100, messages: out });
+  const old = [1, 2, 3].map((i) => resultFor(`toolu_h${i}`));
+  const recent = [4, 5, 6].map((i) => resultFor(`toolu_h${i}`));
+  const texts = (list: Json[]) => JSON.stringify(list.flatMap(blocksOrText).filter((b) => b.type === "text" || b.type === "tool_use"));
+  return {
+    valid: invalid ? fail(`The API would reject this conversation: ${invalid}`) : out.length !== messages.length ? fail(`Keep every message (had ${messages.length}, returned ${out.length}); clear content instead of dropping turns.`) : ok(),
+    cleared: old.every((b) => b && contentText(b.content).length > 0 && contentText(b.content).length < 200 && !contentText(b.content).includes("lorem"))
+      ? ok()
+      : fail(`The three oldest tool results should keep a short placeholder instead of their content; got ${show(old.map((b) => (b ? contentText(b.content).slice(0, 30) : null)))}`),
+    kept:
+      recent.every((b, i) => b && contentText(b.content) === FILE(i + 4)) && texts(out) === texts(messages)
+        ? ok()
+        : fail("The last 3 tool results, and every text and tool_use block, should stay exactly as they were."),
+    pure: result.mutated ? fail("It changed the messages array it was given. Build and return a new one instead.") : ok(),
+  };
+}
+
 export const API_CHECKERS: Record<string, () => Promise<Results>> = {
+  "api-few-shot": checkClassify,
+  "api-context-trim": checkHistory,
   "api-injection-gate": checkTriage,
   "api-documents": checkDocs,
   "api-model-routing": checkRouting,

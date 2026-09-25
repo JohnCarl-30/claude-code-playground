@@ -42,6 +42,28 @@ const demos = {
       byId: await m.askUploaded(fileId, "Summarize this policy."),
     };
   },
+  classify: async (m) => ({
+    card: await m.classifyTicket("My card was charged twice for order 1042."),
+    parcel: await m.classifyTicket("The parcel still hasn't arrived after two weeks."),
+  }),
+  history: async (m) => {
+    const messages = [{ role: "user", content: "Read the three config files and summarize them." }];
+    for (const [i, file] of ["a.json", "b.json", "c.json", "d.json"].entries()) {
+      messages.push({ role: "assistant", content: [{ type: "tool_use", id: `toolu_${i}`, name: "read_file", input: { path: file } }] });
+      messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: `toolu_${i}`, content: `${file}: ${"x".repeat(2000)}` }] });
+    }
+    const trimmed = m.clearOldToolResults(messages, 2);
+    const size = (v) => JSON.stringify(v).length;
+    // Send the trimmed conversation on: the API rejects it if a tool_use lost its tool_result.
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    const next = await new Anthropic().messages.create({ model: "claude-haiku-4-5", max_tokens: 200, messages: trimmed });
+    return {
+      before: `${size(messages)} chars`,
+      after: `${size(trimmed)} chars`,
+      results: trimmed.filter((x) => x.role === "user" && Array.isArray(x.content)).map((x) => String(x.content[0].content).slice(0, 40)),
+      apiAccepted: next.stop_reason,
+    };
+  },
   cost: async (m) => ({
     example: m.costOf({ input_tokens: 1200, output_tokens: 300, cache_read_input_tokens: 20000 }, "claude-haiku-4-5"),
     live: await m.askWithCost("In one sentence, what is prompt caching?"),

@@ -217,7 +217,7 @@ function Taking({ attempt }: { attempt: Attempt }) {
   );
 }
 
-function Results({ attempt, onDomain }: { attempt: Attempt; onDomain: (id: string) => void }) {
+function Results({ attempt, onDomain, onMistakes }: { attempt: Attempt; onDomain: (id: string) => void; onMistakes?: () => void }) {
   const [filter, setFilter] = useState<"all" | "missed" | "flagged">("missed");
   const result = attempt.result!;
   const missed = attempt.items.filter((i) => !isCorrect(findQuestion(i.id)!.question, attempt.answers[i.id] ?? []));
@@ -292,6 +292,15 @@ function Results({ attempt, onDomain }: { attempt: Attempt; onDomain: (id: strin
           Done
         </button>
       </div>
+      {missed.length > 0 && onMistakes && (
+        <p className="text-sm text-muted">
+          The questions you missed are also in your{" "}
+          <button onClick={onMistakes} className="text-accent hover:underline">
+            mistakes deck
+          </button>
+          , to practice until each is right twice in a row.
+        </p>
+      )}
 
       <section aria-label="Review" className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -334,9 +343,9 @@ function Results({ attempt, onDomain }: { attempt: Attempt; onDomain: (id: strin
 }
 
 /** The mock exam: an intro with your past results, the exam itself, then results and a review. */
-export function MockExamPanel({ onDomain }: { onDomain: (id: string) => void }) {
+export function MockExamPanel({ onDomain, onMistakes }: { onDomain: (id: string) => void; onMistakes?: () => void }) {
   const { current, history } = useExamState();
   if (!current || current.items.length === 0) return <Intro history={history} onDomain={onDomain} />;
-  if (current.finishedAt) return <Results attempt={current} onDomain={onDomain} />;
+  if (current.finishedAt) return <Results attempt={current} onDomain={onDomain} onMistakes={onMistakes} />;
   return <Taking key={current.startedAt} attempt={current} />;
 }

@@ -218,7 +218,7 @@ describe("the claude-api starter's run.mjs", () => {
   const temp = createTempPlaygroundRoot();
   afterAll(() => temp.cleanup());
 
-  it.each(["ask", "tools", "extract", "faq", "batch", "errors", "stream", "workflow", "route", "think", "budget", "cost", "triage", "docs"])(
+  it.each(["ask", "tools", "extract", "faq", "batch", "errors", "stream", "workflow", "route", "think", "budget", "cost", "triage", "docs", "classify", "history"])(
     "runs %s.mjs (reference solution) against the practice API",
     async (name) => {
       const dir = path.join(temp.root, "claude-api");

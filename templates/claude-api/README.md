@@ -19,6 +19,8 @@ TypeScript/JavaScript SDK (`@anthropic-ai/sdk`).
 | `cost.mjs` | What a response cost, with caching and batches | TODO |
 | `triage.mjs` | Untrusted input and a human approval gate for risky tools | TODO |
 | `docs.mjs` | Images, PDFs and the Files API | TODO |
+| `classify.mjs` | A few-shot prompt with delimited input and a validated answer | TODO |
+| `history.mjs` | Keeping a long conversation small by clearing old tool results | TODO |
 
 ## Running without an API key
 

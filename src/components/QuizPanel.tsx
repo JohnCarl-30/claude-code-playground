@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Domain } from "@/lib/certification";
 import { seededRandom, shuffled } from "@/lib/mock-exam";
 import { isCorrect, QUIZ_PASS, QUIZZES, type QuizQuestion } from "@/lib/quizzes";
+import { recordAnswers } from "@/lib/mistakes";
 import { markQuizPassed } from "@/lib/tried";
 import { Markdownish } from "./Markdownish";
 
@@ -117,6 +118,7 @@ export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefo
   const questions = useMemo(() => questionSet(bank, set), [bank, set]);
   const [picked, setPicked] = useState<Record<string, number[]>>({});
   const [checked, setChecked] = useState(false);
+  const [deckNote, setDeckNote] = useState("");
   const answered = questions.filter((q) => (picked[q.id] ?? []).length === q.answer.length).length;
   const score = questions.filter((q) => isCorrect(q, picked[q.id] ?? [])).length;
   const passed = score / questions.length >= QUIZ_PASS;
@@ -124,6 +126,13 @@ export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefo
   function check() {
     setChecked(true);
     if (passed) markQuizPassed(domain.id);
+    // Answered questions feed the mistakes deck (unanswered ones aren't counted as mistakes).
+    const { added, cleared } = recordAnswers(
+      questions.filter((q) => (picked[q.id] ?? []).length).map((q) => ({ id: q.id, right: isCorrect(q, picked[q.id]) })),
+    );
+    setDeckNote(
+      [added && `${added} added to your mistakes deck`, cleared && `${cleared} cleared from it`].filter(Boolean).join(", ") + (added || cleared ? "." : ""),
+    );
   }
 
   return (
@@ -152,6 +161,7 @@ export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefo
         <p role="status" className={`rounded-lg px-3 py-2 text-sm font-medium ${passed ? "bg-ok-soft text-ok" : "bg-danger-soft text-danger"}`}>
           {score}/{questions.length} correct ({Math.round((score / questions.length) * 100)}%).{" "}
           {passed ? "Passed! This domain's quiz counts toward your readiness." : "Read the explanations, then try again."}
+          {deckNote && <span className="block font-normal">{deckNote}</span>}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
@@ -160,6 +170,7 @@ export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefo
             onClick={() => {
               setPicked({});
               setChecked(false);
+              setDeckNote("");
               if (bank.length > SET_SIZE) setSet((n) => n + 1);
             }}
             className="h-9 rounded-lg border border-line px-4 text-sm font-medium hover:bg-surface-2"

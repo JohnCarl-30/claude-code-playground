@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DOMAINS, EXAM, domainProgress, findDomain, readiness, skillsFor, type PracticeRef } from "@/lib/certification";
+import { useMistakes } from "@/lib/mistakes";
 import { MOCK_EXAM } from "@/lib/mock-exam";
 import { CHALLENGES, findChallenge } from "@/lib/challenges";
 import { BLANK_EXAMPLE_ID, EXAMPLES, EXAMPLE_GROUPS, findExample } from "@/lib/examples";
 import type { RunConfig } from "@/lib/run-types";
 import { usePassed, useQuizzesPassed, useTried } from "@/lib/tried";
 import { CertificationPanel } from "./CertificationPanel";
+import { MistakesPanel } from "./MistakesPanel";
 import { MockExamPanel } from "./MockExamPanel";
 import { ChallengePanel } from "./ChallengePanel";
 import { Markdownish } from "./Markdownish";
@@ -21,9 +23,10 @@ const CHALLENGE = "challenge:";
 const CERT = "cert:";
 const CERT_OVERVIEW = "cert:overview";
 const CERT_EXAM = "cert:exam";
+const CERT_MISTAKES = "cert:mistakes";
 
 function initialSelection(exampleId?: string, challengeId?: string, certId?: string) {
-  if (certId !== undefined) return findDomain(certId) || certId === "exam" ? CERT + certId : CERT_OVERVIEW;
+  if (certId !== undefined) return findDomain(certId) || certId === "exam" || certId === "mistakes" ? CERT + certId : CERT_OVERVIEW;
   if (findChallenge(challengeId)) return CHALLENGE + challengeId;
   return findExample(exampleId)?.id ?? BLANK_EXAMPLE_ID;
 }
@@ -68,6 +71,7 @@ export function Playground({
   const tried = useTried();
   const passed = usePassed();
   const quizzes = useQuizzesPassed();
+  const mistakes = Object.keys(useMistakes()).length;
   const progress = { tried, passed, quizzes };
   const [selectedId, setSelectedId] = useState(() => initialSelection(initialExampleId, initialChallengeId, initialCertId));
   const example = findExample(selectedId);
@@ -86,6 +90,7 @@ export function Playground({
   const openPractice = (item: PracticeRef) => select(item.kind === "challenge" ? CHALLENGE + item.id : item.id);
   const openDomain = (id?: string) => select(id ? CERT + id : CERT_OVERVIEW);
   const openExam = () => select(CERT_EXAM);
+  const openMistakes = () => select(CERT_MISTAKES);
 
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[272px_1fr] lg:gap-10 lg:py-8">
@@ -104,6 +109,7 @@ export function Playground({
             <optgroup label={`Certification · ${ready}% ready`}>
               <option value={CERT_OVERVIEW}>Exam blueprint &amp; readiness</option>
               <option value={CERT_EXAM}>Mock exam ({MOCK_EXAM.items} questions, {MOCK_EXAM.minutes} min)</option>
+              <option value={CERT_MISTAKES}>Mistakes deck ({mistakes})</option>
               {DOMAINS.map((d) => (
                 <option key={d.id} value={CERT + d.id}>
                   {quizzes.has(d.id) ? "✓ " : ""}
@@ -194,6 +200,21 @@ export function Playground({
                   </span>
                   <span className="min-w-0 flex-1">Mock exam</span>
                   <span className="shrink-0 text-[10px] text-muted">{MOCK_EXAM.items} Qs</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={openMistakes}
+                  aria-current={selectedId === CERT_MISTAKES ? "true" : undefined}
+                  className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+                    selectedId === CERT_MISTAKES ? "bg-accent-soft font-medium text-accent" : "text-ink/85 hover:bg-surface-2"
+                  }`}
+                >
+                  <span aria-hidden className="w-4 shrink-0 text-center text-xs leading-none">
+                    ↺
+                  </span>
+                  <span className="min-w-0 flex-1">Mistakes deck</span>
+                  <span className={`shrink-0 text-[10px] tabular-nums ${mistakes ? "text-accent" : "text-muted"}`}>{mistakes}</span>
                 </button>
               </li>
               {DOMAINS.map((d) => {
@@ -301,7 +322,9 @@ export function Playground({
 
       <main className="min-w-0 space-y-6">
         {selectedId === CERT_EXAM ? (
-          <MockExamPanel onDomain={openDomain} />
+          <MockExamPanel onDomain={openDomain} onMistakes={openMistakes} />
+        ) : selectedId === CERT_MISTAKES ? (
+          <MistakesPanel onExam={openExam} onDomain={openDomain} />
         ) : cert ? (
           <CertificationPanel domain={certDomain} progress={progress} onOpen={openPractice} onDomain={openDomain} onExam={openExam} />
         ) : challenge ? (
