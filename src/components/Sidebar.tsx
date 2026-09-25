@@ -7,7 +7,7 @@ import { BLANK_EXAMPLE_ID, EXAMPLES, EXAMPLE_GROUPS } from "@/lib/examples";
 import { localStore } from "@/lib/local-store";
 import { useMistakes } from "@/lib/mistakes";
 import { MOCK_EXAM } from "@/lib/mock-exam";
-import { CERT, CERT_EXAM, CERT_MISTAKES, CERT_OVERVIEW, CHALLENGE } from "@/lib/selection";
+import { CERT, CERT_EXAM, CERT_MISTAKES, CERT_OVERVIEW, CERT_PLAN, CHALLENGE } from "@/lib/selection";
 
 // The desktop sidebar: progress, search, and collapsible sections for the
 // certification track, challenges and each group of examples.
@@ -96,6 +96,7 @@ export function Sidebar({ selectedId, onSelect, progress }: { selectedId: string
   const toggle = (key: string, now: boolean) => openStore.update((o) => ({ ...o, [key]: !now }));
 
   const certRows: Row[] = [
+    { id: CERT_PLAN, label: "Study plan", icon: "▦" },
     { id: CERT_OVERVIEW, label: "Exam blueprint", icon: "◎" },
     { id: CERT_EXAM, label: "Mock exam", icon: "⏱", trailing: <span className="shrink-0 text-[10px] text-muted">{MOCK_EXAM.items} Qs</span> },
     {

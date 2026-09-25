@@ -6,3 +6,4 @@ export const CERT = "cert:";
 export const CERT_OVERVIEW = "cert:overview";
 export const CERT_EXAM = "cert:exam";
 export const CERT_MISTAKES = "cert:mistakes";
+export const CERT_PLAN = "cert:plan";

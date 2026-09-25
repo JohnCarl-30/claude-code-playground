@@ -5,7 +5,7 @@ import { useState } from "react";
 import { DOMAINS, EXAM, findDomain, readiness, skillsFor, type PracticeRef } from "@/lib/certification";
 import { useMistakes } from "@/lib/mistakes";
 import { MOCK_EXAM } from "@/lib/mock-exam";
-import { CERT, CERT_EXAM, CERT_MISTAKES, CERT_OVERVIEW, CHALLENGE } from "@/lib/selection";
+import { CERT, CERT_EXAM, CERT_MISTAKES, CERT_OVERVIEW, CERT_PLAN, CHALLENGE } from "@/lib/selection";
 import { CHALLENGES, findChallenge } from "@/lib/challenges";
 import { BLANK_EXAMPLE_ID, EXAMPLES, EXAMPLE_GROUPS, findExample } from "@/lib/examples";
 import type { RunConfig } from "@/lib/run-types";
@@ -14,6 +14,7 @@ import { CertificationPanel } from "./CertificationPanel";
 import { MistakesPanel } from "./MistakesPanel";
 import { MockExamPanel } from "./MockExamPanel";
 import { Sidebar } from "./Sidebar";
+import { StudyPlanPanel } from "./StudyPlanPanel";
 import { ChallengePanel } from "./ChallengePanel";
 import { Markdownish } from "./Markdownish";
 import { Runner } from "./Runner";
@@ -22,7 +23,7 @@ const BLANK: Partial<RunConfig> = { prompt: "", tools: ["Read", "Glob", "Grep", 
 
 
 function initialSelection(exampleId?: string, challengeId?: string, certId?: string) {
-  if (certId !== undefined) return findDomain(certId) || certId === "exam" || certId === "mistakes" ? CERT + certId : CERT_OVERVIEW;
+  if (certId !== undefined) return findDomain(certId) || ["exam", "mistakes", "plan"].includes(certId) ? CERT + certId : CERT_OVERVIEW;
   if (findChallenge(challengeId)) return CHALLENGE + challengeId;
   return findExample(exampleId)?.id ?? BLANK_EXAMPLE_ID;
 }
@@ -103,6 +104,7 @@ export function Playground({
           >
             <option value={BLANK_EXAMPLE_ID}>Blank: write your own prompt</option>
             <optgroup label={`Certification · ${ready}% ready`}>
+              <option value={CERT_PLAN}>Study plan</option>
               <option value={CERT_OVERVIEW}>Exam blueprint &amp; readiness</option>
               <option value={CERT_EXAM}>Mock exam ({MOCK_EXAM.items} questions, {MOCK_EXAM.minutes} min)</option>
               <option value={CERT_MISTAKES}>Mistakes deck ({mistakes})</option>
@@ -138,7 +140,9 @@ export function Playground({
       </aside>
 
       <main className="min-w-0 space-y-6">
-        {selectedId === CERT_EXAM ? (
+        {selectedId === CERT_PLAN ? (
+          <StudyPlanPanel progress={progress} onOpen={select} />
+        ) : selectedId === CERT_EXAM ? (
           <MockExamPanel onDomain={openDomain} onMistakes={openMistakes} />
         ) : selectedId === CERT_MISTAKES ? (
           <MistakesPanel onExam={openExam} onDomain={openDomain} />
