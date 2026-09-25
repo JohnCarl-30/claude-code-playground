@@ -79,7 +79,7 @@ export const DOMAINS: Domain[] = [
         name: "Claude API Mechanics",
         weight: 6.8,
         summary: "Messages, tools, streaming, vision, thinking, caching, cloud providers, and batch vs. realtime.",
-        practice: [ex("claude-api/raw-message"), ex("claude-api/content-blocks"), ch("api-streaming"), ch("api-batch")],
+        practice: [ex("claude-api/raw-message"), ex("claude-api/content-blocks"), ch("api-streaming"), ch("api-batch"), ch("api-documents")],
       },
       {
         name: "Software Engineering Foundations",
@@ -197,13 +197,13 @@ export const DOMAINS: Domain[] = [
         name: "AI Application Security",
         weight: 3.2,
         summary: "Prompt injection, jailbreaks, untrusted input, data leakage and PII.",
-        practice: [ex("config/deny-rule"), ch("security-hook")],
+        practice: [ex("config/deny-rule"), ch("security-hook"), ch("api-injection-gate")],
       },
       {
         name: "Guardrails and Safe Deployment",
         weight: 2.3,
         summary: "Layered guardrails, least privilege and secure-by-design.",
-        practice: [ex("claude-code/approve-edit"), ex("agent-sdk/spending-cap"), ch("config-guardrails")],
+        practice: [ex("claude-code/approve-edit"), ex("agent-sdk/spending-cap"), ch("config-guardrails"), ch("api-injection-gate")],
       },
       {
         name: "Claude Hooks",
@@ -229,7 +229,7 @@ export const DOMAINS: Domain[] = [
         name: "Tool Implementation",
         weight: 4.4,
         summary: "Tool definitions and descriptions, error handling, client vs. server tools and approval patterns.",
-        practice: [ex("claude-api/content-blocks"), ex("mcp/demo-weather"), ch("api-tool-loop"), ch("mcp-errors")],
+        practice: [ex("claude-api/content-blocks"), ex("mcp/demo-weather"), ch("api-tool-loop"), ch("mcp-errors"), ch("api-injection-gate")],
       },
       {
         name: "MCP Server Development",

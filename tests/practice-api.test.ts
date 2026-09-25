@@ -163,6 +163,30 @@ describe("practice API with the real SDK", () => {
     await expect(client.messages.countTokens({ model: "haiku", messages: [{ role: "user", content: "x" }] })).rejects.toBeInstanceOf(Anthropic.NotFoundError);
   });
 
+  it("uploads files and lets requests reference them by file_id", async () => {
+    const { toFile } = await import("@anthropic-ai/sdk");
+    const uploaded = await client.files.upload({ file: await toFile(Buffer.from("%PDF-1.4 practice"), "notes.pdf", { type: "application/pdf" }) });
+    expect(uploaded).toMatchObject({ type: "file", filename: "notes.pdf", mime_type: "application/pdf", size_bytes: 17 });
+    const msg = await client.messages.create({
+      ...base,
+      messages: [{ role: "user", content: [{ type: "document", source: { type: "file", file_id: uploaded.id } }, { type: "text", text: "Summarize" }] }],
+    });
+    expect(text(msg)).toContain(`a document by file_id ${uploaded.id}`);
+    const ghost = client.messages.create({
+      ...base,
+      messages: [{ role: "user", content: [{ type: "document", source: { type: "file", file_id: "file_nope" } }, { type: "text", text: "?" }] }],
+    });
+    await expect(ghost).rejects.toBeInstanceOf(Anthropic.NotFoundError);
+  });
+
+  it("checks image and PDF sources like the API", async () => {
+    const withBlock = (block: unknown) => client.messages.create({ ...base, messages: [{ role: "user", content: [block, { type: "text", text: "?" }] }] } as never);
+    await expect(withBlock({ type: "image", source: { type: "base64", media_type: "image/bmp", data: "AAAA" } })).rejects.toThrow(/media_type/);
+    await expect(withBlock({ type: "document", source: { type: "base64", media_type: "text/plain", data: "AAAA" } })).rejects.toThrow(/application\/pdf/);
+    const ok = await withBlock({ type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } });
+    expect(text(ok)).toMatch(/an image \(image\/png/);
+  });
+
   it("answers unknown endpoints with a 404 not_found_error", async () => {
     await expect(client.models.retrieve("claude-haiku-4-5")).rejects.toBeInstanceOf(Anthropic.NotFoundError);
   });
@@ -194,7 +218,7 @@ describe("the claude-api starter's run.mjs", () => {
   const temp = createTempPlaygroundRoot();
   afterAll(() => temp.cleanup());
 
-  it.each(["ask", "tools", "extract", "faq", "batch", "errors", "stream", "workflow", "route", "think", "budget", "cost"])(
+  it.each(["ask", "tools", "extract", "faq", "batch", "errors", "stream", "workflow", "route", "think", "budget", "cost", "triage", "docs"])(
     "runs %s.mjs (reference solution) against the practice API",
     async (name) => {
       const dir = path.join(temp.root, "claude-api");

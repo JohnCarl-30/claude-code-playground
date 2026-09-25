@@ -2,7 +2,8 @@ import type { DomainId } from "./certification";
 
 // Knowledge checks for each exam domain. These are practice questions written
 // for this playground, not questions from the real exam. Every answer was
-// checked against the linked page of Anthropic's (or MCP's) official docs.
+// checked against the linked page of Anthropic's (or MCP's) official docs, and
+// carries the exact quote that backs it (`npm run verify:quizzes` re-checks them).
 
 export type QuizQuestion = {
   id: string;
@@ -15,7 +16,7 @@ export type QuizQuestion = {
   explain: string;
   source: { label: string; url: string };
   /** An exact quote from the source page that backs the answer. Not shown; `npm run verify:quizzes` checks it's still there. */
-  evidence?: string;
+  evidence: string;
 };
 
 const DOCS = "https://platform.claude.com/docs/en";
@@ -37,6 +38,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "When the steps are known ahead of time, a **workflow** (predefined code paths) is simpler, cheaper and easier to test. Agents, where Claude directs its own process, fit open-ended tasks whose steps can't be predicted.",
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
+      evidence: "When more complexity is warranted, workflows offer predictability and consistency for well-defined tasks, whereas agents are the better option when flexibility and model-driven decision-making are needed at scale.",
     },
     {
       id: "subagent-why",
@@ -51,6 +53,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "Each subagent runs in **its own context window** with its own system prompt, tool access and permissions. That keeps exploration output out of the main context and lets you apply least privilege.",
       source: { label: "Claude Code: Subagents", url: `${CODE}/sub-agents` },
+      evidence: "Each subagent runs in its own context window with a custom system prompt, specific tool access, and independent permissions.",
     },
     {
       id: "managed-agents",
@@ -58,8 +61,9 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       options: ["The Claude Agent SDK library", "The Claude API SDK's tool runner", "Claude Managed Agents", "A manual tool-use loop on the Messages API"],
       answer: [2],
       explain:
-        "**Managed Agents** runs the loop on Anthropic's orchestration layer and gives each session a container for its tools. The Agent SDK and the tool runner supply the harness, but you host and deploy them yourself.",
+        "**Managed Agents** is a pre-built agent harness that Anthropic runs for you. Each session runs in an environment you configure: an Anthropic-managed cloud sandbox, or a self-hosted sandbox on your own infrastructure. The Agent SDK and the tool runner supply a harness, but you host and run them yourself.",
       source: { label: "Managed Agents overview", url: `${DOCS}/managed-agents/overview` },
+      evidence: "Configuration for where sessions run: an Anthropic-managed cloud sandbox, or a self-hosted sandbox on your own infrastructure",
     },
     {
       id: "hook-deterministic",
@@ -74,6 +78,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "Hooks give **deterministic** control: they always run at their point in the lifecycle instead of relying on the model to choose to. Prompts and CLAUDE.md are guidance the model usually, but not always, follows.",
       source: { label: "Claude Code: Hooks guide", url: `${CODE}/hooks-guide` },
+      evidence: "Claude Code runs them at specific points in its lifecycle, which gives you deterministic control: certain actions always happen rather than relying on the LLM to choose to run them.",
     },
     {
       id: "tool-loop-next",
@@ -87,7 +92,8 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0, 1],
       explain:
         "Append the assistant's full `content`, then one user message holding a `tool_result` for every `tool_use` id. The API rejects a `tool_use` that isn't answered in the very next message.",
-      source: { label: "How to implement tool use", url: `${DOCS}/agents-and-tools/tool-use/implement-tool-use` },
+      source: { label: "How tool use works", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works" },
+      evidence: "Send a new request containing the original messages, the assistant's response, and a user message with the `tool_result` blocks.",
     },
     {
       id: "agent-sdk-fit",
@@ -97,7 +103,8 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain:
         "The **Agent SDK** gives you Claude Code's harness (its loop and built-in tools like Read, Edit, Bash, Glob and Grep) as a library you run and host yourself.",
-      source: { label: "Agent SDK overview", url: `${DOCS}/agent-sdk/overview` },
+      source: { label: "Agent SDK overview", url: "https://code.claude.com/docs/en/agent-sdk/overview" },
+      evidence: "Embed Claude Code's agent in your own Python or TypeScript application, in a process you operate",
     },
     {
       id: "pattern-routing",
@@ -284,6 +291,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "The **Message Batches API** is asynchronous and charges 50% of standard prices. Most batches finish within an hour, and results are available once every request is done or after 24 hours.",
       source: { label: "Batch processing", url: `${DOCS}/build-with-claude/batch-processing` },
+      evidence: "This approach is well-suited to tasks that do not require immediate responses, with most batches finishing in less than 1 hour while reducing costs by 50% and increasing throughput.",
     },
     {
       id: "batch-facts",
@@ -297,6 +305,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0, 1],
       explain: "Batches cut costs by 50%. Results can come back in a different order than you sent them, so each request carries a `custom_id`.",
       source: { label: "Batch processing", url: `${DOCS}/build-with-claude/batch-processing` },
+      evidence: "Batch results can be returned in any order, and may not match the ordering of requests when the batch was created.",
     },
     {
       id: "stateless",
@@ -310,6 +319,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "The Messages API is **stateless**. Your app keeps the history and sends the full conversation with every request.",
       source: { label: "Working with the Messages API", url: `${DOCS}/build-with-claude/working-with-messages` },
+      evidence: "The Messages API is stateless, which means that you always send the full conversational history to the API.",
     },
     {
       id: "why-stream",
@@ -324,19 +334,21 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "Streaming shows progress right away, and for large `max_tokens` the SDKs require streaming to avoid HTTP timeouts. Pricing is the same either way.",
       source: { label: "Streaming messages", url: `${DOCS}/build-with-claude/streaming` },
+      evidence: "This is especially useful for requests with large `max_tokens` values, where the SDKs require streaming to avoid HTTP timeouts.",
     },
     {
       id: "vision",
       prompt: "How do you send Claude an image along with a question?",
       options: [
-        "A user message with an `image` block (base64 or URL source) and a `text` block",
+        "A user message with an `image` block (base64, URL or Files API source) and a `text` block",
         "Upload it to a separate vision endpoint first, then send Claude the caption it returns",
         "Put the image's file path in the system prompt so Claude can open the file from your disk",
         "Base64-encode it into the question's text, since messages only accept plain text",
       ],
       answer: [0],
-      explain: "Images are content blocks: `{ type: \"image\", source: { type: \"base64\" | \"url\", … } }`, next to a `text` block in the same user message.",
+      explain: "Images are `image` content blocks whose `source` is `base64`, `url`, or `file` (a Files API `file_id`), next to a `text` block in the same user message. Claude works best when the image comes before the text.",
       source: { label: "Vision", url: `${DOCS}/build-with-claude/vision` },
+      evidence: "On the API, provide images to Claude as `image` content blocks using one of three source types:",
     },
     {
       id: "files-api",
@@ -350,14 +362,16 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "The **Files API** stores a file once and returns a `file_id` you reference in later Messages requests.",
       source: { label: "Files API", url: `${DOCS}/build-with-claude/files` },
+      evidence: "The Files API lets you upload and manage files to use with the Claude API without re-uploading content with each request.",
     },
     {
       id: "cloud-providers",
       prompt: "Your company wants to use Claude through its existing cloud account and billing. Which are options? **Choose 2.**",
-      options: ["Amazon Bedrock", "Google Cloud Vertex AI", "The Model Context Protocol", "Claude Code's headless mode"],
+      options: ["Amazon Bedrock", "Google Cloud's Agent Platform", "The Model Context Protocol", "Claude Code's headless mode"],
       answer: [0, 1],
-      explain: "Claude is offered through cloud platforms such as **Amazon Bedrock** and **Google Cloud Vertex AI** (and Microsoft Foundry). MCP is a protocol for connecting tools, not a way to buy model access.",
-      source: { label: "Claude on Amazon Bedrock", url: `${DOCS}/build-with-claude/claude-on-amazon-bedrock` },
+      explain: "Claude is offered through cloud platforms that use your cloud provider's billing and IAM: **Amazon Bedrock** and **Google Cloud's Agent Platform** (run by those partners), plus Claude Platform on AWS and Microsoft Foundry. MCP is a protocol for connecting tools, not a way to buy model access.",
+      source: { label: "API overview: Claude API vs cloud platforms", url: "https://platform.claude.com/docs/en/api/overview" },
+      evidence: "Access Claude through AWS, Google Cloud, or Microsoft Azure:",
     },
     {
       id: "pin-model",
@@ -371,7 +385,8 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain:
         "Keep the model ID in one place in config and upgrade on purpose, after your evals pass. `model` is a required request field, and each model has its own ID.",
-      source: { label: "Models overview", url: `${DOCS}/about-claude/models/overview` },
+      source: { label: "Model IDs and versioning", url: "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions" },
+      evidence: "When you use a model ID in an API request, the underlying model remains constant for the lifetime of that ID.",
     },
     {
       id: "stream-tool-input-json",
@@ -753,6 +768,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "Project memory in `./CLAUDE.md` is checked in and shared. `~/.claude/CLAUDE.md` is your personal file for every project, and `CLAUDE.local.md` is personal to one project (add it to .gitignore).",
       source: { label: "Claude Code: Memory", url: `${CODE}/memory` },
+      evidence: "These instructions are shared with your team through version control, so focus on project-level standards rather than personal preferences.",
     },
     {
       id: "init",
@@ -766,6 +782,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "`/init` generates a CLAUDE.md with the build commands, test instructions and conventions it discovers. If one already exists, it suggests improvements instead of overwriting it.",
       source: { label: "Claude Code: Memory", url: `${CODE}/memory` },
+      evidence: "Claude analyzes your codebase and creates a file with build commands, test instructions, and project conventions it discovers.",
     },
     {
       id: "headless-json",
@@ -779,6 +796,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "`-p` (print) runs non-interactively, and `--output-format` takes `text`, `json` or `stream-json`. The JSON result also reports `total_cost_usd`.",
       source: { label: "Claude Code: Headless mode", url: `${CODE}/headless` },
+      evidence: "Add the `-p` (or `--print`) flag to any `claude` command to run it non-interactively.",
     },
     {
       id: "managed-precedence",
@@ -787,6 +805,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "From highest to lowest: managed, command-line arguments, local project (`.claude/settings.local.json`), shared project (`.claude/settings.json`), user (`~/.claude/settings.json`). Organizations put security policy in managed settings.",
       source: { label: "Claude Code: Settings", url: `${CODE}/settings` },
+      evidence: "Nothing you set overrides them: a key you pass with `--settings` doesn't override the same managed key, and a flag such as `--model` picks only from the models your organization allows.",
     },
     {
       id: "rule-order",
@@ -800,6 +819,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "Rules are evaluated deny → ask → allow, and the first match in that order decides. An allow rule can't carve an exception out of a deny rule.",
       source: { label: "Claude Code: Permissions", url: `${CODE}/permissions` },
+      evidence: "Rules are evaluated in order: deny, then ask, then allow.",
     },
     {
       id: "skills-loading",
@@ -813,6 +833,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "Unlike CLAUDE.md, a skill's body loads only when it's used, so long reference material costs almost nothing until needed.",
       source: { label: "Claude Code: Skills", url: `${CODE}/skills` },
+      evidence: "Unlike CLAUDE.md content, a skill's body loads only when it's used, so long reference material costs almost nothing until you need it.",
     },
     {
       id: "skill-manual-only",
@@ -864,8 +885,9 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       prompt: "Which API errors are worth retrying with backoff? **Choose 2.**",
       options: ["429 `rate_limit_error`", "529 `overloaded_error`", "400 `invalid_request_error`", "401 `authentication_error`"],
       answer: [0, 1],
-      explain: "Rate limits (429), overload (529) and server errors (500) are temporary. A bad request or a bad key fails the same way every time, so fix it instead of retrying.",
+      explain: "Rate limits (429), overload (529) and server errors (500) are usually temporary, and the SDKs retry them with backoff, honoring `retry-after`. One exception: a 429 for a usage tier's spend cap has no `retry-after` and keeps failing until access resumes. A bad request (400) or a bad key (401) fails the same way every time, so fix it instead.",
       source: { label: "API errors", url: `${DOCS}/api/errors` },
+      evidence: "The official SDKs automatically retry transient failures (such as connection errors, rate limits, and 5xx server errors) with exponential backoff, twice by default, honoring the `retry-after` header when present.",
     },
     {
       id: "truncated-json",
@@ -880,6 +902,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "Look at what actually came back. `stop_reason: \"max_tokens\"` means the output was truncated, which is an integration fix (raise `max_tokens`), not a model problem.",
       source: { label: "Handling stop reasons", url: `${DOCS}/build-with-claude/handling-stop-reasons` },
+      evidence: "Every Messages API response includes a `stop_reason` field that tells you why Claude stopped generating.",
     },
     {
       id: "tool-result-400",
@@ -892,8 +915,9 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
         "The request hit a rate limit because each tool call counts as an extra request",
       ],
       answer: [0],
-      explain: "Every `tool_use` must be answered by a `tool_result` with the same id in the very next (user) message.",
-      source: { label: "How to implement tool use", url: `${DOCS}/agents-and-tools/tool-use/implement-tool-use` },
+      explain: "Every `tool_use` must be answered by a `tool_result` with the same id in the very next (user) message, and those `tool_result` blocks must come first in it, before any text.",
+      source: { label: "Troubleshooting tool use", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/troubleshooting-tool-use" },
+      evidence: "Missing `tool_result` for some `tool_use` ids, or `tool_result` is not the first content block in the user message",
     },
     {
       id: "cache-miss",
@@ -908,6 +932,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "Caching is a prefix match: any change before the breakpoint is a miss. Prefixes under the model's minimum length silently don't cache. Streaming doesn't affect caching.",
       source: { label: "Prompt caching", url: `${DOCS}/build-with-claude/prompt-caching` },
+      evidence: "Any requests to cache fewer than this number of tokens will be processed without caching, and no error is returned.",
     },
     {
       id: "spend-cap-429",
@@ -960,7 +985,8 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       options: ["Haiku", "Opus", "Whichever has the largest context window", "Always the newest model"],
       answer: [0],
       explain: "Haiku 4.5 is the fastest model in the lineup and has the lowest per-token price, a good fit for simple high-volume work. Move up to Sonnet or Opus when the task needs more reasoning.",
-      source: { label: "Models overview", url: `${DOCS}/about-claude/models/overview` },
+      source: { label: "Choosing the right model", url: "https://platform.claude.com/docs/en/about-claude/models/choosing-a-model" },
+      evidence: "For many applications, starting with a faster, more cost-effective model like Claude Haiku 4.5 can be the optimal approach:",
     },
     {
       id: "effort",
@@ -972,8 +998,9 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
         "Send the request twice and keep the faster reply",
       ],
       answer: [0],
-      explain: "`effort` controls how many tokens Claude spends. Lower effort means terser answers and fewer tool calls. `high` is the default on most models.",
+      explain: "`effort` controls how many tokens Claude spends, including thinking and tool calls. Lower effort means less thinking and fewer, terser tool calls, at some cost to capability. `high` is the default on most models (Claude Opus 5.5 defaults to `medium`).",
       source: { label: "Effort", url: `${DOCS}/build-with-claude/effort` },
+      evidence: "Because effort applies to every output token, it works whether or not thinking is enabled. Lower effort also means fewer and terser tool calls.",
     },
     {
       id: "adaptive",
@@ -986,7 +1013,8 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       ],
       answer: [0],
       explain: "With **adaptive thinking**, Claude chooses its thinking depth per request, so there's no token budget to tune. Combine it with `effort` to steer depth.",
-      source: { label: "Adaptive thinking", url: `${DOCS}/build-with-claude/adaptive-thinking` },
+      source: { label: "Steering thinking", url: "https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost" },
+      evidence: "Claude's thinking is adaptive: the model evaluates each request and decides for itself whether to think and how much.",
     },
     {
       id: "context-counts",
@@ -1000,6 +1028,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0, 1],
       explain: "Everything in the request counts (system prompt, messages, tool definitions), and so does the output Claude generates, including extended thinking.",
       source: { label: "Context windows", url: `${DOCS}/build-with-claude/context-windows` },
+      evidence: "Everything in the request counts toward the context window: the system prompt, every message in `messages` (including tool results, images, and documents), and your tool definitions. The output Claude generates for the turn, including its extended thinking, counts too.",
     },
     {
       id: "cache-economics",
@@ -1013,6 +1042,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0, 1],
       explain: "Reads are about 0.1× and 5-minute writes about 1.25× the input price, so caching pays off from the second request that shares the prefix. Caches are never shared across organizations.",
       source: { label: "Prompt caching", url: `${DOCS}/build-with-claude/prompt-caching` },
+      evidence: "Cache read tokens are 0.1 times the base input tokens price (see the table footnote for per-model exceptions)",
     },
     {
       id: "no-effort",
@@ -1020,7 +1050,8 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       options: ["Claude Haiku 4.5", "Claude Sonnet 5", "Claude Opus 5", "Claude Sonnet 4.6"],
       answer: [0],
       explain: "Effort is supported on the Fable, Opus (4.5 and later) and Sonnet (4.6 and later) models, but not on Haiku 4.5. Check a model's support before adding a parameter.",
-      source: { label: "Effort", url: `${DOCS}/build-with-claude/effort` },
+      source: { label: "Migrating to Claude Sonnet 5", url: "https://platform.claude.com/docs/en/models/sonnet-5/migration-guide" },
+      evidence: "to control thinking depth and token spend; it is not available on Claude Haiku 4.5, so no existing setting carries over.",
     },
     {
       id: "sonnet5-depth",
@@ -1035,6 +1066,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "Sonnet 5 supports adaptive thinking only, and `thinking: { type: \"enabled\", budget_tokens }` is rejected with a 400. Effort is the recommended way to steer how much Claude thinks.",
       source: { label: "Thinking: supported models", url: `${DOCS}/build-with-claude/thinking-troubleshooting` },
+      evidence: "\"thinking.type.enabled\" is not supported for this model. Use \"thinking.type.adaptive\" and \"output_config.effort\" to control thinking behavior.",
     },
     {
       id: "count-tokens",
@@ -1048,6 +1080,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "The token counting endpoint returns the input token count for the same system, messages and tools you'd send.",
       source: { label: "Token counting", url: `${DOCS}/build-with-claude/token-counting` },
+      evidence: "Token counting lets you determine the number of tokens in a message before you send it to Claude.",
     },
     {
       id: "sonnet5-tokenizer-cost",
@@ -1246,6 +1279,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "Put long documents near the top and the query at the end. Anthropic's tests found this can improve response quality by up to 30%, especially with complex, multi-document inputs.",
       source: { label: "Prompting best practices", url: `${DOCS}/build-with-claude/prompt-engineering/claude-prompting-best-practices` },
+      evidence: "Place your long documents and inputs near the top of your prompt, above your query, instructions, and examples. This improves performance across all models.",
     },
     {
       id: "few-shot",
@@ -1259,6 +1293,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "Examples are one of the most reliable ways to steer format, tone and structure. The guide recommends 3–5 relevant, diverse examples.",
       source: { label: "Prompting best practices", url: `${DOCS}/build-with-claude/prompt-engineering/claude-prompting-best-practices` },
+      evidence: "Include 3–5 examples for best results. You can also ask Claude to evaluate your examples for relevance and diversity, or to generate additional ones based on your initial set.",
     },
     {
       id: "structure",
@@ -1272,6 +1307,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0, 1],
       explain: "XML tags separate instructions, context and inputs so they aren't confused. Giving the reason behind an instruction helps Claude understand the goal and respond more precisely.",
       source: { label: "Prompting best practices", url: `${DOCS}/build-with-claude/prompt-engineering/claude-prompting-best-practices` },
+      evidence: "Wrapping each type of content in its own tag (for example, `<instructions>`, `<context>`, `<input>`) reduces misinterpretation.",
     },
     {
       id: "context-bloat",
@@ -1285,6 +1321,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0, 1],
       explain: "Context editing prunes stale content such as old tool results, and compaction summarizes earlier turns as you approach the limit. Subagents also help by keeping exploration in their own context.",
       source: { label: "Context editing", url: `${DOCS}/build-with-claude/context-editing` },
+      evidence: "The `clear_tool_uses_20250919` strategy clears tool results when conversation context grows beyond your configured threshold.",
     },
     {
       id: "structured-trust",
@@ -1296,8 +1333,9 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
         "Whenever the same request also includes a system prompt or examples",
       ],
       answer: [0],
-      explain: "Structured outputs guarantee valid JSON for normal completions, but a reply cut off at `max_tokens` or a refusal may not match. Check `stop_reason` before trusting the result.",
+      explain: "Structured outputs guarantee schema compliance in most cases, but a reply cut off at `max_tokens` or a refusal may not match, so check `stop_reason` first. Enum and const capitalization also isn't guaranteed, so compare enum values case-insensitively.",
       source: { label: "Structured outputs", url: `${DOCS}/build-with-claude/structured-outputs` },
+      evidence: "While structured outputs guarantee schema compliance in most cases, there are scenarios where the output may not match your schema:",
     },
     {
       id: "prefill-to-structured-outputs",
@@ -1442,6 +1480,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "Prompt injection is handled with layers: separate untrusted input from trusted instructions, and enforce controls outside the model (approvals, hooks, least privilege) so injected text can't trigger sensitive actions on its own.",
       source: { label: "Mitigate jailbreaks and prompt injections", url: `${DOCS}/test-and-evaluate/strengthen-guardrails/mitigate-jailbreaks` },
+      evidence: "Apply the principle of least privilege so that a successful injection can do minimal damage: don't give Claude access to secrets it doesn't need, run tools in sandboxed environments, and scope permissions as narrowly as possible.",
     },
     {
       id: "least-privilege",
@@ -1455,6 +1494,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "Least privilege: list only the tools it needs. A subagent without a `tools` field inherits every tool available to subagents.",
       source: { label: "Claude Code: Subagents", url: `${CODE}/sub-agents` },
+      evidence: "To restrict tools, use the `tools` field as an allowlist or the `disallowedTools` field as a denylist.",
     },
     {
       id: "api-key",
@@ -1468,6 +1508,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0, 1],
       explain: "Set the `ANTHROPIC_API_KEY` environment variable and the client SDKs pick it up, so the key never needs to be in code. Keep files with secrets out of version control.",
       source: { label: "Authentication", url: `${DOCS}/manage-claude/authentication` },
+      evidence: "Store API keys in a secrets manager, rotate them periodically, and disable or delete any key you suspect has leaked.",
     },
     {
       id: "hook-exit-2",
@@ -1481,6 +1522,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "Exit code 2 from a PreToolUse hook blocks the call, and stderr is fed back to Claude as the reason. Other non-zero codes are non-blocking errors.",
       source: { label: "Claude Code: Hooks reference", url: `${CODE}/hooks` },
+      evidence: "A hook that blocks by exiting 2 routes the same way as `\"deny\"`: Claude sees the stderr message as the denial reason.",
     },
     {
       id: "deny-gaps",
@@ -1495,6 +1537,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "Read deny rules cover the Read tool and file commands Claude Code recognizes in Bash (`cat`, `head`, `tail`…), but not programs that open files themselves. Layer a hook or the sandbox for that.",
       source: { label: "Claude Code: Permissions", url: `${CODE}/permissions` },
+      evidence: "to arbitrary subprocesses that read or write files indirectly, like a Python or Node script that opens files itself.",
     },
     {
       id: "untrusted-content-placement",
@@ -1622,7 +1665,8 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       ],
       answer: [0],
       explain: "Detailed descriptions are by far the most important factor in tool performance. Say what it does, *when* to call it, and what each parameter means.",
-      source: { label: "How to implement tool use", url: `${DOCS}/agents-and-tools/tool-use/implement-tool-use` },
+      source: { label: "Define tools", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools" },
+      evidence: "This is by far the most important factor in tool performance. Your descriptions should explain every detail about the tool, including:",
     },
     {
       id: "mcp-control",
@@ -1631,6 +1675,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0],
       explain: "Tools are model-controlled (Claude decides to call them), resources are application-controlled (the app attaches them as context), and prompts are user-controlled.",
       source: { label: "MCP: Server concepts", url: "https://modelcontextprotocol.io/docs/learn/server-concepts" },
+      evidence: "Prompts are structured templates that define expected inputs and interaction patterns. They are user-controlled, requiring explicit invocation rather than automatic triggering.",
     },
     {
       id: "stdio",
@@ -1644,6 +1689,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       answer: [0, 1],
       explain: "With stdio, the client starts the server as a subprocess. stdout is the protocol channel, so logging belongs on stderr. Remote servers use Streamable HTTP instead.",
       source: { label: "MCP: Transports", url: "https://modelcontextprotocol.io/specification/2025-06-18/basic/transports" },
+      evidence: "The server reads JSON-RPC messages from its standard input (`stdin`) and sends messages to its standard output (`stdout`).",
     },
     {
       id: "tool-error",
@@ -1656,7 +1702,8 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       ],
       answer: [0],
       explain: "Set `is_error: true` with a helpful message. Claude can then try another approach or ask the user, and the conversation stays valid.",
-      source: { label: "How to implement tool use", url: `${DOCS}/agents-and-tools/tool-use/implement-tool-use` },
+      source: { label: "Handle tool calls", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls" },
+      evidence: "If the tool itself throws an error during execution (for example, a network error when fetching weather data), you can return the error message in the `content` along with `\"is_error\": true`:",
     },
     {
       id: "customization",
@@ -1672,6 +1719,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       explain:
         "An MCP server is a reusable integration that any MCP client can connect to. Skills package instructions for one agent; prompts and pasted data give no live access.",
       source: { label: "MCP: Architecture", url: "https://modelcontextprotocol.io/docs/learn/architecture" },
+      evidence: "Local MCP servers that use the STDIO transport typically serve a single MCP client, whereas remote MCP servers that use the Streamable HTTP transport will typically serve many MCP clients.",
     },
     {
       id: "forced-tool-choice-opus-5-5",

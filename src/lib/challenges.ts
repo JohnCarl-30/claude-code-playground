@@ -479,6 +479,48 @@ export const CHALLENGES: Challenge[] = [
     ],
     config: BUILDER,
   },
+  {
+    id: "api-injection-gate",
+    title: "Untrusted email, gated refunds",
+    area: "Security",
+    level: "Intermediate",
+    template: "claude-api",
+    goal: "In `triage.mjs`, answer customer emails with two tools: `lookup_order` (reads) and `issue_refund` (moves money). An email can hide instructions for Claude, so keep it apart from your instructions, and make sure no refund happens unless a person says yes. The check plays a Claude that falls for the injection and asks for the refund.",
+    requirements: [
+      { id: "delimited", label: "The email goes in the user turn inside <email> tags, not in the system prompt" },
+      { id: "readonly", label: "lookup_order runs without asking a person" },
+      { id: "gated", label: "issue_refund asks approve() first; when the answer is no, no refund happens and Claude gets an is_error result" },
+      { id: "approved", label: "When the answer is yes, the refund runs once and its result goes back to Claude" },
+    ],
+    hints: [
+      "You can't make a model immune to prompt injection. You can make it harmless: gate the tools that do irreversible things.",
+      "Call `await approve(call.name, call.input)` before `issueRefund`. If it's false, answer that tool_use with `is_error: true` and a short reason.",
+      "Anthropic's guidance: keep untrusted content out of the system prompt and clearly delimited, e.g. with XML tags.",
+      PRACTICE_HINT,
+    ],
+    config: BUILDER,
+  },
+  {
+    id: "api-documents",
+    title: "Images, PDFs and the Files API",
+    area: "Claude API",
+    level: "Beginner",
+    template: "claude-api",
+    goal: "In `docs.mjs`, send Claude an image and a PDF from disk, then upload the PDF once with the **Files API** and ask about it again by its `file_id`, without sending the bytes a second time. Try them on `samples/receipt.png` and `samples/policy.pdf`.",
+    requirements: [
+      { id: "image", label: "describeImage sends a base64 image block with media_type image/png, plus the question" },
+      { id: "pdf", label: "askPdf sends a base64 document block with media_type application/pdf" },
+      { id: "upload", label: "uploadFile uploads with the Files API and returns the file id" },
+      { id: "byid", label: "askUploaded references the file by file_id instead of resending it" },
+    ],
+    hints: [
+      "`fs.readFileSync(path).toString(\"base64\")` gives you the data for a base64 source.",
+      "Images: `{ type: \"image\", source: { type: \"base64\", media_type, data } }`. PDFs use `type: \"document\"` the same way.",
+      "`client.files.upload({ file: fs.createReadStream(path) })` returns `{ id }`; later use `source: { type: \"file\", file_id }`.",
+      PRACTICE_HINT,
+    ],
+    config: BUILDER,
+  },
 ];
 
 export function findChallenge(id: string | undefined) {

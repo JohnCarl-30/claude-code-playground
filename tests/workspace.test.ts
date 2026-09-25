@@ -109,4 +109,16 @@ describe("workspace", () => {
     expect(ws.isInsideWorkspace("../package.json")).toBe(false);
     expect(ws.isInsideWorkspace(`${ws.WORKSPACE_DIR}-evil/x`)).toBe(false);
   });
+
+  it("lists images and PDFs as binary, without their bytes as text", async () => {
+    await ws.switchWorkspace("claude-api");
+    const files = await ws.readWorkspace();
+    expect(files.find((f) => f.path === "samples/receipt.png")).toMatchObject({ binary: true, content: expect.stringMatching(/^\(binary file, \d+ bytes\)$/) });
+    expect(files.find((f) => f.path === "samples/policy.pdf")).toMatchObject({ binary: true });
+    expect(files.find((f) => f.path === "ask.mjs")?.binary).toBeUndefined();
+    // They still download intact.
+    const exported = await ws.workspaceFilesForExport();
+    const png = exported.find((f) => f.path === "samples/receipt.png")!;
+    expect(png.data.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  });
 });

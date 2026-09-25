@@ -296,3 +296,56 @@ it("explains a file missing from an older workspace", async () => {
   if ("error" in result) throw new Error(result.error);
   expect(result.results.find((x) => x.id === "live")).toMatchObject({ pass: false, detail: expect.stringMatching(/cost\.mjs is missing.*Reset/) });
 });
+
+describe("untrusted email, gated refunds", () => {
+  it("fails when the email is pasted into the system prompt", async () => {
+    const r = await checkWith("api-injection-gate", "triage.mjs", (c) =>
+      replaced(
+        replaced(c, "system: SYSTEM,", "system: SYSTEM + email,"),
+        "`Here is the customer's email:\\n<email>\\n${email}\\n</email>`",
+        '"Please handle the email."',
+      ),
+    );
+    expect(r.delimited).toMatchObject({ pass: false, detail: expect.stringMatching(/system prompt/) });
+  });
+
+  it("fails when refunds run without asking, which is what an injection needs", async () => {
+    const r = await checkWith("api-injection-gate", "triage.mjs", (c) => replaced(c, "if (await approve(call.name, call.input)) {", "if (true) {"));
+    expect(r.gated).toMatchObject({ pass: false, detail: expect.stringMatching(/without calling approve/) });
+    expect(r.approved.pass).toBe(true);
+  });
+
+  it("fails when a declined refund looks like a success to Claude", async () => {
+    const r = await checkWith("api-injection-gate", "triage.mjs", (c) =>
+      replaced(c, 'content: "A person declined this refund.", is_error: true', 'content: "Refund processed."'),
+    );
+    expect(r.gated).toMatchObject({ pass: false, detail: expect.stringMatching(/is_error: true/) });
+  });
+
+  it("fails when read-only lookups wait for a person too", async () => {
+    const r = await checkWith("api-injection-gate", "triage.mjs", (c) =>
+      replaced(c, 'if (call.name === "lookup_order") {', 'if (call.name === "lookup_order" && (await approve(call.name, call.input))) {'),
+    );
+    expect(r.readonly).toMatchObject({ pass: false, detail: expect.stringMatching(/only reads/) });
+  });
+});
+
+describe("images, PDFs and the Files API", () => {
+  it("fails a PNG sent with the wrong media type", async () => {
+    const r = await checkWith("api-documents", "docs.mjs", (c) => replaced(c, 'media_type: "image/png"', 'media_type: "image/jpeg"'));
+    expect(r.image.pass).toBe(false);
+    expect(r.pdf.pass).toBe(true);
+  });
+
+  it("fails when the uploaded file is sent again instead of referenced", async () => {
+    const r = await checkWith("api-documents", "docs.mjs", (c) =>
+      replaced(
+        c,
+        '{ type: "document", source: { type: "file", file_id: fileId } },',
+        '{ type: "document", source: { type: "base64", media_type: "application/pdf", data: fs.readFileSync("samples/policy.pdf").toString("base64") } },',
+      ),
+    );
+    expect(r.byid).toMatchObject({ pass: false, detail: expect.stringMatching(/file_id/) });
+    expect(r.upload.pass).toBe(true);
+  });
+});

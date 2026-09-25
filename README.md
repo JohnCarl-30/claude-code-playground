@@ -9,7 +9,7 @@ Build a real REST API, MCP server or agent with Claude, then run and test it rig
 - **Build real projects.** Start from a REST API, MCP server or Agent SDK starter; Claude writes the code, and you start the server, send requests, plug in your MCP server or run your agent.
 - **Configure Claude the real way.** Each starter has a `.claude/` folder: permission rules, hooks, slash commands, skills and subagents. Edit them in the playground and they load exactly as they would for `claude` in a terminal.
 - **Certification track.** Preparing for **Claude Certified Developer – Foundations (CCDV-F)**? The official exam blueprint is in the sidebar: all 8 domains and 25 skills, weighted like the exam, each linked to what practices it here, plus a knowledge check per domain whose answers link to the official docs.
-- **Practice challenges.** Twenty-two tasks (REST APIs, the Claude API, MCP servers, Claude Code config, security, debugging, the Agent SDK). You solve them with Claude, then **Check my work** tests your actual code and config and shows ✅ / ❌ per requirement, with the reason.
+- **Practice challenges.** Twenty-four tasks (REST APIs, the Claude API, MCP servers, Claude Code config, security, debugging, the Agent SDK). You solve them with Claude, then **Check my work** tests your actual code and config and shows ✅ / ❌ per requirement, with the reason.
 - **The Claude API without a key.** The Claude API starter's programs run against a **practice API** on your computer: canned replies in the real shapes (tool_use, streaming events, usage and cache fields, errors, batches), so you can write and test real `@anthropic-ai/sdk` code for free.
 - **See inside the harness.** A context-window meter with **Compact now**, Claude's live task list, multiple-choice questions from Claude, and plan-mode reviews where you approve the plan or send it back.
 - **A live session, like the terminal.** Replies stream in word by word. While Claude works you can **Steer** it (switch to a new message now), **Queue** a message for when it's done, or **Stop** the turn, and you can change the model or permission mode mid-conversation. See every change as a diff, and download your project as a .zip.
@@ -62,7 +62,7 @@ The **Workspace** panel under the prompt holds the project Claude works on. Pick
 | REST API | a zero-dependency JSON API (`node:http`) | start the server and send requests (GET/POST/PATCH/DELETE) from the built-in request tester |
 | MCP server | your own MCP server using `@modelcontextprotocol/sdk` | **Connect to the playground**, then ask Claude to use the tools you built |
 | Agent SDK script | `agent.mjs` calling `query()` | run it and read its output |
-| Claude API app | one Claude API feature per file (`@anthropic-ai/sdk`): tools, structured output, caching, batches, errors, streaming, a workflow, model choice, effort and thinking, token counting, cost | run each file against the practice API (no key) |
+| Claude API app | one Claude API feature per file (`@anthropic-ai/sdk`): tools, structured output, caching, batches, errors, streaming, a workflow, model choice, effort and thinking, token counting, cost, untrusted input with approvals, images, PDFs and the Files API | run each file against the practice API (no key) |
 | Tiny Shop | a cart library with a planted bug | run its tests |
 
 A typical loop: pick **Build a REST API** in the sidebar → **Run** → **Start server** → send `POST /todos` → **Send follow-up** ("now add pagination") → check the **Changes** tab → **⤓ .zip** to keep it.
@@ -96,9 +96,9 @@ Pick a challenge in the **Challenges** section of the sidebar. Each one has a go
 |---|---|---|
 | REST API | A todo API · Filter and search | starts your `server.js` on its own port and sends real requests |
 | MCP | Text tools over MCP · Tools that handle bad input · Resources and prompts | connects to your server over stdio like Claude Code and calls your tools, resources and prompts |
-| Claude API | The tool-use loop · Structured output you can trust · Prompt caching and usage · An overnight batch · Errors and retries · Stream the answer · A workflow, not an agent · The right model for the job · Effort and thinking · Count before you send · What did that cost? | runs your function against a mock Claude API that plays a scenario (a tool call, a cut-off reply, a 529, a batch that takes a while…) and inspects every request your code sent |
+| Claude API | The tool-use loop · Structured output you can trust · Prompt caching and usage · An overnight batch · Errors and retries · Stream the answer · A workflow, not an agent · The right model for the job · Effort and thinking · Count before you send · What did that cost? · Images, PDFs and the Files API | runs your function against a mock Claude API that plays a scenario (a tool call, a cut-off reply, a 529, a batch that takes a while…) and inspects every request your code sent |
 | Claude Code config | Your own slash command · Guardrails for Tiny Shop · A read-only specialist | reads your `.claude/` files |
-| Security | Guard secrets with a hook | feeds your PreToolUse hook the same JSON Claude Code sends and checks what it blocks |
+| Security | Guard secrets with a hook · Untrusted email, gated refunds | feeds your PreToolUse hook the same JSON Claude Code sends and checks what it blocks; plays a Claude that falls for a prompt injection and checks your code still won't refund without a person's yes |
 | Debugging | Fix the discount bug | runs your `cart.js` and your tests |
 | Agent SDK | An agent with a custom tool | checks `agent.mjs` and its syntax |
 
@@ -113,7 +113,7 @@ The **Certification** section of the sidebar follows the official [Claude Certif
 - **Mock exam:** a timed practice run shaped like the real one: 53 questions in 120 minutes from a bank of 130+, drawn from each domain by its weight, one question per screen with flag-for-review and a question grid. Results show an estimated score on the 100–1,000 scale, your percent correct by domain (like the real score report), and a review of every question with its explanation and source. **Retry the ones I missed** drills just those. Your place and the clock survive a reload.
 - Every example and challenge shows which exam skills it practices.
 
-The questions are written for this playground and checked against the official docs; they are not questions from the real exam. Newer questions carry the exact quote from the docs that backs their answer, and `npm run verify:quizzes` re-checks every source page and quote against the live docs, so questions that go out of date get caught. Answer length is balanced so the longest option isn't a giveaway (a test enforces it). Weight tells you where to spend time: Applications and Integration (33.1%) and Model Selection and Optimization (16.8%) are half the exam, so the Claude API challenges matter more than the Claude Code ones (3.1%).
+The questions are written for this playground and checked against the official docs; they are not questions from the real exam. Every question carries the exact quote from the docs that backs its answer, and `npm run verify:quizzes` re-checks every source page and quote against the live docs, so questions that go out of date get caught. Answer length is balanced so the longest option isn't a giveaway (a test enforces it). Weight tells you where to spend time: Applications and Integration (33.1%) and Model Selection and Optimization (16.8%) are half the exam, so the Claude API challenges matter more than the Claude Code ones (3.1%).
 
 ## What you can try
 

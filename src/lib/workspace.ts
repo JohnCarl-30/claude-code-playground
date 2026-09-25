@@ -158,7 +158,10 @@ export function isInsideWorkspace(target: string) {
   return resolved === root || resolved.startsWith(root + path.sep);
 }
 
-export type WorkspaceFile = { path: string; content: string };
+/** A workspace file for the Files tab. Binary files (images, PDFs) are listed but not shown or editable as text. */
+export type WorkspaceFile = { path: string; content: string; binary?: boolean };
+
+const BINARY_EXTENSIONS = /\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|tgz|woff2?|ttf|otf|mp[34]|mov|wasm)$/i;
 
 /** Every file you'd want to take with you (no .git, node_modules or playground markers), as bytes. */
 export async function workspaceFilesForExport(): Promise<{ path: string; data: Buffer }[]> {
@@ -247,8 +250,17 @@ export async function readWorkspace(): Promise<WorkspaceFile[]> {
       if (entry.isDirectory()) await walk(full);
       else {
         const { size } = await stat(full);
-        const content = size > 100_000 ? "(file too large to preview)" : await readFile(full, "utf8");
-        files.push({ path: path.relative(WORKSPACE_DIR, full), content });
+        const rel = path.relative(WORKSPACE_DIR, full);
+        if (size > 100_000) {
+          files.push({ path: rel, content: "(file too large to preview)" });
+          continue;
+        }
+        const bytes = await readFile(full);
+        if (BINARY_EXTENSIONS.test(entry.name) || bytes.subarray(0, 8000).includes(0)) {
+          files.push({ path: rel, content: `(binary file, ${size.toLocaleString("en-US")} bytes)`, binary: true });
+        } else {
+          files.push({ path: rel, content: bytes.toString("utf8") });
+        }
       }
     }
   }

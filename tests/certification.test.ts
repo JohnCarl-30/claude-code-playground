@@ -75,6 +75,8 @@ describe("quizzes", () => {
     expect(url.protocol).toBe("https:");
     expect(HOSTS).toContain(url.hostname);
     expect(q.explain.length).toBeGreaterThan(20);
+    // The quote from the source page that backs the answer (checked live by `npm run verify:quizzes`).
+    expect(q.evidence.trim().split(/\s+/).length).toBeGreaterThanOrEqual(6);
   });
 
   // A known flaw of AI-drafted practice exams: the right answer is often the longest one,

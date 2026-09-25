@@ -17,6 +17,8 @@ TypeScript/JavaScript SDK (`@anthropic-ai/sdk`).
 | `think.mjs` | Effort levels and adaptive thinking | TODO |
 | `budget.mjs` | Counting tokens before you send | TODO |
 | `cost.mjs` | What a response cost, with caching and batches | TODO |
+| `triage.mjs` | Untrusted input and a human approval gate for risky tools | TODO |
+| `docs.mjs` | Images, PDFs and the Files API | TODO |
 
 ## Running without an API key
 

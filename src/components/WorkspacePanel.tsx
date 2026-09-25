@@ -7,7 +7,7 @@ import { ChangesView } from "./ChangesView";
 import { ClaudeConfigPanel, scaffold, type NewItemKind } from "./ClaudeConfigPanel";
 import { RunPanel } from "./RunPanel";
 
-export type WorkspaceFile = { path: string; content: string };
+export type WorkspaceFile = { path: string; content: string; binary?: boolean };
 /** parked: other starters with saved work, restored when you switch back. */
 export type WorkspaceSnapshot = { template: TemplateId; files: WorkspaceFile[]; parked?: TemplateId[] };
 
@@ -265,7 +265,7 @@ export function WorkspacePanel({
                   <span className="ml-auto flex gap-1">
                     <button
                       onClick={save}
-                      disabled={busy || (!dirty && !isNew)}
+                      disabled={busy || current.binary || (!dirty && !isNew)}
                       className="rounded bg-accent px-2 py-1 font-medium text-white disabled:opacity-40"
                     >
                       Save
@@ -279,19 +279,25 @@ export function WorkspacePanel({
                   </span>
                 </div>
                 {fileError && <p className="bg-danger-soft px-3 py-1 text-xs text-danger">{fileError}</p>}
-                <textarea
-                  value={text}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-                      e.preventDefault();
-                      save();
-                    }
-                  }}
-                  spellCheck={false}
-                  aria-label={`Contents of ${current.path}`}
-                  className="block h-96 w-full resize-y bg-surface p-3 font-mono text-[12px] leading-relaxed outline-none"
-                />
+                {current.binary ? (
+                  <p className="p-4 text-sm text-muted">
+                    {current.content}. Binary files like images and PDFs can&apos;t be edited here; your code and Claude can still read them.
+                  </p>
+                ) : (
+                  <textarea
+                    value={text}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+                        e.preventDefault();
+                        save();
+                      }
+                    }}
+                    spellCheck={false}
+                    aria-label={`Contents of ${current.path}`}
+                    className="block h-96 w-full resize-y bg-surface p-3 font-mono text-[12px] leading-relaxed outline-none"
+                  />
+                )}
               </>
             ) : (
               <p className="p-4 text-sm text-muted">No files.</p>

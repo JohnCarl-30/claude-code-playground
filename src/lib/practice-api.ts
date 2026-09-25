@@ -103,6 +103,16 @@ export function sseFor(msg: Json, chunks = 4) {
 
 // ---------- the server ----------
 
+/** Just enough multipart parsing for a Files API upload: the file part's name, type and size. */
+function parseUpload(bytes: Buffer): Json {
+  const text = bytes.toString("latin1");
+  const head = /Content-Disposition:[^\r\n]*name="file"[^\r\n]*filename="([^"]*)"[^\r\n]*\r\n(?:Content-Type: ([^\r\n]+)\r\n)?\r\n/i.exec(text);
+  if (!head) return { upload: true, error: "no file part" };
+  const start = head.index + head[0].length;
+  const end = text.indexOf("\r\n--", start);
+  return { upload: true, filename: head[1], mime_type: head[2] ?? "application/octet-stream", size_bytes: (end === -1 ? text.length : end) - start };
+}
+
 function describe(req: RecordedRequest, reply: MockReply) {
   if ("sse" in reply) return "streamed a reply";
   if ("jsonl" in reply) return `sent ${reply.jsonl.length} batch results`;
@@ -113,6 +123,7 @@ function describe(req: RecordedRequest, reply: MockReply) {
     return tools.length ? `stop_reason: tool_use (${tools.join(", ")})` : `stop_reason: ${String(json.stop_reason)}`;
   }
   if (json?.type === "message_batch") return `batch ${String(json.processing_status)}`;
+  if (json?.type === "file") return `uploaded ${String(json.filename)} as ${String(json.id)}`;
   return `${reply.status ?? 200}`;
 }
 
@@ -123,13 +134,19 @@ export async function startMockApi(respond: Responder, { unref = false } = {}): 
   let url = "";
 
   const server = http.createServer(async (req, res) => {
-    let raw = "";
-    for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(chunk as Buffer);
+    const bytes = Buffer.concat(chunks);
+    const raw = bytes.toString("utf8");
     let body: Json | null = null;
-    try {
-      const parsed: unknown = raw ? JSON.parse(raw) : null;
-      body = isObj(parsed) ? parsed : null;
-    } catch {}
+    if (String(req.headers["content-type"]).startsWith("multipart/form-data")) {
+      body = parseUpload(bytes);
+    } else {
+      try {
+        const parsed: unknown = raw ? JSON.parse(raw) : null;
+        body = isObj(parsed) ? parsed : null;
+      } catch {}
+    }
     const headers: Record<string, string> = {};
     for (const [k, v] of Object.entries(req.headers)) if (typeof v === "string") headers[k] = v;
     const recorded: RecordedRequest = { method: req.method ?? "GET", path: (req.url ?? "/").split("?")[0], headers, body };
@@ -208,6 +225,31 @@ export function sampleFromSchema(schema: unknown, depth = 0): unknown {
   }
 }
 
+/** The file IDs a request references in document or image blocks. */
+export function fileIds(body: Json): string[] {
+  const ids: string[] = [];
+  for (const m of Array.isArray(body.messages) ? (body.messages as Json[]) : []) {
+    for (const b of Array.isArray(m.content) ? (m.content as Json[]) : []) {
+      if (isObj(b.source) && b.source.type === "file") ids.push(String(b.source.file_id));
+    }
+  }
+  return ids;
+}
+
+/** "an image (image/png, 1 KB) and a PDF" — what media the last user turn carried. */
+function mediaSummary(messages: Json[]) {
+  const last = [...messages].reverse().find((m) => m.role === "user");
+  const parts = (Array.isArray(last?.content) ? (last.content as Json[]) : []).flatMap((b) => {
+    const src = isObj(b.source) ? b.source : null;
+    if (!src || (b.type !== "image" && b.type !== "document")) return [];
+    const kind = b.type === "image" ? "an image" : "a document";
+    if (src.type === "base64") return [`${kind} (${String(src.media_type)}, ${Math.max(1, Math.round((String(src.data).length * 3) / 4 / 1024))} KB)`];
+    if (src.type === "file") return [`${kind} by file_id ${String(src.file_id)}`];
+    return [`${kind} (${String(src.type)} source)`];
+  });
+  return parts.join(" and ");
+}
+
 function lastUserText(messages: Json[]) {
   const last = [...messages].reverse().find((m) => m.role === "user");
   if (!last) return "";
@@ -276,7 +318,33 @@ export function invalidMessagesRequest(body: Json | null): string | null {
   if (!Array.isArray(body.messages)) return "messages: Field required";
   const first = body.messages[0] as Json | undefined;
   if (first && first.role !== "user" && first.role !== "system") return "messages: the first message must use the \"user\" role";
-  return toolPairingError(body.messages as Json[]);
+  return toolPairingError(body.messages as Json[]) ?? mediaError(body.messages as Json[]);
+}
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+
+/** Image and document blocks need a source the API understands. */
+function mediaError(messages: Json[]): string | null {
+  for (const [i, m] of messages.entries()) {
+    for (const block of Array.isArray(m?.content) ? (m.content as Json[]) : []) {
+      if (block.type !== "image" && block.type !== "document") continue;
+      const src = isObj(block.source) ? block.source : null;
+      const where = `messages.${i}.content.${block.type}.source`;
+      if (!src) return `${where}: Field required`;
+      if (src.type === "base64") {
+        if (typeof src.data !== "string" || !src.data) return `${where}.data: Field required`;
+        if (block.type === "image" && !IMAGE_TYPES.includes(String(src.media_type))) {
+          return `${where}.media_type: Input should be ${IMAGE_TYPES.map((t) => `'${t}'`).join(", ")}`;
+        }
+        if (block.type === "document" && src.media_type !== "application/pdf") return `${where}.media_type: Input should be 'application/pdf'`;
+      } else if (src.type === "file") {
+        if (typeof src.file_id !== "string" || !src.file_id) return `${where}.file_id: Field required`;
+      } else if (!["url", "text", "content"].includes(String(src.type))) {
+        return `${where}.type: unknown source type ${String(src.type)}`;
+      }
+    }
+  }
+  return null;
 }
 
 /** Every tool_use must be answered by a tool_result with the same id in the very next message, as the real API requires. */
@@ -329,6 +397,7 @@ function thinkingFor(body: Json): Json[] {
 export function practiceResponder(): Responder {
   const cachedPrefixes = new Set<string>();
   const batches = new Map<string, { requests: Json[]; polls: number; created: string }>();
+  const files = new Map<string, Json>();
 
   function reply(body: Json): Json {
     const messages = body.messages as Json[];
@@ -376,7 +445,8 @@ export function practiceResponder(): Responder {
       return message([textBlock(text)], "end_turn", { ...usage, output_tokens: approxTokens(text) }, model);
     }
     const asked = lastUserText(messages).replace(/\s+/g, " ").trim();
-    const text = `(practice API) This is a canned reply, not Claude. You asked: "${asked.length > 120 ? asked.slice(0, 117) + "…" : asked}"`;
+    const media = mediaSummary(messages);
+    const text = `(practice API) This is a canned reply, not Claude.${media ? ` I received ${media}.` : ""} You asked: "${asked.length > 120 ? asked.slice(0, 117) + "…" : asked}"`;
     return message([...thinkingFor(body), textBlock(text)], "end_turn", { ...usage, output_tokens: approxTokens(text) }, model);
   }
 
@@ -400,9 +470,30 @@ export function practiceResponder(): Responder {
 
   return (req, { url }) => {
     const { method, path, body } = req;
+    if (method === "POST" && path === "/v1/files") {
+      if (!body?.upload || body.error) return apiError(400, "invalid_request_error", "file: Field required");
+      const id = `file_practice_${files.size + 1}`;
+      const meta = {
+        id,
+        type: "file",
+        filename: body.filename,
+        mime_type: body.mime_type,
+        size_bytes: body.size_bytes,
+        created_at: new Date().toISOString(),
+        downloadable: false,
+      };
+      files.set(id, meta);
+      return { json: meta };
+    }
+    const fileMatch = path.match(/^\/v1\/files\/([\w-]+)$/);
+    if (method === "GET" && fileMatch) {
+      return files.has(fileMatch[1]) ? { json: files.get(fileMatch[1]) } : apiError(404, "not_found_error", `File not found: ${fileMatch[1]}`);
+    }
     if (method === "POST" && path === "/v1/messages") {
       const rejected = rejectRequest(body);
       if (rejected) return rejected;
+      const missing = fileIds(body!).find((id) => !files.has(id));
+      if (missing) return apiError(404, "not_found_error", `File not found: ${missing}`);
       const msg = reply(body!);
       return body!.stream === true ? { sse: sseFor(msg) } : { json: msg };
     }
