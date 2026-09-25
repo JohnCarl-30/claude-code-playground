@@ -252,6 +252,12 @@ Your programs run without any `ANTHROPIC_*` variables or `NODE_OPTIONS`, with ti
 
 `src/lib/certification.ts` holds the CCDV-F blueprint from the official exam guide: 8 domains and 25 skills with their weights, each skill linked to the examples and challenges that practice it (`skillsFor()` goes the other way, for the "Practices for CCDV-F" chips). `src/lib/quizzes.ts` holds one knowledge check per domain. Every question has a source URL on Anthropic's or MCP's docs, and the answers were checked against those pages. The option order is shuffled the same way every time (`optionOrder()`), so the right answer isn't always first.
 
+A domain's knowledge check shows 8 questions from its bank (all of them if it has 8 or fewer); **New set of questions** draws another 8 (`questionSet()` in `QuizPanel.tsx`).
+
+**Mock exam** (`src/lib/mock-exam.ts`, `src/lib/exam-store.ts`, `MockExamPanel.tsx`, `?cert=exam`): `blueprintCounts()` splits 53 questions across the domains by weight (largest remainder, so they add up exactly: 8, 17, 2, 1, 9, 6, 4, 6), moving seats to the heaviest domains if a bank runs short. `drawExam(seed)` shuffles each bank with a seeded generator, takes that many, and mixes the domains. The attempt (questions, answers, flags, start and end time) lives in `localStorage`, so a reload keeps your place, and the timer ends the exam at 120 minutes even if the page was closed. `scoreExam()` scores by domain; the scaled score is an estimate, `100 + 900 × share correct`, because the real exam's scaling isn't published. Past results keep the last 20 exams; retries of missed questions don't count.
+
+**Keeping questions honest:** questions can carry an `evidence` quote (exact text from the source page). `npm run verify:quizzes` (`scripts/verify-quizzes.mjs`, needs network) loads every source page as Markdown and checks each quote is still there; run it with a JSON file to check new questions before adding them.
+
 Readiness is `Σ weight × share done ÷ 100`, where a domain's share counts its examples tried, challenges passed and its quiz (passed at 80%, `markQuizPassed()`). The sidebar and `CertificationPanel.tsx` show it; `?cert=overview` and `?cert=<domain>` link straight to a page.
 
 ---
@@ -352,6 +358,7 @@ Some preferences are kept in your browser's `localStorage`, for this browser onl
 | Examples you've run successfully (✓) | `claude-code-playground:tried:v1` | `src/lib/tried.ts` |
 | Challenges you've passed (🏆) | `claude-code-playground:challenges-passed:v1` | `src/lib/tried.ts` |
 | Knowledge checks you've passed | `claude-code-playground:quizzes-passed:v1` | `src/lib/tried.ts` |
+| The mock exam in progress, and your past results | `claude-code-playground:mock-exam:v1` | `src/lib/exam-store.ts` |
 | MCP servers you added | `claude-code-playground:mcp-servers:v1` | `src/lib/saved-mcp.ts` |
 
 The current conversation (its session id and turns) lives only in the page: reloading the page starts a new conversation. Claude Code itself keeps session transcripts in `~/.claude/projects/`, as it does in the terminal.
@@ -373,7 +380,8 @@ If storage is blocked (private windows, strict settings), everything still works
 | Change how a message is displayed | `src/components/Timeline.tsx` |
 | Add or change a practice challenge | `src/lib/challenges.ts`, `src/lib/challenge-checks.ts` (Claude API ones: `challenge-checks-api.ts`), `tests/fixtures/challenges/` |
 | Change the exam blueprint or what practices a skill | `src/lib/certification.ts` |
-| Add or fix a knowledge-check question | `src/lib/quizzes.ts` (with its source URL; `tests/certification.test.ts` checks the format) |
+| Add or fix a knowledge-check question | `src/lib/quizzes.ts` (with its source URL and an `evidence` quote; `tests/certification.test.ts` checks the format, `npm run verify:quizzes` checks the quote against the live docs) |
+| Change the mock exam's length, time or scoring | `MOCK_EXAM` and `scoreExam()` in `src/lib/mock-exam.ts` |
 | Change what the practice API answers | `practiceResponder()` in `src/lib/practice-api.ts` |
 | Change the question / plan cards, task list or context meter | `Timeline.tsx` (`QuestionCard`, `PlanCard`), `TaskListPanel.tsx`, `ContextMeter.tsx` |
 | Change the generated code in the Code tab | `src/components/CodePreview.tsx` |
@@ -405,6 +413,7 @@ npm run build
 | `processes.test.ts` | Run & test: only declared scripts run, the API server starts, answers and stops quickly, Claude API files run against the practice API (never a real key) |
 | `practice-api.test.ts` | the practice API driven by the real `@anthropic-ai/sdk`: messages, tool use, the API's 400s, which models accept which effort and thinking settings, structured output, cache usage, streaming (text, tool_use and thinking), token counting, batches, 404s; and every Claude API reference solution running through `run.mjs` |
 | `api-challenges.test.ts` | the Claude API checkers are fair: common mistakes (no `is_error`, a dropped assistant turn, no `additionalProperties: false`, a timestamp in the cached prefix, retries turned off, a hard-coded key, no stream, no gate, an expensive model for simple work, effort on Haiku, `budget_tokens` on Sonnet 5, counting a different request than you send, cache tokens at full price) fail with a useful reason, and other correct styles (tool runner, `messages.parse` + Zod, automatic caching, Opus 5 at max effort, your own updated prices) pass |
+| `mock-exam.test.ts` | the mock exam's split by domain weight (and when a bank is short), seeded draws with no repeats and mixed domains, scoring by domain and the scaled estimate |
 | `certification.test.ts` | the blueprint matches the guide's weights (domains add up to 100%, skills to their domain), links only to real examples and challenges, and every quiz question is well-formed ("Choose 2" when it has two answers), sourced from an official docs host and shuffled, and that answer length doesn't give the answer away (the right option isn't usually the longest, or the shortest) |
 | `examples.test.ts` | every sidebar example is well-formed |
 | `code-preview.test.ts` | the Code tab mirrors settings, shows the live-session pattern, wraps long prompts |
@@ -412,7 +421,7 @@ npm run build
 | `auth.test.ts`, `account.test.ts` | which credentials Claude Code gets in each mode, and the status for a subscription, a cloud provider, no login, a working, rejected, missing or unverifiable API key |
 | `harness.test.ts` | rebuilding the task list from tool calls, and checking card answers (questions, plan reviews) |
 | `live-session.test.ts` | the session manager with a fake Claude Code: context usage (and none once closed), queue vs steer, stop only while working, live model and mode changes, replay after reconnect, closing, idle cleanup, the three-session limit |
-| `components/*.test.tsx` | the UI in a simulated browser: the certification track (blueprint, readiness, focus next, domain pages) and knowledge checks (grading, explanations with sources, remembering a pass), the challenge panel (results, reasons, completion, hints), timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner against a fake live session (follow-ups, Steer / Queue / Stop, live model and mode changes, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
+| `components/*.test.tsx` | the UI in a simulated browser: the mock exam (answer, flag, jump, finish, results by domain, review, retry missed, time running out after a reload, keeping your place), the certification track (blueprint, readiness, focus next, domain pages) and knowledge checks (grading, explanations with sources, remembering a pass), the challenge panel (results, reasons, completion, hints), timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner against a fake live session (follow-ups, Steer / Queue / Stop, live model and mode changes, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
 
 The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something answers on port 4100 (for example your own API server).
 

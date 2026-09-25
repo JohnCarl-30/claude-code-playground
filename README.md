@@ -110,9 +110,10 @@ The **Certification** section of the sidebar follows the official [Claude Certif
 
 - **Exam blueprint:** the 8 domains with their weights, your readiness (weighted like the exam), and which domain to focus on next.
 - **Each domain:** its skills with their weights, the examples and challenges that practice each one, and a **knowledge check**: multiple-choice and "choose 2" questions in the exam's style. After you check your answers, each one explains why and links to the page of Anthropic's docs (or the MCP docs) it comes from. Pass with 80%.
+- **Mock exam:** a timed practice run shaped like the real one: 53 questions in 120 minutes from a bank of 130+, drawn from each domain by its weight, one question per screen with flag-for-review and a question grid. Results show an estimated score on the 100–1,000 scale, your percent correct by domain (like the real score report), and a review of every question with its explanation and source. **Retry the ones I missed** drills just those. Your place and the clock survive a reload.
 - Every example and challenge shows which exam skills it practices.
 
-The questions are written for this playground and checked against the official docs; they are not questions from the real exam. Weight tells you where to spend time: Applications and Integration (33.1%) and Model Selection and Optimization (16.8%) are half the exam, so the Claude API challenges matter more than the Claude Code ones (3.1%).
+The questions are written for this playground and checked against the official docs; they are not questions from the real exam. Newer questions carry the exact quote from the docs that backs their answer, and `npm run verify:quizzes` re-checks every source page and quote against the live docs, so questions that go out of date get caught. Answer length is balanced so the longest option isn't a giveaway (a test enforces it). Weight tells you where to spend time: Applications and Integration (33.1%) and Model Selection and Optimization (16.8%) are half the exam, so the Claude API challenges matter more than the Claude Code ones (3.1%).
 
 ## What you can try
 

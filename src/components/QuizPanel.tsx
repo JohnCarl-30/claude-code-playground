@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Domain } from "@/lib/certification";
+import { seededRandom, shuffled } from "@/lib/mock-exam";
 import { isCorrect, QUIZ_PASS, QUIZZES, type QuizQuestion } from "@/lib/quizzes";
 import { markQuizPassed } from "@/lib/tried";
 import { Markdownish } from "./Markdownish";
@@ -26,18 +27,22 @@ export function optionOrder(id: string, count: number) {
 
 const LETTERS = "ABCDEFGH";
 
-function Question({
+/** One question: pick an answer; once `checked`, see what was right and why. */
+export function QuestionCard({
   q,
   n,
   picked,
   onPick,
   checked,
+  tag,
 }: {
   q: QuizQuestion;
   n: number;
   picked: number[];
   onPick: (next: number[]) => void;
   checked: boolean;
+  /** Shown next to the number, e.g. the question's exam domain in a review. */
+  tag?: string;
 }) {
   const order = useMemo(() => optionOrder(q.id, q.options.length), [q]);
   const multi = q.answer.length > 1;
@@ -45,6 +50,7 @@ function Question({
   return (
     <fieldset className="space-y-2 rounded-xl border border-line p-4">
       <legend className="sr-only">Question {n}</legend>
+      {tag && <p className="text-xs font-medium uppercase tracking-wide text-muted">{tag}</p>}
       <div className="flex gap-2">
         <span className="font-medium tabular-nums text-muted">{n}.</span>
         <Markdownish blocks={[q.prompt]} className="min-w-0 flex-1" />
@@ -81,7 +87,9 @@ function Question({
       </div>
       {checked && (
         <div className={`ml-5 rounded-lg px-3 py-2 text-sm ${right ? "bg-ok-soft" : "bg-surface-2"}`}>
-          <p className={`mb-1 font-medium ${right ? "text-ok" : "text-danger"}`}>{right ? "Correct." : "Not quite."}</p>
+          <p className={`mb-1 font-medium ${right ? "text-ok" : "text-danger"}`}>
+            {right ? "Correct." : picked.length ? "Not quite." : "Not answered."}
+          </p>
           <Markdownish blocks={[q.explain]} className="text-ink/85" />
           <a href={q.source.url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-accent hover:underline">
             Source: {q.source.label} ↗
@@ -92,9 +100,21 @@ function Question({
   );
 }
 
+/** Questions per knowledge check. Bigger banks give a different set each time. */
+export const SET_SIZE = 8;
+
+/** Set number `n` of a domain's questions: all of them for a small bank, otherwise a different 8 each time (in bank order). */
+export function questionSet(bank: QuizQuestion[], n: number) {
+  if (bank.length <= SET_SIZE) return bank;
+  const chosen = new Set(shuffled(bank, seededRandom(n + 1)).slice(0, SET_SIZE));
+  return bank.filter((q) => chosen.has(q));
+}
+
 /** A domain's knowledge check: answer everything, then check. Passing is remembered in this browser. */
 export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefore: boolean }) {
-  const questions = QUIZZES[domain.id];
+  const bank = QUIZZES[domain.id];
+  const [set, setSet] = useState(0);
+  const questions = useMemo(() => questionSet(bank, set), [bank, set]);
   const [picked, setPicked] = useState<Record<string, number[]>>({});
   const [checked, setChecked] = useState(false);
   const answered = questions.filter((q) => (picked[q.id] ?? []).length === q.answer.length).length;
@@ -109,7 +129,9 @@ export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefo
   return (
     <section aria-label="Knowledge check" className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold">Knowledge check · {questions.length} questions</h2>
+        <h2 className="text-lg font-semibold">
+          Knowledge check · {questions.length} questions{bank.length > questions.length ? ` from ${bank.length}` : ""}
+        </h2>
         {passedBefore && !checked && <span className="rounded-full bg-ok-soft px-2 py-0.5 text-xs text-ok">✓ passed before</span>}
       </div>
       <p className="text-sm text-muted">
@@ -117,7 +139,7 @@ export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefo
         says “Choose 2”. Every answer links to the official docs it comes from. Pass with {Math.round(QUIZ_PASS * 100)}%.
       </p>
       {questions.map((q, i) => (
-        <Question
+        <QuestionCard
           key={q.id}
           q={q}
           n={i + 1}
@@ -138,10 +160,11 @@ export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefo
             onClick={() => {
               setPicked({});
               setChecked(false);
+              if (bank.length > SET_SIZE) setSet((n) => n + 1);
             }}
             className="h-9 rounded-lg border border-line px-4 text-sm font-medium hover:bg-surface-2"
           >
-            ↻ Try again
+            {bank.length > SET_SIZE ? "↻ New set of questions" : "↻ Try again"}
           </button>
         ) : (
           <button onClick={check} disabled={answered === 0} className="h-9 rounded-lg bg-accent px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">

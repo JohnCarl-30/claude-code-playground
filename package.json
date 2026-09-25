@@ -10,7 +10,8 @@
     "test:e2e": "next build && jest --runInBand",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify:quizzes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-quizzes.mjs"
   },
   "engines": {
     "node": ">=20.9"

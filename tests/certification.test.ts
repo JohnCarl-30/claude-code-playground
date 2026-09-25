@@ -1,6 +1,7 @@
 import { DOMAINS, domainPractice, domainProgress, readiness, skillsFor } from "@/lib/certification";
 import { CHALLENGES, findChallenge } from "@/lib/challenges";
 import { findExample } from "@/lib/examples";
+import { blueprintCounts } from "@/lib/mock-exam";
 import { isCorrect, QUIZZES } from "@/lib/quizzes";
 import { optionOrder } from "@/components/QuizPanel";
 
@@ -56,6 +57,11 @@ describe("quizzes", () => {
     for (const d of DOMAINS) expect(QUIZZES[d.id].length).toBeGreaterThanOrEqual(4);
   });
 
+  it("has enough questions for varied mock exams: at least twice what an exam draws from each domain", () => {
+    const counts = blueprintCounts(53, Object.fromEntries(DOMAINS.map((d) => [d.id, new Array(999)])) as never);
+    for (const d of DOMAINS) expect(QUIZZES[d.id].length).toBeGreaterThanOrEqual(2 * counts[d.id]);
+  });
+
   it.each(all.map(({ domain, q }) => [`${domain}/${q.id}`, q] as const))("%s is well-formed and sourced", (_id, q) => {
     expect(q.options.length).toBeGreaterThanOrEqual(3);
     expect(new Set(q.options).size).toBe(q.options.length);
@@ -77,7 +83,10 @@ describe("quizzes", () => {
     const singles = all.filter(({ q }) => q.answer.length === 1).map(({ q }) => ({ q, lens: q.options.map((o) => o.length) }));
     const longest = singles.filter(({ q, lens }) => lens[q.answer[0]] === Math.max(...lens)).length;
     const shortest = singles.filter(({ q, lens }) => lens[q.answer[0]] === Math.min(...lens)).length;
+    // Near chance (25%) both ways: never "pick the longest", and never "rule out the extremes" either.
+    expect(longest / singles.length).toBeGreaterThanOrEqual(0.15);
     expect(longest / singles.length).toBeLessThanOrEqual(0.35);
+    expect(shortest / singles.length).toBeGreaterThanOrEqual(0.15);
     expect(shortest / singles.length).toBeLessThanOrEqual(0.35);
     // "Choose 2": the right pair shouldn't just be the two longest options.
     const multis = all.filter(({ q }) => q.answer.length > 1);
