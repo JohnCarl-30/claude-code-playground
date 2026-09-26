@@ -37,7 +37,7 @@ function Intro({ history, onDomain }: { history: PastExam[]; onDomain: (id: stri
         </p>
         <p className="text-sm text-muted">
           Questions come from a bank of {bank} written for this playground and checked against the official docs; they aren&apos;t real exam items. Each
-          attempt draws a different set.
+          attempt draws a different set, exam-style questions first: scenarios you reason through in plain words, no code or parameter names.
         </p>
       </header>
 

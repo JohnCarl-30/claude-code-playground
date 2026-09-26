@@ -55,7 +55,7 @@ describe("CertificationPanel", () => {
     const onDomain = jest.fn();
     render(<CertificationPanel progress={none} onOpen={jest.fn()} onDomain={onDomain} />);
     expect(screen.getByLabelText("Readiness")).toHaveTextContent("0%");
-    const list = screen.getByRole("list");
+    const list = screen.getByRole("list", { name: "Domains" });
     for (const d of DOMAINS) expect(within(list).getByText(d.name)).toBeInTheDocument();
     expect(within(list).getAllByRole("listitem")).toHaveLength(DOMAINS.length);
     expect(screen.getByRole("link", { name: /official exam guide/ })).toHaveAttribute("href", expect.stringContaining("Exam+Guide.pdf"));

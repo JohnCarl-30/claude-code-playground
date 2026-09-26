@@ -36,6 +36,17 @@ describe("drawing an exam", () => {
     for (const item of a) expect(findQuestion(item.id)?.domain).toBe(item.domain);
   });
 
+  it("draws exam-style (judgment) questions first, using detail questions only to fill a domain", () => {
+    const counts = blueprintCounts();
+    const items = drawExam(11);
+    for (const d of DOMAINS) {
+      const judgmentPool = QUIZZES[d.id].filter((q) => q.style === "judgment").length;
+      const drawn = items.filter((i) => i.domain === d.id);
+      const judgment = drawn.filter((i) => findQuestion(i.id)!.question.style === "judgment").length;
+      expect(judgment).toBe(Math.min(counts[d.id], judgmentPool));
+    }
+  });
+
   it("mixes the domains instead of grouping them", () => {
     const domains = drawExam(3).map((i) => i.domain);
     const changes = domains.filter((d, i) => i > 0 && d !== domains[i - 1]).length;

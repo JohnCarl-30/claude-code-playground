@@ -51,7 +51,7 @@ describe("exam blueprint", () => {
 
 describe("quizzes", () => {
   const all = Object.entries(QUIZZES).flatMap(([domain, qs]) => qs.map((q) => ({ domain, q })));
-  const HOSTS = ["platform.claude.com", "code.claude.com", "www.anthropic.com", "modelcontextprotocol.io"];
+  const HOSTS = ["platform.claude.com", "code.claude.com", "www.anthropic.com", "modelcontextprotocol.io", "docs.github.com", "en.wikipedia.org"];
 
   it("has a quiz of at least four questions for every domain", () => {
     for (const d of DOMAINS) expect(QUIZZES[d.id].length).toBeGreaterThanOrEqual(4);
@@ -97,6 +97,17 @@ describe("quizzes", () => {
       return q.answer.every((i) => byLength.includes(i));
     }).length;
     expect(topN / multis.length).toBeLessThanOrEqual(0.4);
+  });
+
+  it("tags every question's style, and keeps exam-style ones free of code and model names", () => {
+    for (const { q } of all) {
+      expect(["judgment", "recall"]).toContain(q.style);
+      if (q.style !== "judgment") continue;
+      // Like the real exam: plain words, model tiers rather than model names.
+      const text = [q.prompt, ...q.options].join(" ");
+      expect(text).not.toMatch(/`/);
+      expect(text).not.toMatch(/\b(Haiku|Sonnet|Opus|Fable|Mythos)\b/);
+    }
   });
 
   it("uses unique question ids", () => {

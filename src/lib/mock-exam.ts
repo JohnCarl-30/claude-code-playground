@@ -61,11 +61,19 @@ export function blueprintCounts(total = MOCK_EXAM.items, bank: Record<DomainId, 
 
 export type ExamItem = { domain: DomainId; id: string };
 
-/** The questions for one attempt: the right number per domain, in a mixed order. Same seed, same exam. */
+/**
+ * The questions for one attempt: the right number per domain, in a mixed order. Same seed, same exam.
+ * Judgment questions come first, like the real exam (scenarios, no code); recall questions only fill
+ * a domain that doesn't have enough judgment ones yet.
+ */
 export function drawExam(seed: number, total = MOCK_EXAM.items): ExamItem[] {
   const random = seededRandom(seed);
   const counts = blueprintCounts(total);
-  const picked = DOMAINS.flatMap((d) => shuffled(QUIZZES[d.id], random).slice(0, counts[d.id]).map((q) => ({ domain: d.id, id: q.id })));
+  const picked = DOMAINS.flatMap((d) => {
+    const bank = shuffled(QUIZZES[d.id], random);
+    const ordered = [...bank.filter((q) => q.style === "judgment"), ...bank.filter((q) => q.style !== "judgment")];
+    return ordered.slice(0, counts[d.id]).map((q) => ({ domain: d.id, id: q.id }));
+  });
   return shuffled(picked, random);
 }
 

@@ -129,6 +129,32 @@ export function CertificationPanel({
         <p className="mt-2 text-xs text-muted">Kept in this browser only. It measures practice here, not a prediction of your score.</p>
       </section>
 
+      <details className="rounded-2xl border border-line bg-surface p-5 text-sm">
+        <summary className="cursor-pointer font-medium">What the exam is like (a candidate&apos;s report)</summary>
+        <div className="mt-3 space-y-2 text-ink/85">
+          <p className="text-xs text-muted">From one candidate who passed in July 2026 (896/1,000). Not official; your exam may differ.</p>
+          <ul className="list-disc space-y-1.5 pl-5 marker:text-muted">
+            <li>
+              <strong>No code.</strong> No syntax, parameter names or SDK signatures. Models are described by tier (&ldquo;mid-tier&rdquo;, &ldquo;highest-reasoning
+              tier&rdquo;), not by name.
+            </li>
+            <li>
+              <strong>Judgment, not implementation.</strong> A scenario and a constraint: how would you guide the team? Often two options are defensible and the
+              question is <em>which comes first</em>: requirements before model selection, diagnose before treating, validate before migrating.
+            </li>
+            <li>
+              <strong>Tested a lot:</strong> classifying requirements (functional, non-functional, business, infrastructure), naming the life-cycle phase from a
+              scenario, Messages API vs. batches vs. streaming, context management, when to build an MCP server vs. a tool vs. a skill, agent deployment
+              trade-offs and when to reach for a hook.
+            </li>
+            <li>
+              <strong>Learn mechanics well enough to reason about tradeoffs, then stop.</strong> Questions tagged <em>detail</em> test specifics (names,
+              numbers, syntax) that the exam reportedly doesn&apos;t ask; the mock exam uses exam-style questions first.
+            </li>
+          </ul>
+        </div>
+      </details>
+
       {onExam && (
         <section aria-label="Mock exam" className="flex flex-wrap items-center gap-4 rounded-2xl border border-line bg-surface p-5">
           <div className="min-w-0 flex-1">
@@ -146,7 +172,7 @@ export function CertificationPanel({
         </section>
       )}
 
-      <ol className="space-y-2">
+      <ol aria-label="Domains" className="space-y-2">
         {DOMAINS.map((d) => {
           const p = domainProgress(d, progress);
           return (

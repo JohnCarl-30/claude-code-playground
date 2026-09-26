@@ -10,7 +10,11 @@
 
 import { readFileSync } from "node:fs";
 
-const HOSTS = new Set(["platform.claude.com", "code.claude.com", "www.anthropic.com", "modelcontextprotocol.io"]);
+// Anthropic's and MCP's docs for anything about Claude; GitHub's docs and Wikipedia only for
+// general software-engineering concepts (requirement types, life-cycle phases, CI, code review).
+const HOSTS = new Set(["platform.claude.com", "code.claude.com", "www.anthropic.com", "modelcontextprotocol.io", "docs.github.com", "en.wikipedia.org"]);
+// These serve a Markdown version at <url>.md; the rest are read as HTML.
+const MARKDOWN_HOSTS = new Set(["platform.claude.com", "code.claude.com", "modelcontextprotocol.io"]);
 
 /** Collapse whitespace and Markdown emphasis so a quote matches however the page wraps or styles it. */
 const normalize = (text) =>
@@ -24,18 +28,28 @@ const normalize = (text) =>
     .trim()
     .toLowerCase();
 
+/** The readable text of an HTML page: no scripts, styles or tags, entities decoded. */
+const htmlText = (html) =>
+  html
+    .replace(/<(script|style|noscript)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&nbsp;|&#160;/g, " ")
+    .replace(/&amp;/g, "&");
+
 const pages = new Map();
 async function page(url) {
   if (!pages.has(url)) {
     pages.set(
       url,
       (async () => {
-        // The Markdown version of each docs page; anthropic.com engineering posts are HTML.
-        const target = url.includes("anthropic.com/engineering") ? url : `${url.replace(/\/$/, "")}.md`;
+        const markdown = MARKDOWN_HOSTS.has(new URL(url).hostname);
+        const target = markdown ? `${url.replace(/\/$/, "")}.md` : url;
         const res = await fetch(target, { redirect: "follow", signal: AbortSignal.timeout(20_000) });
         if (!res.ok) throw new Error(`${res.status} for ${target}`);
         let text = await res.text();
-        if (target === url) text = text.replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+        if (!markdown) text = htmlText(text);
         return normalize(text);
       })(),
     );

@@ -51,7 +51,19 @@ export function QuestionCard({
   return (
     <fieldset className="space-y-2 rounded-xl border border-line p-4">
       <legend className="sr-only">Question {n}</legend>
-      {tag && <p className="text-xs font-medium uppercase tracking-wide text-muted">{tag}</p>}
+      {(tag || q.style === "recall") && (
+        <p className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted">
+          {tag}
+          {q.style === "recall" && (
+            <span
+              title="Needs a specific name, number or syntax. Good for depth; candidates report the real exam asks scenario judgment instead."
+              className="rounded-full bg-surface-2 px-2 py-0.5 normal-case tracking-normal"
+            >
+              detail
+            </span>
+          )}
+        </p>
+      )}
       <div className="flex gap-2">
         <span className="font-medium tabular-nums text-muted">{n}.</span>
         <Markdownish blocks={[q.prompt]} className="min-w-0 flex-1" />
@@ -104,10 +116,16 @@ export function QuestionCard({
 /** Questions per knowledge check. Bigger banks give a different set each time. */
 export const SET_SIZE = 8;
 
-/** Set number `n` of a domain's questions: all of them for a small bank, otherwise a different 8 each time (in bank order). */
-export function questionSet(bank: QuizQuestion[], n: number) {
+/**
+ * Set number `n` of a domain's questions: all of them for a small bank, otherwise a different 8 each
+ * time (in bank order). With `examStyle`, judgment questions come first, like the real exam; detail
+ * (recall) questions only fill in when there aren't enough.
+ */
+export function questionSet(bank: QuizQuestion[], n: number, examStyle = true) {
   if (bank.length <= SET_SIZE) return bank;
-  const chosen = new Set(shuffled(bank, seededRandom(n + 1)).slice(0, SET_SIZE));
+  const mixed = shuffled(bank, seededRandom(n + 1));
+  const ordered = examStyle ? [...mixed.filter((q) => q.style === "judgment"), ...mixed.filter((q) => q.style !== "judgment")] : mixed;
+  const chosen = new Set(ordered.slice(0, SET_SIZE));
   return bank.filter((q) => chosen.has(q));
 }
 
@@ -115,7 +133,8 @@ export function questionSet(bank: QuizQuestion[], n: number) {
 export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefore: boolean }) {
   const bank = QUIZZES[domain.id];
   const [set, setSet] = useState(0);
-  const questions = useMemo(() => questionSet(bank, set), [bank, set]);
+  const [examStyle, setExamStyle] = useState(true);
+  const questions = useMemo(() => questionSet(bank, set, examStyle), [bank, set, examStyle]);
   const [picked, setPicked] = useState<Record<string, number[]>>({});
   const [checked, setChecked] = useState(false);
   const [deckNote, setDeckNote] = useState("");
@@ -147,6 +166,21 @@ export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefo
         Practice questions written for this playground (not from the real exam), in the exam&apos;s style: multiple choice, and multiple response where it
         says “Choose 2”. Every answer links to the official docs it comes from. Pass with {Math.round(QUIZ_PASS * 100)}%.
       </p>
+      {bank.length > SET_SIZE && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={!examStyle}
+            disabled={checked}
+            onChange={(e) => {
+              setExamStyle(!e.target.checked);
+              setPicked({});
+            }}
+            className="accent-accent"
+          />
+          Include <em>detail</em> questions (names, numbers, syntax), not just exam-style scenarios
+        </label>
+      )}
       {questions.map((q, i) => (
         <QuestionCard
           key={q.id}
