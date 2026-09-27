@@ -47,7 +47,7 @@ describe("MockExamPanel", () => {
 
     expect(screen.getByText(/estimated/)).toBeInTheDocument();
     expect(screen.getByText(`1/${total} correct`, { exact: false })).toBeInTheDocument();
-    expect(screen.getByLabelText("Percent correct by domain")).toBeInTheDocument();
+    expect(screen.getByLabelText("Percent correct by domain and objective")).toBeInTheDocument();
     // Review starts on what you missed, with explanations and sources.
     expect(screen.getByRole("button", { name: `Missed (${total - 1})` })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getAllByRole("link", { name: /Source:/ }).length).toBe(total - 1);
@@ -56,7 +56,67 @@ describe("MockExamPanel", () => {
     expect(screen.getByText("Correct.")).toBeInTheDocument();
 
     expect(saved().history).toHaveLength(1);
-    expect(saved().history[0]).toMatchObject({ correct: 1, total, passed: false });
+    expect(saved().history[0]).toMatchObject({ kind: "exam", correct: 1, total, passed: false });
+  });
+
+  it("builds a custom test on the objectives you pick, scored per objective", async () => {
+    render(<MockExamPanel onDomain={jest.fn()} />);
+    const builder = screen.getByRole("region", { name: "Custom test" });
+    await userEvent.click(within(builder).getByRole("radio", { name: "10 questions" }));
+    await userEvent.click(within(builder).getByRole("radio", { name: "Only the ones I pick" }));
+    expect(within(builder).getByText("Pick at least one objective.")).toBeInTheDocument();
+    expect(within(builder).getByRole("button", { name: "Start the custom test" })).toBeDisabled();
+    await userEvent.click(within(builder).getByRole("checkbox", { name: /^Understanding Requirements/ }));
+    await userEvent.click(within(builder).getByRole("checkbox", { name: /^Agent Construction with Claude/ }));
+    await userEvent.click(within(builder).getByRole("checkbox", { name: /Timed/ }));
+    expect(within(builder).getByText("10 questions across 2 objectives, untimed.")).toBeInTheDocument();
+    await userEvent.click(within(builder).getByRole("button", { name: "Start the custom test" }));
+
+    expect(screen.getByRole("heading", { name: "Question 1 of 10" })).toBeInTheDocument();
+    expect(screen.getByText("Custom test")).toBeInTheDocument();
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+    const skills = new Set(saved().current.items.map((i: { id: string }) => findQuestion(i.id)!.question.skill));
+    expect(skills).toEqual(new Set(["requirements", "agent-construction"]));
+
+    await answerCurrent(true);
+    await userEvent.click(screen.getByRole("button", { name: "Finish test" }));
+    await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Finish" }));
+    expect(screen.getByText("Custom test results")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "10% correct" })).toBeInTheDocument();
+    const report = screen.getByLabelText("Percent correct by domain and objective");
+    expect(within(report).getByRole("list", { name: "Applications and Integration objectives" })).toHaveTextContent(/Understanding Requirements/);
+    expect(within(report).getAllByText("weak").length).toBeGreaterThan(0);
+    expect(saved().history[0]).toMatchObject({ kind: "custom", correct: 1, total: 10 });
+
+    // Another like it: same settings, new questions.
+    const first = saved().current.items.map((i: { id: string }) => i.id);
+    await userEvent.click(screen.getByRole("button", { name: "New test, same settings" }));
+    expect(screen.getByRole("heading", { name: "Question 1 of 10" })).toBeInTheDocument();
+    expect(saved().current.items.map((i: { id: string }) => i.id)).not.toEqual(first);
+  });
+
+  it("times a custom test at the exam's pace and covers every objective by default", async () => {
+    render(<MockExamPanel onDomain={jest.fn()} />);
+    const builder = screen.getByRole("region", { name: "Custom test" });
+    expect(within(builder).getByText("37 questions across 25 objectives, 85 minutes.")).toBeInTheDocument();
+    await userEvent.click(within(builder).getByRole("button", { name: "Start the custom test" }));
+    expect(await screen.findByRole("timer")).toHaveTextContent(/1:2[45]:\d\d/);
+  });
+
+  it("offers your weak objectives from recent results", async () => {
+    const past = { kind: "custom", finishedAt: 1, minutes: 5, scaled: 400, passed: false, correct: 2, total: 5 };
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ current: null, history: [{ ...past, byObjective: { requirements: { correct: 0, total: 3 }, hooks: { correct: 2, total: 2 } } }] }),
+    );
+    render(<MockExamPanel onDomain={jest.fn()} />);
+    const builder = screen.getByRole("region", { name: "Custom test" });
+    await userEvent.click(within(builder).getByRole("button", { name: "My weak objectives (1)" }));
+    expect(within(builder).getByRole("checkbox", { name: /^Understanding Requirements/ })).toBeChecked();
+    expect(within(builder).getByRole("checkbox", { name: /^Claude Hooks/ })).not.toBeChecked();
+    expect(within(builder).getByText(/across 1 objective,/)).toBeInTheDocument();
+    // Past results say which kind of test each was.
+    expect(screen.getByLabelText("Past results")).toHaveTextContent("Custom test");
   });
 
   it("retries just the missed questions, untimed and out of the history", async () => {

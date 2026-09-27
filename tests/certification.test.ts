@@ -110,6 +110,20 @@ describe("quizzes", () => {
     }
   });
 
+  it("tags every question with a test objective from its own domain", () => {
+    for (const d of DOMAINS) {
+      const ids = d.skills.map((s) => s.id);
+      for (const q of QUIZZES[d.id]) expect({ id: q.id, skill: ids.includes(q.skill) ? "ok" : q.skill }).toEqual({ id: q.id, skill: "ok" });
+    }
+  });
+
+  it("has at least four exam-style questions for every test objective, so a custom test can cover any of them", () => {
+    const thin = DOMAINS.flatMap((d) => d.skills)
+      .map((s) => ({ objective: s.id, judgment: all.filter(({ q }) => q.skill === s.id && q.style === "judgment").length }))
+      .filter((o) => o.judgment < 4);
+    expect(thin).toEqual([]);
+  });
+
   it("uses unique question ids", () => {
     const ids = all.map(({ q }) => q.id);
     expect(new Set(ids).size).toBe(ids.length);

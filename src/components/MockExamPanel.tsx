@@ -1,9 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DOMAINS, EXAM } from "@/lib/certification";
+import { DOMAINS, EXAM, type SkillId } from "@/lib/certification";
 import { examActions, useExamState, type Attempt, type PastExam } from "@/lib/exam-store";
-import { blueprintCounts, findQuestion, MOCK_EXAM } from "@/lib/mock-exam";
+import {
+  blueprintCounts,
+  findObjective,
+  findQuestion,
+  MOCK_EXAM,
+  OBJECTIVES,
+  objectiveRoom,
+  PASS_SHARE,
+  testMinutes,
+  weakObjectives,
+  type DomainScore,
+} from "@/lib/mock-exam";
 import { isCorrect, QUIZZES } from "@/lib/quizzes";
 import { QuestionCard } from "./QuizPanel";
 
@@ -18,8 +29,145 @@ function clock(ms: number) {
 }
 
 const newSeed = () => Math.floor(Math.random() * 2 ** 31);
-/** Share correct that reaches the pass mark on our estimate (100 + 900 × share ≥ 720). */
-const PASS_SHARE = (MOCK_EXAM.pass - 100) / 900;
+const weak = (s: DomainScore) => s.correct / s.total < PASS_SHARE;
+
+/** Custom test lengths: a quick check, about half an exam, a longer review, and a full exam's worth. */
+export const LENGTHS = [10, 25, 37, 53];
+
+const chip = (on: boolean) =>
+  `inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-sm has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent ${
+    on ? "border-accent bg-accent-soft text-accent" : "border-line hover:bg-surface-2"
+  }`;
+
+/** Build a test: how long, which objectives, timed or not, exam-style only or with detail questions. */
+function CustomTest({ history }: { history: PastExam[] }) {
+  const [items, setItems] = useState(37);
+  const [scope, setScope] = useState<"all" | "pick">("all");
+  const [picked, setPicked] = useState<SkillId[]>([]);
+  const [timed, setTimed] = useState(true);
+  const [detail, setDetail] = useState(false);
+
+  // Weak objectives: below the pass share across your last five tests.
+  const weakOnes = weakObjectives(history.slice(0, 5).flatMap((h) => (h.byObjective ? [h.byObjective] : [])));
+  const room = objectiveRoom(detail);
+  const objectives = scope === "all" ? OBJECTIVES.map((o) => o.id) : picked;
+  const available = objectives.filter((id) => room[id] > 0);
+  const count = Math.min(items, available.reduce((sum, id) => sum + room[id], 0));
+  const covered = Math.min(count, available.length);
+  const minutes = testMinutes(count);
+  const toggle = (id: SkillId) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
+  return (
+    <section aria-labelledby="custom-test" className="space-y-4 rounded-2xl border border-line bg-surface p-5">
+      <div className="space-y-1">
+        <h2 id="custom-test" className="text-lg font-semibold">
+          Custom test
+        </h2>
+        <p className="text-sm text-muted">
+          Build a test whenever you like, from the same checked questions. With all {OBJECTIVES.length} objectives, every one gets at least one question
+          once the test is long enough, and the rest follow the exam&apos;s weights. You&apos;re scored per objective, the way the real score report breaks
+          results down, so a weak area shows up by name.
+        </p>
+      </div>
+
+      <fieldset className="space-y-2">
+        <legend className="mb-2 text-sm font-medium">Length</legend>
+        <div className="flex flex-wrap gap-2">
+          {LENGTHS.map((n) => (
+            <label key={n} className={chip(items === n)}>
+              <input type="radio" name="test-length" checked={items === n} onChange={() => setItems(n)} className="sr-only" />
+              {n} questions
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="mb-2 text-sm font-medium">Objectives</legend>
+        <div className="flex flex-wrap gap-2">
+          <label className={chip(scope === "all")}>
+            <input type="radio" name="test-scope" checked={scope === "all"} onChange={() => setScope("all")} className="sr-only" />
+            All {OBJECTIVES.length}
+          </label>
+          <label className={chip(scope === "pick")}>
+            <input type="radio" name="test-scope" checked={scope === "pick"} onChange={() => setScope("pick")} className="sr-only" />
+            Only the ones I pick
+          </label>
+          {weakOnes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setScope("pick");
+                setPicked(weakOnes);
+              }}
+              className="h-8 rounded-full border border-danger/40 px-3 text-sm text-danger hover:bg-danger-soft"
+            >
+              My weak objectives ({weakOnes.length})
+            </button>
+          )}
+        </div>
+        {scope === "pick" && (
+          <div className="space-y-3 pt-2">
+            {DOMAINS.map((d) => (
+              <fieldset key={d.id}>
+                <legend className="mb-1.5 text-xs text-muted">
+                  {d.number} · {d.name}
+                </legend>
+                <div className="flex flex-wrap gap-1.5">
+                  {d.skills.map((sk) => (
+                    <label key={sk.id} className={chip(picked.includes(sk.id))}>
+                      <input
+                        type="checkbox"
+                        checked={picked.includes(sk.id)}
+                        disabled={room[sk.id] === 0}
+                        onChange={() => toggle(sk.id)}
+                        className="sr-only"
+                      />
+                      {sk.name}
+                      <span title={`${room[sk.id]} questions to draw from`} className="text-xs tabular-nums text-muted">
+                        {room[sk.id]}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+          </div>
+        )}
+      </fieldset>
+
+      <div className="space-y-1.5 text-sm">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={timed} onChange={(e) => setTimed(e.target.checked)} className="accent-accent" />
+          <span>Timed at the real exam&apos;s pace ({minutes} minutes)</span>
+        </label>
+        <label className="flex items-start gap-2 [&>input]:mt-1">
+          <input type="checkbox" checked={detail} onChange={(e) => setDetail(e.target.checked)} className="accent-accent" />
+          <span>
+            Include <em>detail</em> questions (names, numbers, syntax), not just exam-style scenarios
+          </span>
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => examActions.startCustom(newSeed(), { items, objectives, detail, timed })}
+          disabled={count === 0}
+          className="h-10 rounded-lg bg-accent px-4 font-medium text-white hover:opacity-90 disabled:opacity-50"
+        >
+          Start the custom test
+        </button>
+        <p className="text-sm text-muted" aria-live="polite">
+          {count === 0
+            ? "Pick at least one objective."
+            : `${count} questions across ${covered} ${covered === 1 ? "objective" : "objectives"}${timed ? `, ${minutes} minutes` : ", untimed"}${
+                count < items ? ` (all there are for ${scope === "all" ? "these settings" : "the ones you picked"})` : ""
+              }.`}
+        </p>
+      </div>
+    </section>
+  );
+}
 
 function Intro({ history, onDomain }: { history: PastExam[]; onDomain: (id: string) => void }) {
   const counts = blueprintCounts();
@@ -29,11 +177,11 @@ function Intro({ history, onDomain }: { history: PastExam[]; onDomain: (id: stri
     <div className="space-y-6">
       <header className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wide text-accent">Certification track · {EXAM.code}</p>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Mock exam</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Practice tests</h1>
         <p className="max-w-3xl text-muted">
-          A practice run shaped like the real exam: {total} questions in {MOCK_EXAM.minutes} minutes, drawn from each domain in proportion to its weight.
-          One question at a time; flag any to come back to. At the end you get a score, your percent correct by domain (like the real score report), and
-          every question explained with a link to its source.
+          Take the full mock exam, shaped like the real one, or build a custom test on the objectives you choose. Either way you answer one question at a
+          time and can flag any to come back to. At the end you see your percent correct by domain and by objective, like the real score report, and every
+          question explained with a link to its source.
         </p>
         <p className="text-sm text-muted">
           Questions come from a bank of {bank} written for this playground and checked against the official docs; they aren&apos;t real exam items. Each
@@ -41,42 +189,61 @@ function Intro({ history, onDomain }: { history: PastExam[]; onDomain: (id: stri
         </p>
       </header>
 
-      <section aria-label="Questions per domain" className="rounded-2xl border border-line bg-surface p-5">
-        <p className="mb-3 font-medium">Questions per domain</p>
-        <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-          {DOMAINS.map((d) => (
-            <li key={d.id} className="flex items-baseline gap-2">
-              <span className="w-4 font-mono text-xs text-muted">{d.number}</span>
-              <button onClick={() => onDomain(d.id)} className="min-w-0 flex-1 text-left hover:text-accent hover:underline">
-                {d.name}
-              </button>
-              <span className="tabular-nums text-muted">{counts[d.id]}</span>
-            </li>
-          ))}
-        </ul>
+      <section aria-labelledby="mock-exam" className="space-y-4 rounded-2xl border border-line bg-surface p-5">
+        <div className="space-y-1">
+          <h2 id="mock-exam" className="text-lg font-semibold">
+            Mock exam
+          </h2>
+          <p className="text-sm text-muted">
+            {total} questions in {MOCK_EXAM.minutes} minutes, drawn from each domain in proportion to its weight and spread across its objectives. You
+            get an estimated score on the exam&apos;s 100–1,000 scale.
+          </p>
+        </div>
+        <div aria-label="Questions per domain" role="group">
+          <p className="mb-2 text-sm font-medium">Questions per domain</p>
+          <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+            {DOMAINS.map((d) => (
+              <li key={d.id} className="flex items-baseline gap-2">
+                <span className="w-4 font-mono text-xs text-muted">{d.number}</span>
+                <button onClick={() => onDomain(d.id)} className="min-w-0 flex-1 text-left hover:text-accent hover:underline">
+                  {d.name}
+                </button>
+                <span className="tabular-nums text-muted">{counts[d.id]}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <button onClick={() => examActions.start(newSeed())} className="h-10 rounded-lg bg-accent px-4 font-medium text-white hover:opacity-90">
+          Start the mock exam ({MOCK_EXAM.minutes} minutes)
+        </button>
       </section>
 
-      <button
-        onClick={() => examActions.start(newSeed())}
-        className="h-11 rounded-lg bg-accent px-5 font-medium text-white hover:opacity-90"
-      >
-        Start the mock exam ({MOCK_EXAM.minutes} minutes)
-      </button>
+      <CustomTest history={history} />
 
       {history.length > 0 && (
         <section aria-label="Past results" className="space-y-2">
           <h2 className="font-medium">Past results</h2>
           <ul className="divide-y divide-line rounded-xl border border-line bg-surface text-sm">
-            {history.map((h) => (
-              <li key={h.finishedAt} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-2.5">
-                <span className="text-muted">{new Date(h.finishedAt).toLocaleString()}</span>
-                <span className="font-medium tabular-nums">{h.scaled}</span>
-                <span className={h.passed ? "text-ok" : "text-danger"}>{h.passed ? "pass" : "not yet"}</span>
-                <span className="ml-auto tabular-nums text-muted">
-                  {h.correct}/{h.total} · {h.minutes} min
-                </span>
-              </li>
-            ))}
+            {history.map((h) => {
+              const custom = h.kind === "custom";
+              return (
+                <li key={h.finishedAt} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-2.5">
+                  <span className="text-muted">{new Date(h.finishedAt).toLocaleString()}</span>
+                  <span className="text-muted">{custom ? "Custom test" : "Mock exam"}</span>
+                  {custom ? (
+                    <span className="font-medium tabular-nums">{pct(h.correct, h.total)}%</span>
+                  ) : (
+                    <>
+                      <span className="font-medium tabular-nums">{h.scaled}</span>
+                      <span className={h.passed ? "text-ok" : "text-danger"}>{h.passed ? "pass" : "not yet"}</span>
+                    </>
+                  )}
+                  <span className="ml-auto tabular-nums text-muted">
+                    {h.correct}/{h.total} · {h.minutes} min
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
@@ -84,11 +251,13 @@ function Intro({ history, onDomain }: { history: PastExam[]; onDomain: (id: stri
   );
 }
 
+const KIND_LABEL: Record<Attempt["kind"], string> = { exam: "Mock exam", custom: "Custom test", retry: "Retry what you missed" };
+
 function Taking({ attempt }: { attempt: Attempt }) {
   const [index, setIndex] = useState(0);
   const [now, setNow] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const timed = attempt.kind === "exam" && !!attempt.endsAt;
+  const timed = !!attempt.endsAt;
 
   // Tick every second; when time is up, the exam ends itself (also after a reload).
   useEffect(() => {
@@ -118,7 +287,7 @@ function Taking({ attempt }: { attempt: Attempt }) {
     <div className="space-y-5">
       <header className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-accent">{attempt.kind === "exam" ? "Mock exam" : "Retry what you missed"}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-accent">{KIND_LABEL[attempt.kind]}</p>
           <h1 className="text-xl font-semibold tracking-tight">
             Question {index + 1} of {items.length}
           </h1>
@@ -133,7 +302,7 @@ function Taking({ attempt }: { attempt: Attempt }) {
           </p>
         )}
         <button onClick={() => setConfirming(true)} className="h-9 rounded-lg border border-line px-3 text-sm font-medium hover:bg-surface-2">
-          {attempt.kind === "exam" ? "Finish exam" : "Check answers"}
+          {attempt.kind === "exam" ? "Finish exam" : attempt.kind === "custom" ? "Finish test" : "Check answers"}
         </button>
       </header>
 
@@ -217,6 +386,60 @@ function Taking({ attempt }: { attempt: Attempt }) {
   );
 }
 
+/** Percent correct per domain, and per objective within it, like the real score report. */
+function ScoreReport({ attempt, onDomain }: { attempt: Attempt; onDomain: (id: string) => void }) {
+  const result = attempt.result!;
+  const byObjective = result.byObjective ?? {};
+  return (
+    <section aria-label="Percent correct by domain and objective" className="rounded-2xl border border-line bg-surface p-5">
+      <p className="mb-3 font-medium">Percent correct by domain and objective</p>
+      <ul className="space-y-4">
+        {DOMAINS.filter((d) => result.byDomain[d.id]).map((d) => {
+          const s = result.byDomain[d.id]!;
+          const p = pct(s.correct, s.total);
+          const objectives = d.skills.filter((sk) => byObjective[sk.id]);
+          return (
+            <li key={d.id} className="text-sm">
+              <div className="flex items-baseline gap-2">
+                <span className="w-4 font-mono text-xs text-muted">{d.number}</span>
+                <button onClick={() => onDomain(d.id)} className="min-w-0 flex-1 text-left font-medium hover:text-accent hover:underline">
+                  {d.name}
+                </button>
+                <span className="tabular-nums text-muted">
+                  {s.correct}/{s.total} · {p}%
+                </span>
+              </div>
+              <div className="ml-6 mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
+                <div className={`h-full rounded-full ${weak(s) ? "bg-danger" : "bg-ok"}`} style={{ width: `${p}%` }} />
+              </div>
+              {objectives.length > 0 && (
+                <ul aria-label={`${d.name} objectives`} className="ml-6 mt-2 space-y-1">
+                  {objectives.map((sk) => {
+                    const o = byObjective[sk.id]!;
+                    return (
+                      <li key={sk.id} className="flex items-baseline gap-2 text-xs">
+                        <span className="min-w-0 flex-1 text-muted">{sk.name}</span>
+                        {weak(o) && <span className="rounded-full bg-danger-soft px-1.5 text-danger">weak</span>}
+                        <span className="tabular-nums text-muted">
+                          {o.correct}/{o.total}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-3 text-xs text-muted">
+        Marked <span className="text-danger">weak</span> below about {Math.round(PASS_SHARE * 100)}% correct, the pass mark on our estimate. Like the real
+        score report, these help you decide what to study; the pass mark applies to the total only.
+      </p>
+    </section>
+  );
+}
+
 function Results({ attempt, onDomain, onMistakes }: { attempt: Attempt; onDomain: (id: string) => void; onMistakes?: () => void }) {
   const [filter, setFilter] = useState<"all" | "missed" | "flagged">("missed");
   const result = attempt.result!;
@@ -225,12 +448,14 @@ function Results({ attempt, onDomain, onMistakes }: { attempt: Attempt; onDomain
     .map((item, i) => ({ item, n: i + 1 }))
     .filter(({ item }) => (filter === "all" ? true : filter === "missed" ? missed.includes(item) : attempt.flagged.includes(item.id)));
   const exam = attempt.kind === "exam";
+  const custom = attempt.kind === "custom";
   const minutes = Math.max(1, Math.round(((attempt.finishedAt ?? attempt.startedAt) - attempt.startedAt) / 60_000));
+  const share = pct(result.correct, result.total);
 
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <p className="text-xs font-medium uppercase tracking-wide text-accent">{exam ? "Mock exam results" : "Retry results"}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-accent">{exam ? "Mock exam results" : custom ? "Custom test results" : "Retry results"}</p>
         {exam ? (
           <>
             <h1 className="text-3xl font-semibold tracking-tight">
@@ -241,43 +466,30 @@ function Results({ attempt, onDomain, onMistakes }: { attempt: Attempt; onDomain
               {result.passed ? `Above the ${MOCK_EXAM.pass} passing mark.` : `Below the ${MOCK_EXAM.pass} passing mark. Keep practicing the domains below.`}
             </p>
           </>
+        ) : custom ? (
+          <>
+            <h1 className="text-3xl font-semibold tracking-tight">
+              <span className="tabular-nums">{share}%</span>
+              <span className="text-lg font-normal text-muted"> correct</span>
+            </h1>
+            <p className={`font-medium ${result.correct / result.total >= PASS_SHARE ? "text-ok" : "text-danger"}`}>
+              {result.correct / result.total >= PASS_SHARE
+                ? `At or above about ${Math.round(PASS_SHARE * 100)}%, the pass mark on our estimate.`
+                : `Below about ${Math.round(PASS_SHARE * 100)}%, the pass mark on our estimate. Work on the objectives marked weak.`}
+            </p>
+          </>
         ) : (
           <h1 className="text-2xl font-semibold tracking-tight">
             {result.correct}/{result.total} right this time
           </h1>
         )}
         <p className="text-sm text-muted">
-          {result.correct}/{result.total} correct ({pct(result.correct, result.total)}%) in {minutes} min.
+          {result.correct}/{result.total} correct ({share}%) in {minutes} min.
           {exam && " The score is an estimate: we map your share correct onto 100–1,000 in a straight line. The real exam's scaling isn't published."}
         </p>
       </header>
 
-      <section aria-label="Percent correct by domain" className="rounded-2xl border border-line bg-surface p-5">
-        <p className="mb-3 font-medium">Percent correct by domain</p>
-        <ul className="space-y-2.5">
-          {DOMAINS.filter((d) => result.byDomain[d.id]).map((d) => {
-            const s = result.byDomain[d.id]!;
-            const p = pct(s.correct, s.total);
-            return (
-              <li key={d.id} className="text-sm">
-                <div className="flex items-baseline gap-2">
-                  <span className="w-4 font-mono text-xs text-muted">{d.number}</span>
-                  <button onClick={() => onDomain(d.id)} className="min-w-0 flex-1 text-left hover:text-accent hover:underline">
-                    {d.name}
-                  </button>
-                  <span className="tabular-nums text-muted">
-                    {s.correct}/{s.total} · {p}%
-                  </span>
-                </div>
-                <div className="ml-6 mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
-                  <div className={`h-full rounded-full ${s.correct / s.total >= PASS_SHARE ? "bg-ok" : "bg-danger"}`} style={{ width: `${p}%` }} />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-        <p className="mt-3 text-xs text-muted">Like the real score report, these help you decide what to study; the pass mark applies to the total only.</p>
-      </section>
+      <ScoreReport attempt={attempt} onDomain={onDomain} />
 
       <div className="flex flex-wrap gap-2">
         {missed.length > 0 && (
@@ -285,9 +497,18 @@ function Results({ attempt, onDomain, onMistakes }: { attempt: Attempt; onDomain
             ↻ Retry the {missed.length} I missed
           </button>
         )}
-        <button onClick={() => examActions.start(newSeed())} className="h-9 rounded-lg border border-line px-4 text-sm font-medium hover:bg-surface-2">
-          New mock exam
-        </button>
+        {custom && attempt.spec ? (
+          <button
+            onClick={() => examActions.startCustom(newSeed(), attempt.spec!)}
+            className="h-9 rounded-lg border border-line px-4 text-sm font-medium hover:bg-surface-2"
+          >
+            New test, same settings
+          </button>
+        ) : (
+          <button onClick={() => examActions.start(newSeed())} className="h-9 rounded-lg border border-line px-4 text-sm font-medium hover:bg-surface-2">
+            New mock exam
+          </button>
+        )}
         <button onClick={() => examActions.close()} className="h-9 rounded-lg border border-line px-4 text-sm font-medium hover:bg-surface-2">
           Done
         </button>
@@ -325,15 +546,16 @@ function Results({ attempt, onDomain, onMistakes }: { attempt: Attempt; onDomain
         {shown.length === 0 && <p className="text-sm text-muted">Nothing here.</p>}
         {shown.map(({ item, n }) => {
           const d = domainOf(item.domain);
+          const q = findQuestion(item.id)!.question;
           return (
             <QuestionCard
               key={item.id}
-              q={findQuestion(item.id)!.question}
+              q={q}
               n={n}
               picked={attempt.answers[item.id] ?? []}
               onPick={() => {}}
               checked
-              tag={`Domain ${d.number} · ${d.name}${attempt.flagged.includes(item.id) ? " · ⚑ flagged" : ""}`}
+              tag={`Domain ${d.number} · ${findObjective(q.skill)?.name ?? d.name}${attempt.flagged.includes(item.id) ? " · ⚑ flagged" : ""}`}
             />
           );
         })}
@@ -342,7 +564,7 @@ function Results({ attempt, onDomain, onMistakes }: { attempt: Attempt; onDomain
   );
 }
 
-/** The mock exam: an intro with your past results, the exam itself, then results and a review. */
+/** Practice tests: the mock exam and custom tests, your past results, the test itself, then results and a review. */
 export function MockExamPanel({ onDomain, onMistakes }: { onDomain: (id: string) => void; onMistakes?: () => void }) {
   const { current, history } = useExamState();
   if (!current || current.items.length === 0) return <Intro history={history} onDomain={onDomain} />;

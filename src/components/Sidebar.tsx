@@ -6,7 +6,6 @@ import { CHALLENGES } from "@/lib/challenges";
 import { BLANK_EXAMPLE_ID, EXAMPLES, EXAMPLE_GROUPS } from "@/lib/examples";
 import { localStore } from "@/lib/local-store";
 import { useMistakes } from "@/lib/mistakes";
-import { MOCK_EXAM } from "@/lib/mock-exam";
 import { CERT, CERT_EXAM, CERT_MISTAKES, CERT_OVERVIEW, CERT_PLAN, CHALLENGE } from "@/lib/selection";
 
 // The desktop sidebar: progress, search, and collapsible sections for the
@@ -98,7 +97,7 @@ export function Sidebar({ selectedId, onSelect, progress }: { selectedId: string
   const certRows: Row[] = [
     { id: CERT_PLAN, label: "Study plan", icon: "▦" },
     { id: CERT_OVERVIEW, label: "Exam blueprint", icon: "◎" },
-    { id: CERT_EXAM, label: "Mock exam", icon: "⏱", trailing: <span className="shrink-0 text-[10px] text-muted">{MOCK_EXAM.items} Qs</span> },
+    { id: CERT_EXAM, label: "Practice tests", icon: "⏱", trailing: <span className="shrink-0 text-[10px] text-muted">mock · custom</span> },
     {
       id: CERT_MISTAKES,
       label: "Mistakes deck",

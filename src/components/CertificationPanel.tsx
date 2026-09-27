@@ -2,7 +2,7 @@
 
 import { findChallenge } from "@/lib/challenges";
 import { DOMAINS, EXAM, domainProgress, focusDomain, isDone, readiness, type Domain, type PracticeRef, type Progress } from "@/lib/certification";
-import { useExamState } from "@/lib/exam-store";
+import { mockExams, useExamState } from "@/lib/exam-store";
 import { findExample } from "@/lib/examples";
 import { MOCK_EXAM } from "@/lib/mock-exam";
 import { QUIZZES } from "@/lib/quizzes";
@@ -52,7 +52,8 @@ export function CertificationPanel({
   onDomain: (id?: string) => void;
   onExam?: () => void;
 }) {
-  const { history, current } = useExamState();
+  const { history: allResults, current } = useExamState();
+  const history = mockExams(allResults);
   if (domain) {
     const p = domainProgress(domain, progress);
     return (
@@ -158,16 +159,17 @@ export function CertificationPanel({
       {onExam && (
         <section aria-label="Mock exam" className="flex flex-wrap items-center gap-4 rounded-2xl border border-line bg-surface p-5">
           <div className="min-w-0 flex-1">
-            <p className="font-medium">Mock exam</p>
+            <p className="font-medium">Practice tests</p>
             <p className="text-sm text-muted">
-              {MOCK_EXAM.items} questions in {MOCK_EXAM.minutes} minutes, weighted like the real exam.{" "}
+              A mock exam ({MOCK_EXAM.items} questions in {MOCK_EXAM.minutes} minutes, weighted like the real exam), or a custom test on the objectives you
+              pick.{" "}
               {history.length
                 ? `Best so far: ${Math.max(...history.map((h) => h.scaled))} (last: ${history[0].scaled}), pass mark ${MOCK_EXAM.pass}.`
                 : "Take one to see where you stand."}
             </p>
           </div>
           <button onClick={onExam} className="h-9 rounded-lg bg-accent px-4 text-sm font-medium text-white hover:opacity-90">
-            {current && !current.finishedAt ? "Continue the exam" : "Take the mock exam"}
+            {current && !current.finishedAt ? (current.kind === "exam" ? "Continue the exam" : "Continue your test") : "Open practice tests"}
           </button>
         </section>
       )}

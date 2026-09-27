@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { DOMAINS, EXAM, type Progress } from "@/lib/certification";
-import { useExamState } from "@/lib/exam-store";
+import { mockExams, useExamState } from "@/lib/exam-store";
 import { localStore } from "@/lib/local-store";
 import { CERT, CERT_EXAM, CERT_MISTAKES, CHALLENGE } from "@/lib/selection";
 import { addDays, buildPlan, dateKey, daysBetween, taskDone, type PlanStatus, type PlanTask, type StudyPlan } from "@/lib/study-plan";
@@ -99,7 +99,7 @@ export function StudyPlanPanel({ progress, onOpen }: { progress: Progress; onOpe
   const [editing, setEditing] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
-  const status: PlanStatus = { ...progress, examsTakenOn: history.map((h) => dateKey(new Date(h.finishedAt))), checked: new Set(checked) };
+  const status: PlanStatus = { ...progress, examsTakenOn: mockExams(history).map((h) => dateKey(new Date(h.finishedAt))), checked: new Set(checked) };
 
   function build(examDate: string, minutesPerDay: number) {
     planStore.update((s) => ({ ...s, plan: buildPlan({ today, examDate, minutesPerDay, progress }) }));

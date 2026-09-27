@@ -1,4 +1,4 @@
-import type { DomainId } from "./certification";
+import type { DomainId, SkillId } from "./certification";
 
 // Knowledge checks for each exam domain. These are practice questions written
 // for this playground, not questions from the real exam. Every answer was
@@ -23,6 +23,8 @@ export type QuizQuestion = {
    * but candidates report the exam doesn't ask these.
    */
   style: QuestionStyle;
+  /** The test objective it practices, one of its domain's skills. Practice tests are built and scored by these. */
+  skill: SkillId;
 };
 
 export type QuestionStyle = "judgment" | "recall";
@@ -48,6 +50,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "When more complexity is warranted, workflows offer predictability and consistency for well-defined tasks, whereas agents are the better option when flexibility and model-driven decision-making are needed at scale.",
       style: "judgment",
+      skill: "agent-architecture",
     },
     {
       id: "subagent-why",
@@ -64,6 +67,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Subagents", url: `${CODE}/sub-agents` },
       evidence: "Each subagent runs in its own context window with a custom system prompt, specific tool access, and independent permissions.",
       style: "judgment",
+      skill: "agent-architecture",
     },
     {
       id: "managed-agents",
@@ -75,6 +79,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Managed Agents overview", url: `${DOCS}/managed-agents/overview` },
       evidence: "Configuration for where sessions run: an Anthropic-managed cloud sandbox, or a self-hosted sandbox on your own infrastructure",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "hook-deterministic",
@@ -91,6 +96,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Hooks guide", url: `${CODE}/hooks-guide` },
       evidence: "Claude Code runs them at specific points in its lifecycle, which gives you deterministic control: certain actions always happen rather than relying on the LLM to choose to run them.",
       style: "judgment",
+      skill: "agent-construction",
     },
     {
       id: "tool-loop-next",
@@ -107,6 +113,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How tool use works", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works" },
       evidence: "Send a new request containing the original messages, the assistant's response, and a user message with the `tool_result` blocks.",
       style: "recall",
+      skill: "agent-patterns",
     },
     {
       id: "agent-sdk-fit",
@@ -119,6 +126,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Agent SDK overview", url: "https://code.claude.com/docs/en/agent-sdk/overview" },
       evidence: "Embed Claude Code's agent in your own Python or TypeScript application, in a process you operate",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "pattern-routing",
@@ -134,6 +142,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "Routing works well for complex tasks where there are distinct categories that are better handled separately, and where classification can be handled accurately",
       style: "judgment",
+      skill: "agent-patterns",
     },
     {
       id: "pattern-orchestrator-workers",
@@ -149,6 +158,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "This workflow is well-suited for complex tasks where you can’t predict the subtasks needed",
       style: "judgment",
+      skill: "agent-patterns",
     },
     {
       id: "pattern-evaluator-optimizer",
@@ -164,6 +174,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "This workflow is particularly effective when we have clear evaluation criteria, and when iterative refinement provides measurable value.",
       style: "judgment",
+      skill: "agent-patterns",
     },
     {
       id: "start-simple",
@@ -179,6 +190,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "For many applications, however, optimizing single LLM calls with retrieval and in-context examples is usually enough.",
       style: "judgment",
+      skill: "agent-architecture",
     },
     {
       id: "sdk-canusetool-bypassed",
@@ -194,6 +206,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Agent SDK: Configure permissions", url: "https://code.claude.com/docs/en/agent-sdk/permissions" },
       evidence: "hooks run before every other step, and a hook deny applies even in `bypassPermissions` mode.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "subagent-context-handoff",
@@ -209,6 +222,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Agent SDK: Subagents", url: "https://code.claude.com/docs/en/agent-sdk/subagents" },
       evidence: "The only content you pass from parent to subagent is the Agent tool's prompt string, so include any file paths, error messages, or decisions the subagent needs directly in that prompt.",
       style: "recall",
+      skill: "agent-patterns",
     },
     {
       id: "sdk-session-resume-per-user",
@@ -224,6 +238,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Agent SDK: Work with sessions", url: "https://code.claude.com/docs/en/agent-sdk/sessions" },
       evidence: "Required when you have multiple sessions (for example, one per user in a multi-user app) or want to return to one that isn't the most recent.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "sdk-custom-tools-inprocess",
@@ -239,6 +254,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Agent SDK: Give Claude custom tools", url: "https://code.claude.com/docs/en/agent-sdk/custom-tools" },
       evidence: "The key in `mcpServers` becomes the `{server_name}` segment in each tool's fully qualified name: `mcp__{server_name}__{tool_name}`. List that name in `allowedTools` so the tool runs without a permission prompt.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "sdk-setting-sources-isolation",
@@ -254,6 +270,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Agent SDK: Use Claude Code features", url: "https://code.claude.com/docs/en/agent-sdk/claude-code-features" },
       evidence: "To run without these, pass `settingSources: []`, which limits the agent to what you configure programmatically.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "managed-self-hosted-sandbox",
@@ -269,6 +286,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Managed Agents: Self-hosted sandboxes", url: "https://platform.claude.com/docs/en/managed-agents/self-hosted-sandboxes" },
       evidence: "Self-hosted sandboxes keep the orchestration on Anthropic's side but move tool execution into infrastructure you control, so the agent's code, filesystem, and network egress never leave your environment.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "pause-turn-continue",
@@ -284,6 +302,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Stop reasons and fallback", url: "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons" },
       evidence: "Your application should handle `pause_turn` in any agent loop that uses server tools. Add the assistant's response to your messages array and make another API request to let Claude continue.",
       style: "recall",
+      skill: "agent-patterns",
     },
     {
       id: "memory-tool-client-side",
@@ -299,6 +318,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Memory tool", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool" },
       evidence: "The memory tool operates client-side: Claude requests file operations, and your application executes them. You control where and how the data is stored through your own infrastructure.",
       style: "recall",
+      skill: "agent-patterns",
     },
     {
       id: "parallelization-voting-vs-sectioning",
@@ -314,6 +334,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "Reviewing a piece of code for vulnerabilities, where several different prompts review and flag the code if they find a problem.",
       style: "recall",
+      skill: "agent-patterns",
     },
     {
       id: "prompt-chaining-gate",
@@ -329,6 +350,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "Writing an outline of a document, checking that the outline meets certain criteria, then writing the document based on the outline.",
       style: "judgment",
+      skill: "agent-patterns",
     },
     {
       id: "sdk-error-max-turns-result",
@@ -344,6 +366,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How the agent loop works", url: "https://code.claude.com/docs/en/agent-sdk/agent-loop" },
       evidence: "The `result` field holds the final text output and is only present on the `success` variant, so always check the subtype before reading it.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "sdk-budget-cap-subagents",
@@ -359,6 +382,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How the agent loop works", url: "https://code.claude.com/docs/en/agent-sdk/agent-loop" },
       evidence: "The budget cap covers subagents: their spend counts toward the total.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "sdk-structured-output-result",
@@ -374,6 +398,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Get structured output from agents", url: "https://code.claude.com/docs/en/agent-sdk/structured-outputs" },
       evidence: "When the agent finishes, the result message includes a `structured_output` field with validated data matching your schema.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "sdk-posttooluse-redact-output",
@@ -389,6 +414,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Intercept and control agent behavior with hooks", url: "https://code.claude.com/docs/en/agent-sdk/hooks" },
       evidence: "To replace the tool's output before Claude sees it, set `updatedToolOutput`, which works for any tool in both SDKs.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "managed-session-version-pin",
@@ -404,6 +430,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Start a session (Managed Agents)", url: "https://platform.claude.com/docs/en/managed-agents/sessions" },
       evidence: "To pin a session to a specific agent version, pass an object. This lets you control exactly which version runs and stage rollouts of new versions independently.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "managed-coordinator-roster-snapshot",
@@ -419,6 +446,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Multiagent orchestration (Managed Agents)", url: "https://platform.claude.com/docs/en/managed-agents/multiagent-orchestration" },
       evidence: "Referenced agents stay pinned to the versions resolved at that time and do not automatically pick up later updates to their definitions.",
       style: "recall",
+      skill: "agent-construction",
     },
     {
       id: "workflow-audited-fixed-path",
@@ -434,6 +462,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "workflows offer predictability and consistency for well-defined tasks, whereas agents are the better option when flexibility and model-driven decision-making are needed at scale.",
       style: "judgment",
+      skill: "agent-architecture",
     },
     {
       id: "agent-drift-to-prompt-chain",
@@ -449,6 +478,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "This workflow is ideal for situations where the task can be easily and cleanly decomposed into fixed subtasks.",
       style: "judgment",
+      skill: "agent-architecture",
     },
     {
       id: "supervisor-delegation-briefs",
@@ -464,6 +494,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How we built our multi-agent research system", url: "https://www.anthropic.com/engineering/multi-agent-research-system" },
       evidence: "Each subagent needs an objective, an output format, guidance on the tools and sources to use, and clear task boundaries. Without detailed task descriptions, agents duplicate work, leave gaps, or fail to find necessary information.",
       style: "judgment",
+      skill: "agent-architecture",
     },
     {
       id: "supervisor-role-decompose-aggregate",
@@ -479,6 +510,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "In the orchestrator-workers workflow, a central LLM dynamically breaks down tasks, delegates them to worker LLMs, and synthesizes their results.",
       style: "judgment",
+      skill: "agent-architecture",
     },
     {
       id: "subagent-research-main-implement",
@@ -494,6 +526,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Create custom subagents", url: "https://code.claude.com/docs/en/sub-agents" },
       evidence: "Use the main conversation when: The task needs frequent back-and-forth or iterative refinement",
       style: "judgment",
+      skill: "agent-architecture",
     },
     {
       id: "research-subagents-pass-references",
@@ -509,6 +542,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How we built our multi-agent research system", url: "https://www.anthropic.com/engineering/multi-agent-research-system" },
       evidence: "Subagents call tools to store their work in external systems, then pass lightweight references back to the coordinator. This prevents information loss during multi-stage processing and reduces token overhead from copying large outputs through conversation history.",
       style: "judgment",
+      skill: "agent-patterns",
     },
     {
       id: "deploy-self-hosted-sandbox-fit",
@@ -524,6 +558,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Self-hosted sandboxes", url: "https://platform.claude.com/docs/en/managed-agents/self-hosted-sandboxes" },
       evidence: "Self-hosting is a good fit when the agent needs to operate on data that cannot leave your network boundary, reach internal services that are not publicly routable, or run under your organization's own compliance and audit controls.",
       style: "judgment",
+      skill: "agent-construction",
     },
     {
       id: "deploy-self-hosted-responsibilities",
@@ -539,6 +574,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Self-hosted sandboxes: security model", url: "https://platform.claude.com/docs/en/managed-agents/self-hosted-sandboxes-security" },
       evidence: "Anthropic secures the control plane across all environments: session and work queue integrity, multitenant isolation, and agent-context minimization. When you self-host, the following responsibilities fall to you.",
       style: "judgment",
+      skill: "agent-construction",
     },
     {
       id: "deploy-managed-no-platform-team",
@@ -554,6 +590,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Managed Agents overview", url: "https://platform.claude.com/docs/en/managed-agents/overview" },
       evidence: "Instead of building your own agent loop, tool execution, and runtime, you get a fully managed environment where Claude can read files, run commands, browse the web, and run code securely.",
       style: "judgment",
+      skill: "agent-construction",
     },
     {
       id: "hook-over-memory-rule",
@@ -569,6 +606,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Extend Claude Code", url: "https://code.claude.com/docs/en/features-overview" },
       evidence: "If a rule must hold every time, make it a hook rather than a prompt instruction.",
       style: "judgment",
+      skill: "agent-construction",
     },
     {
       id: "hook-vs-skill-pairing",
@@ -584,6 +622,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Extend Claude Code", url: "https://code.claude.com/docs/en/features-overview" },
       evidence: "Use a hook when the action must happen the same way every time and doesn't need Claude to think.",
       style: "judgment",
+      skill: "agent-construction",
     },
   ],
 
@@ -604,6 +643,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Batch processing", url: `${DOCS}/build-with-claude/batch-processing` },
       evidence: "This approach is well-suited to tasks that do not require immediate responses, with most batches finishing in less than 1 hour while reducing costs by 50% and increasing throughput.",
       style: "judgment",
+      skill: "api-mechanics",
     },
     {
       id: "batch-facts",
@@ -619,6 +659,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Batch processing", url: `${DOCS}/build-with-claude/batch-processing` },
       evidence: "Batch results can be returned in any order, and may not match the ordering of requests when the batch was created.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "stateless",
@@ -634,6 +675,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Working with the Messages API", url: `${DOCS}/build-with-claude/working-with-messages` },
       evidence: "The Messages API is stateless, which means that you always send the full conversational history to the API.",
       style: "judgment",
+      skill: "api-mechanics",
     },
     {
       id: "why-stream",
@@ -650,6 +692,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Streaming messages", url: `${DOCS}/build-with-claude/streaming` },
       evidence: "This is especially useful for requests with large `max_tokens` values, where the SDKs require streaming to avoid HTTP timeouts.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "vision",
@@ -665,6 +708,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Vision", url: `${DOCS}/build-with-claude/vision` },
       evidence: "On the API, provide images to Claude as `image` content blocks using one of three source types:",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "files-api",
@@ -680,6 +724,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Files API", url: `${DOCS}/build-with-claude/files` },
       evidence: "The Files API lets you upload and manage files to use with the Claude API without re-uploading content with each request.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "cloud-providers",
@@ -690,6 +735,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "API overview: Claude API vs cloud platforms", url: "https://platform.claude.com/docs/en/api/overview" },
       evidence: "Access Claude through AWS, Google Cloud, or Microsoft Azure:",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "pin-model",
@@ -706,36 +752,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Model IDs and versioning", url: "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions" },
       evidence: "When you use a model ID in an API request, the underlying model remains constant for the lifetime of that ID.",
       style: "judgment",
-    },
-    {
-      id: "stream-tool-input-json",
-      prompt: "You stream a response in which Claude calls a tool. Your code runs `JSON.parse()` on each `input_json_delta` as it arrives, and it keeps throwing. What should you do?",
-      options: [
-        "Parse each delta on its own and log failures, since they mean the tool JSON is invalid",
-        "Stop streaming tool calls, since tool use and streaming can't be combined in one request",
-        "Read the full tool input from `message_start`, which carries it before the deltas arrive",
-        "Accumulate the partial JSON strings, then parse once that block's `content_block_stop` arrives",
-      ],
-      answer: [3],
-      explain: "Tool-input deltas are partial JSON strings; accumulate them and parse after `content_block_stop` (or let the SDK helpers do it). Each fragment on its own isn't valid JSON, and `message_start` has empty content.",
-      source: { label: "Streaming messages", url: "https://platform.claude.com/docs/en/build-with-claude/streaming" },
-      evidence: "You can accumulate the string deltas and parse the JSON once you receive a `content_block_stop` event",
-      style: "recall",
-    },
-    {
-      id: "stream-large-max-tokens",
-      prompt: "A user waits in your app for a long answer. You call the SDK's non-streaming `create()` with a large `max_tokens`, and the SDK rejects the call before sending it. You don't need to show text as it arrives. What's the fix?",
-      options: [
-        "Set the SDK client's timeout option to 0 so the non-streaming request can never time out",
-        "Add the `output-300k-2026-03-24` beta header so larger `max_tokens` is accepted",
-        "Call `.stream()` and use the SDK's final-message helper to get the complete `Message` object",
-        "Use the Message Batches API, the only endpoint that accepts large `max_tokens`",
-      ],
-      answer: [2],
-      explain: "The SDKs require streaming for large `max_tokens` to avoid HTTP timeouts; `.stream()` plus `get_final_message()`/`finalMessage()` returns the same `Message` as `create()`. The 300k header is for batches only, and a batch doesn't suit a user who's waiting.",
-      source: { label: "Streaming messages", url: "https://platform.claude.com/docs/en/build-with-claude/streaming" },
-      evidence: "This is especially useful for requests with large `max_tokens` values, where the SDKs require streaming to avoid HTTP timeouts.",
-      style: "recall",
+      skill: "config-management",
     },
     {
       id: "vision-many-images",
@@ -751,6 +768,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Vision", url: "https://platform.claude.com/docs/en/build-with-claude/vision" },
       evidence: "To stay under the limit on all platforms, either resize each image so that neither dimension exceeds 2000 px, or keep the request to 20 or fewer image and document blocks.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "docx-with-images",
@@ -766,6 +784,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Files API", url: "https://platform.claude.com/docs/en/build-with-claude/files" },
       evidence: "For .docx files containing images, convert them to PDF format first, then use [PDF support](https://platform.claude.com/docs/en/build-with-claude/pdf-support) to take advantage of the built-in image parsing.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "thinking-redacted-filter",
@@ -781,6 +800,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Thinking", url: "https://platform.claude.com/docs/en/build-with-claude/thinking" },
       evidence: "Filtering on `block.type == \"thinking\"` alone silently drops `redacted_thinking` blocks and breaks the multi-turn protocol",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "batch-dry-run",
@@ -796,6 +816,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Batch processing", url: "https://platform.claude.com/docs/en/build-with-claude/batch-processing" },
       evidence: "Validation of the `params` object for each message request is performed asynchronously, and validation errors are returned when processing of the entire batch has ended.",
       style: "judgment",
+      skill: "api-mechanics",
     },
     {
       id: "bedrock-unsupported",
@@ -811,6 +832,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude in Amazon Bedrock", url: "https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock" },
       evidence: "API endpoints (Message Batches, Models, Admin, Compliance, Usage and Cost)",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "itpm-cache",
@@ -826,6 +848,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Rate limits", url: "https://platform.claude.com/docs/en/api/rate-limits" },
       evidence: "For rate limit purposes on most models, only `input_tokens` + `cache_creation_input_tokens` count toward your ITPM limit",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "claude-md-delivery",
@@ -841,6 +864,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How Claude remembers your project", url: "https://code.claude.com/docs/en/memory" },
       evidence: "CLAUDE.md content is delivered as a user message after the system prompt, not as part of the system prompt itself.",
       style: "recall",
+      skill: "app-design",
     },
     {
       id: "claude-ai-vs-api-prompt",
@@ -856,6 +880,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "System prompts (release notes)", url: "https://platform.claude.com/docs/en/release-notes/system-prompts/overview" },
       evidence: "These system prompt updates do not apply to the Claude API.",
       style: "judgment",
+      skill: "app-design",
     },
     {
       id: "sdk-setting-sources-default",
@@ -871,6 +896,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Use Claude Code features in the SDK", url: "https://code.claude.com/docs/en/agent-sdk/claude-code-features" },
       evidence: "When you omit `settingSources`, `query()` reads the same filesystem settings as the Claude Code CLI: user, project, and local settings, CLAUDE.md files, and `.claude/` skills, agents, and commands.",
       style: "recall",
+      skill: "config-management",
     },
     {
       id: "mid-conversation-system",
@@ -886,6 +912,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Mid-conversation system messages", url: "https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages" },
       evidence: "A mid-conversation system message keeps that operator-level priority without paying the cache-miss cost of editing the top-level `system` field.",
       style: "recall",
+      skill: "app-design",
     },
     {
       id: "schema-property-order",
@@ -901,6 +928,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Structured outputs", url: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs" },
       evidence: "If property order in the output is important to your application, mark all properties as required, or account for this reordering in your parsing logic.",
       style: "recall",
+      skill: "app-design",
     },
     {
       id: "files-multi-tenant",
@@ -916,6 +944,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Files API", url: "https://platform.claude.com/docs/en/build-with-claude/files" },
       evidence: "The workspace is the isolation boundary for files, so a workspace per tenant gives each tenant's data hard isolation from every other tenant.",
       style: "recall",
+      skill: "app-design",
     },
     {
       id: "session-cache-habits",
@@ -931,6 +960,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How Claude Code uses prompt caching", url: "https://code.claude.com/docs/en/prompt-caching" },
       evidence: "Pick your model and effort level at the top of a session, then save `/compact` for natural breaks between tasks.",
       style: "recall",
+      skill: "app-design",
     },
     {
       id: "claude-md-mid-session-edit",
@@ -946,6 +976,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How Claude Code uses prompt caching", url: "https://code.claude.com/docs/en/prompt-caching" },
       evidence: "Your project-root and user-level CLAUDE.md files are read once at session start and held in memory.",
       style: "recall",
+      skill: "config-management",
     },
     {
       id: "agents-md-local-file",
@@ -961,6 +992,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How Claude remembers your project", url: "https://code.claude.com/docs/en/memory" },
       evidence: "Because `CLAUDE.local.md` counts, adding one to keep your own uncommitted instructions in a project that relies on `AGENTS.md` stops Claude from reading `AGENTS.md` for you.",
       style: "recall",
+      skill: "config-management",
     },
     {
       id: "dateless-model-id",
@@ -976,6 +1008,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Model IDs and versioning", url: "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions" },
       evidence: "Anthropic does not update the weights or configuration of an existing model ID.",
       style: "recall",
+      skill: "config-management",
     },
     {
       id: "skill-version-pin",
@@ -991,6 +1024,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Skills in the API", url: "https://platform.claude.com/docs/en/build-with-claude/skills-guide" },
       evidence: "pin a specific version, so Skill updates never change your deployed behavior.",
       style: "recall",
+      skill: "config-management",
     },
     {
       id: "plugin-dependency-range",
@@ -1006,6 +1040,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Plugin dependencies", url: "https://code.claude.com/docs/en/plugins/dependencies" },
       evidence: "Without a version constraint, a dependency moves to each new release its marketplace publishes the next time users update.",
       style: "recall",
+      skill: "config-management",
     },
     {
       id: "json-key-order-cache",
@@ -1021,6 +1056,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompt caching", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" },
       evidence: "Verify that the keys in your `tool_use` content blocks have stable ordering as some languages (for example, Swift, Go) randomize key order during JSON conversion, breaking caches",
       style: "recall",
+      skill: "engineering",
     },
     {
       id: "cache-parallel-fanout",
@@ -1036,21 +1072,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompt caching", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" },
       evidence: "For concurrent requests, note that a cache entry only becomes available after the first response begins.",
       style: "judgment",
-    },
-    {
-      id: "sdk-builtin-retries",
-      prompt: "Your code wraps each Anthropic SDK call in its own loop that retries 429 and 5xx errors five times. Under load you see far more retries than your loop should make. Why?",
-      options: [
-        "Rate-limit 429s never carry a `retry-after` header, so your loop can't back off properly",
-        "The SDK switches off its own backoff whenever it detects an outer retry loop around the call",
-        "The SDK already retries them itself (twice by default), so the two retry layers multiply",
-        "5xx errors are permanent failures, so retrying them only repeats the same failed request",
-      ],
-      answer: [2],
-      explain: "The official SDKs retry connection errors, 429s and 5xx with exponential backoff (twice by default), honoring `retry-after`. Tune or disable that with `max_retries` instead of stacking loops.",
-      source: { label: "Claude API errors", url: "https://platform.claude.com/docs/en/api/errors" },
-      evidence: "The official SDKs automatically retry transient failures (such as connection errors, rate limits, and 5xx server errors) with exponential backoff, twice by default, honoring the `retry-after` header when present.",
-      style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "review-md",
@@ -1066,6 +1088,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Code Review", url: "https://code.claude.com/docs/en/code-review" },
       evidence: "review-only instructions, given to the agents that find and verify findings and consulted by the agents that rank and report them.",
       style: "recall",
+      skill: "engineering",
     },
     {
       id: "go-backend-agent-loop",
@@ -1081,6 +1104,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Agent SDK overview", url: "https://code.claude.com/docs/en/agent-sdk/overview" },
       evidence: "To drive the same agent loop from a language other than Python or TypeScript, [run the CLI as a subprocess](/docs/en/headless) with the `-p` flag and `--output-format json`.",
       style: "recall",
+      skill: "app-design",
     },
     {
       id: "aws-offering-choice",
@@ -1096,6 +1120,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Platform on AWS", url: "https://platform.claude.com/docs/en/build-with-claude/claude-platform-on-aws" },
       evidence: "Organizations in regulated industries that require FedRAMP High, IL4, IL5, or HIPAA-ready compliance, or that need AWS to be the sole data processor, should use [Claude in Amazon Bedrock](https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock).",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "citations-vs-structured-outputs",
@@ -1111,6 +1136,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Citations", url: "https://platform.claude.com/docs/en/build-with-claude/citations" },
       evidence: "If you enable citations on any user-provided document (`document` blocks or `search_result` blocks) and also include the `output_config.format` parameter (or the deprecated `output_format` parameter), the API returns a 400 error.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "search-result-tool-result-mixing",
@@ -1126,6 +1152,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Search results", url: "https://platform.claude.com/docs/en/build-with-claude/search-results" },
       evidence: "To return supporting text alongside tool-sourced search results, include it as a text block inside one of the search results' `content` arrays, where it also becomes citable.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "pdf-page-limit-200k",
@@ -1141,6 +1168,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Context windows", url: "https://platform.claude.com/docs/en/build-with-claude/context-windows" },
       evidence: "A single request can include up to 600 images or PDF pages (100 for models with a 200k-token context window).",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "count-tokens-file-source",
@@ -1156,6 +1184,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Token counting", url: "https://platform.claude.com/docs/en/build-with-claude/token-counting" },
       evidence: "This endpoint doesn't support `url` or `file` document sources.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "context-window-overflow-behavior",
@@ -1171,21 +1200,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Context windows", url: "https://platform.claude.com/docs/en/build-with-claude/context-windows" },
       evidence: "On Claude 4.5 models and newer, if input tokens plus `max_tokens` exceeds the context window size, the API accepts the request.",
       style: "recall",
-    },
-    {
-      id: "stream-error-after-200",
-      prompt: "Your streaming client treats HTTP 200 as success and only handles errors from the status code. At peak hours, some answers stop midway and nothing is logged. What's the likely gap?",
-      options: [
-        "The API switches the status to 529 at the end of the stream, which clients ignore after a 200",
-        "Streams longer than 10 minutes are closed silently, so long answers need non-streaming calls",
-        "An `error` event such as `overloaded_error` can arrive inside the stream after the 200",
-        "Overloaded streams end with `stop_reason: \"overloaded\"` in the last `message_delta`",
-      ],
-      answer: [2],
-      explain: "Mid-stream failures arrive as `error` events after the 200 has been sent, so the handler must watch the event stream. There is no `overloaded` stop reason, and streaming is the recommended path for long requests.",
-      source: { label: "Streaming messages", url: "https://platform.claude.com/docs/en/build-with-claude/streaming" },
-      evidence: "For example, during periods of high usage, you may receive an `overloaded_error`, which would normally correspond to an HTTP 529 in a non-streaming context",
-      style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "rate-limit-burst",
@@ -1201,6 +1216,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Rate limits", url: "https://platform.claude.com/docs/en/api/rate-limits" },
       evidence: "For instance, a rate of 60 requests per minute (RPM) might be enforced as 1 request per second.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "workspace-scoped-batch-lookup",
@@ -1216,6 +1232,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Workspaces", url: "https://platform.claude.com/docs/en/manage-claude/workspaces" },
       evidence: "Every request runs in exactly one workspace and can only access resources within that workspace.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "api-version-allowed-changes",
@@ -1231,6 +1248,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Versions", url: "https://platform.claude.com/docs/en/api/versioning" },
       evidence: "Add new variants to enum-like output values (for example, streaming event types)",
       style: "recall",
+      skill: "config-management",
     },
     {
       id: "google-cloud-request-format",
@@ -1246,6 +1264,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude on Google Cloud", url: "https://platform.claude.com/docs/en/build-with-claude/claude-on-vertex-ai" },
       evidence: "On Agent Platform, `anthropic_version` is passed in the request body (rather than as a header), and must be set to the value `vertex-2023-10-16`.",
       style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "foundry-deployment-name",
@@ -1261,21 +1280,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude in Microsoft Foundry", url: "https://platform.claude.com/docs/en/build-with-claude/claude-in-microsoft-foundry" },
       evidence: "The deployment name you choose becomes the value you pass in the `model` parameter of your API requests.",
       style: "recall",
-    },
-    {
-      id: "sdk-error-handling-practices",
-      prompt: "You're hardening the error handling around your Anthropic SDK calls. Which practices do the docs recommend? **Choose 2.**",
-      options: [
-        "Match on the `error.message` text to decide whether each failure is worth retrying",
-        "Catch the SDK's typed error classes, most specific first, instead of matching message strings",
-        "Retry 400 `invalid_request_error` responses with exponential backoff until they succeed",
-        "Log each response's request ID and quote it when asking support about that call",
-      ],
-      answer: [1, 3],
-      explain: "The SDKs raise typed exceptions, and every response carries a `request-id` (exposed as `_request_id` in Python and TypeScript) for support. A 400 means the request itself is wrong, so retrying won't fix it.",
-      source: { label: "Claude API errors", url: "https://platform.claude.com/docs/en/api/errors" },
-      evidence: "Catch the SDK's typed classes rather than string-matching error messages, handling the most specific classes first.",
-      style: "recall",
+      skill: "api-mechanics",
     },
     {
       id: "claude-md-import-relative-path",
@@ -1291,6 +1296,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How Claude remembers your project", url: "https://code.claude.com/docs/en/memory" },
       evidence: "Relative paths resolve relative to the file containing the import, not the working directory.",
       style: "recall",
+      skill: "config-management",
     },
     {
       id: "bare-mode-auth",
@@ -1306,6 +1312,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Run Claude Code programmatically", url: "https://code.claude.com/docs/en/headless" },
       evidence: "In bare mode, Claude Code never reads OAuth credentials or the system keychain.",
       style: "recall",
+      skill: "config-management",
     },
     {
       id: "gha-allowed-bots",
@@ -1321,6 +1328,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code GitHub Actions", url: "https://code.claude.com/docs/en/github-actions" },
       evidence: "on every event, the Claude Code GitHub Action rejects a bot actor unless you list it in `allowed_bots`, which keeps bots from triggering Claude in a loop.",
       style: "recall",
+      skill: "engineering",
     },
     {
       id: "code-review-merge-gate",
@@ -1336,6 +1344,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Code Review", url: "https://code.claude.com/docs/en/code-review" },
       evidence: "If you want to gate merges on Code Review findings, read the severity breakdown from the check run output in your own CI.",
       style: "recall",
+      skill: "engineering",
     },
     {
       id: "marketplace-relative-source",
@@ -1351,6 +1360,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Create a marketplace", url: "https://code.claude.com/docs/en/plugin-marketplaces" },
       evidence: "The path doesn't start inside `.claude-plugin/`, so don't use `..` to leave it.",
       style: "recall",
+      skill: "config-management",
     },
     {
       id: "session-clear-after-corrections",
@@ -1366,6 +1376,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Best practices for Claude Code", url: "https://code.claude.com/docs/en/best-practices" },
       evidence: "Run `/clear` and start fresh with a more specific prompt that incorporates what you learned.",
       style: "judgment",
+      skill: "app-design",
     },
     {
       id: "req-class-business-goal",
@@ -1381,6 +1392,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Requirement (Wikipedia)", url: "https://en.wikipedia.org/wiki/Requirement" },
       evidence: "High-level statements of the goals, objectives, or needs of an organization. They usually describe opportunities that an organization wants to realise or problems that they want to solve.",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "req-class-display-vs-freshness",
@@ -1396,6 +1408,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Non-functional requirement (Wikipedia)", url: "https://en.wikipedia.org/wiki/Non-functional_requirement" },
       evidence: "A system may be required to present the user with a display of the number of records in a database. This is a functional requirement. How current this number needs to be, is a non-functional requirement.",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "req-class-order-lookup-functional",
@@ -1411,6 +1424,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Requirement (Wikipedia)", url: "https://en.wikipedia.org/wiki/Requirement" },
       evidence: "Usually detailed statements of the functions or capabilities, behavior, and information that the solution will perform.",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "req-class-pick-two-nfr",
@@ -1426,6 +1440,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Functional requirement (Wikipedia)", url: "https://en.wikipedia.org/wiki/Functional_requirement" },
       evidence: "which impose constraints on the design or implementation (such as performance requirements, security, or reliability).",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "req-class-migration-transition",
@@ -1441,6 +1456,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Requirement (Wikipedia)", url: "https://en.wikipedia.org/wiki/Requirement" },
       evidence: "Usually, detailed statements of capabilities or behavior required only to enable the transition from the current state of the enterprise to the desired future state, but that will thereafter no longer be required.",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "req-class-usability-nfr",
@@ -1456,6 +1472,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Non-functional requirement (Wikipedia)", url: "https://en.wikipedia.org/wiki/Non-functional_requirement" },
       evidence: "Execution qualities, such as safety, security and usability, which are observable during operation (at run time).",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "translate-success-criteria-first",
@@ -1471,6 +1488,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Define success criteria and build evaluations", url: "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests" },
       evidence: "Building a successful LLM-based application starts with clearly defining your success criteria and then designing evaluations to measure performance against them.",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "translate-feature-list-ask-why",
@@ -1486,6 +1504,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Requirements analysis (Wikipedia)", url: "https://en.wikipedia.org/wiki/Requirements_analysis" },
       evidence: "Best practices take the composed list of requirements merely as clues and repeatedly ask \"why?\" until the actual business purposes are discovered.",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "translate-fast-and-accurate",
@@ -1501,6 +1520,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Non-functional requirement (Wikipedia)", url: "https://en.wikipedia.org/wiki/Non-functional_requirement" },
       evidence: "It is important to specify non-functional requirements in a specific and measurable way.",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "sdlc-live-triage-is-maintenance",
@@ -1516,6 +1536,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Software maintenance (Wikipedia)", url: "https://en.wikipedia.org/wiki/Software_maintenance" },
       evidence: "which is focused on meeting specified requirements, software maintenance is driven by events—such as user requests or detection of a bug.",
       style: "judgment",
+      skill: "life-cycle",
     },
     {
       id: "sdlc-feasibility-planning",
@@ -1531,6 +1552,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Systems development life cycle (Wikipedia)", url: "https://en.wikipedia.org/wiki/Systems_development_life_cycle" },
       evidence: "can determine whether the development effort is worthwhile via activities such as understanding user needs, cost estimation, benefit analysis, and resource analysis. A study should address operational, financial, technical, human factors, and legal/political concerns.",
       style: "judgment",
+      skill: "life-cycle",
     },
     {
       id: "sdlc-design-phase",
@@ -1546,6 +1568,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Systems development life cycle (Wikipedia)", url: "https://en.wikipedia.org/wiki/Systems_development_life_cycle" },
       evidence: "The design phase is informed by the requirements of the system. The design must satisfy each requirement.",
       style: "judgment",
+      skill: "life-cycle",
     },
     {
       id: "sdlc-acceptance-after-construction",
@@ -1561,6 +1584,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Systems development life cycle (Wikipedia)", url: "https://en.wikipedia.org/wiki/Systems_development_life_cycle" },
       evidence: "testing the complete system to ensure that it meets customer expectations (requirements)",
       style: "judgment",
+      skill: "life-cycle",
     },
     {
       id: "sdlc-deployment-rollout-training",
@@ -1576,6 +1600,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Systems development life cycle (Wikipedia)", url: "https://en.wikipedia.org/wiki/Systems_development_life_cycle" },
       evidence: "This phase may include training users to use the system. It may include transitioning future development to support staff.",
       style: "judgment",
+      skill: "life-cycle",
     },
     {
       id: "ci-ai-reviewer-keep-checks",
@@ -1591,6 +1616,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Code Review", url: "https://code.claude.com/docs/en/code-review" },
       evidence: "By default, Code Review focuses on correctness: bugs that would break production, not formatting preferences or missing test coverage.",
       style: "judgment",
+      skill: "engineering",
     },
     {
       id: "ci-required-status-checks-for-agents",
@@ -1606,6 +1632,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "About protected branches (GitHub Docs)", url: "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches" },
       evidence: "After enabling required status checks, all required status checks must pass before collaborators can merge changes into the protected branch.",
       style: "judgment",
+      skill: "engineering",
     },
     {
       id: "cd-deploy-approval-environment-secret",
@@ -1621,6 +1648,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Managing environments for deployment (GitHub Docs)", url: "https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments" },
       evidence: "Additionally, workflow jobs that use this environment can only access these secrets after any configured rules (for example, required reviewers) pass.",
       style: "judgment",
+      skill: "life-cycle",
     },
     {
       id: "vc-agent-prompts-in-version-control",
@@ -1636,6 +1664,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Version control (Wikipedia)", url: "https://en.wikipedia.org/wiki/Version_control" },
       evidence: "When bugs arise, knowing what was done when helps with damage mitigation and recovery by assisting in the identification of what problems exist, how long they have existed, and determining problem scope and solutions.",
       style: "judgment",
+      skill: "config-management",
     },
     {
       id: "cr-agent-self-merge",
@@ -1651,6 +1680,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code GitHub Actions", url: "https://code.claude.com/docs/en/github-actions" },
       evidence: "Grant the workflow only the permissions it needs, and review Claude's changes before merging.",
       style: "judgment",
+      skill: "engineering",
     },
     {
       id: "vc-split-agent-mega-commit",
@@ -1666,6 +1696,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Version control (Wikipedia)", url: "https://en.wikipedia.org/wiki/Version_control" },
       evidence: "which involve only one task or fix -- a corollary to this is to commit only code which works and does not knowingly break existing functionality; using branching to complete functionality before release; writing clear and descriptive commit messages",
       style: "judgment",
+      skill: "engineering",
     },
     {
       id: "refactor-legacy-characterize-first",
@@ -1681,6 +1712,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Characterization test (Wikipedia)", url: "https://en.wikipedia.org/wiki/Characterization_test" },
       evidence: "Often no specification or test suite is available, leaving only characterization tests as an option, since the conservative path is to assume that the old behavior is the required behavior.",
       style: "judgment",
+      skill: "engineering",
     },
     {
       id: "refactor-small-steps",
@@ -1696,6 +1728,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Code refactoring (Wikipedia)", url: "https://en.wikipedia.org/wiki/Code_refactoring" },
       evidence: "If at any point a test fails, the last small change is undone and repeated in a different way. Through many small steps the program moves from where it was to where you want it to be.",
       style: "judgment",
+      skill: "engineering",
     },
     {
       id: "config-as-code-environment-drift",
@@ -1711,6 +1744,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Infrastructure as code (Wikipedia)", url: "https://en.wikipedia.org/wiki/Infrastructure_as_code" },
       evidence: "Treating infrastructure configuration like software - storing it in version control, reviewing it, and deploying it automatically allowed teams to reduce manual errors and reproduce environments reliably.",
       style: "judgment",
+      skill: "config-management",
     },
     {
       id: "config-pin-actions-to-sha",
@@ -1726,6 +1760,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Secure use reference (GitHub Docs)", url: "https://docs.github.com/en/actions/reference/security/secure-use" },
       evidence: "Pinning an action to a full-length commit SHA is currently the only way to use an action as an immutable release.",
       style: "judgment",
+      skill: "config-management",
     },
     {
       id: "config-team-api-key-ci-secret",
@@ -1741,6 +1776,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code GitHub Actions", url: "https://code.claude.com/docs/en/github-actions" },
       evidence: "Never commit API keys or OAuth tokens directly to your repository. Always store them as GitHub Secrets and reference them in workflows",
       style: "judgment",
+      skill: "config-management",
     },
     {
       id: "req-class-infra-hosting-platform",
@@ -1756,6 +1792,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "IT infrastructure (Wikipedia)", url: "https://en.wikipedia.org/wiki/IT_infrastructure" },
       evidence: "all of the hardware, software, networks, facilities, etc., that are required to develop, test, deliver, monitor, control or support IT services.",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "req-class-performance-vs-hosting",
@@ -1771,6 +1808,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "IT infrastructure (Wikipedia)", url: "https://en.wikipedia.org/wiki/IT_infrastructure" },
       evidence: "The primary components of IT infrastructure are the physical systems, such as hardware, storage, any kind of routers/switches, and the building itself, along with networks and software.",
       style: "judgment",
+      skill: "requirements",
     },
     {
       id: "live-chat-vs-nightly-batch-split",
@@ -1786,6 +1824,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Optimizing for cost and intelligence", url: "https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence" },
       evidence: "Route every request no one is waiting on through a batch, and keep the interactive path for the rest.",
       style: "judgment",
+      skill: "api-mechanics",
     },
     {
       id: "stream-keeps-stronger-tier",
@@ -1801,6 +1840,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Customer support agent guide", url: "https://platform.claude.com/docs/en/about-claude/use-case-guides/customer-support-chat" },
       evidence: "In some cases, streaming enables the use of more advanced models with higher base latencies, as the progressive display mitigates the impact of longer processing times.",
       style: "judgment",
+      skill: "api-mechanics",
     },
     {
       id: "overnight-job-streaming-vs-batch",
@@ -1816,6 +1856,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Batch processing", url: "https://platform.claude.com/docs/en/build-with-claude/batch-processing" },
       evidence: "This approach is well-suited to tasks that do not require immediate responses, with most batches finishing in less than 1 hour while reducing costs by 50% and increasing throughput.",
       style: "judgment",
+      skill: "api-mechanics",
     },
     {
       id: "custom-loop-for-business-tools",
@@ -1831,6 +1872,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "We suggest that developers start by using LLM APIs directly: many patterns can be implemented in a few lines of code.",
       style: "judgment",
+      skill: "app-design",
     },
     {
       id: "framework-obscures-prompts",
@@ -1846,6 +1888,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "If you do use a framework, ensure you understand the underlying code. Incorrect assumptions about what's under the hood are a common source of customer error.",
       style: "judgment",
+      skill: "app-design",
     },
     {
       id: "claude-ai-prompt-update-api",
@@ -1861,21 +1904,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "System prompts (release notes)", url: "https://platform.claude.com/docs/en/release-notes/system-prompts/overview" },
       evidence: "This prompt is periodically updated to improve Claude's responses. These system prompt updates do not apply to the Claude API.",
       style: "judgment",
-    },
-    {
-      id: "client-sdk-vs-raw-http",
-      prompt: "One service calls Claude through an official client SDK. Another sends raw HTTP requests and keeps failing on transient errors and on parsing streamed replies. A teammate thinks the SDK gets a smarter model. What's accurate? **Choose 2.**",
-      options: [
-        "Both reach the same Messages API, so the model's behavior doesn't depend on which you use",
-        "The SDK quietly adds a hidden system prompt that improves answers, the way claude.ai does",
-        "The SDK has built-in streaming, retries and error handling that raw HTTP lacks",
-        "Raw HTTP requests go to an older model unless they name a dated snapshot",
-      ],
-      answer: [0, 2],
-      explain: "The client SDKs are general-purpose clients for the same Messages API. They add conveniences such as streaming helpers, retries and error handling, not a different model or a hidden prompt.",
-      source: { label: "CLI, SDKs, and libraries", url: "https://platform.claude.com/docs/en/cli-sdks-libraries/overview" },
-      evidence: "General-purpose Messages API clients for Python, TypeScript, C#, Go, Java, PHP, and Ruby. Each SDK provides idiomatic interfaces, type safety, and built-in support for streaming, retries, and error handling.",
-      style: "judgment",
+      skill: "app-design",
     },
   ],
 
@@ -1895,6 +1924,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Memory", url: `${CODE}/memory` },
       evidence: "These instructions are shared with your team through version control, so focus on project-level standards rather than personal preferences.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "init",
@@ -1910,6 +1940,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Memory", url: `${CODE}/memory` },
       evidence: "Claude analyzes your codebase and creates a file with build commands, test instructions, and project conventions it discovers.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "headless-json",
@@ -1925,6 +1956,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Headless mode", url: `${CODE}/headless` },
       evidence: "Add the `-p` (or `--print`) flag to any `claude` command to run it non-interactively.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "managed-precedence",
@@ -1935,6 +1967,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Settings", url: `${CODE}/settings` },
       evidence: "Nothing you set overrides them: a key you pass with `--settings` doesn't override the same managed key, and a flag such as `--model` picks only from the models your organization allows.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "rule-order",
@@ -1950,6 +1983,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Permissions", url: `${CODE}/permissions` },
       evidence: "Rules are evaluated in order: deny, then ask, then allow.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "skills-loading",
@@ -1965,6 +1999,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Skills", url: `${CODE}/skills` },
       evidence: "Unlike CLAUDE.md content, a skill's body loads only when it's used, so long reference material costs almost nothing until you need it.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "skill-manual-only",
@@ -1980,6 +2015,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Extend Claude with skills", url: "https://code.claude.com/docs/en/skills" },
       evidence: "Add `disable-model-invocation: true` to prevent Claude from triggering it automatically.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "fork-session",
@@ -1995,6 +2031,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Manage sessions", url: "https://code.claude.com/docs/en/sessions" },
       evidence: "From the command line, combine `--continue` or `--resume` with `--fork-session`:",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "dontask-ci",
@@ -2010,6 +2047,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Choose a permission mode", url: "https://code.claude.com/docs/en/permission-modes" },
       evidence: "If you set `dontAsk` mode, Claude Code auto-denies every tool call that would otherwise prompt you.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "rules-path-scoped",
@@ -2025,6 +2063,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How Claude remembers your project", url: "https://code.claude.com/docs/en/memory" },
       evidence: "Rules can be scoped to specific files using YAML frontmatter with the `paths` field. These conditional rules only apply when Claude is working with files matching the specified patterns.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "rewind-bash-not-tracked",
@@ -2040,6 +2079,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Checkpointing", url: "https://code.claude.com/docs/en/checkpointing" },
       evidence: "These file modifications cannot be undone through rewind. Only direct file edits made through Claude's file editing tools are tracked.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "add-dir-claude-md",
@@ -2055,6 +2095,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How Claude remembers your project", url: "https://code.claude.com/docs/en/memory" },
       evidence: "The `--add-dir` flag gives Claude access to additional directories outside your main working directory. By default, CLAUDE.md files from these directories are not loaded.",
       style: "recall",
+      skill: "claude-code-operation",
     },
     {
       id: "personal-prefs-user-level",
@@ -2070,6 +2111,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Explore the .claude directory", url: "https://code.claude.com/docs/en/claude-directory" },
       evidence: "Commit project files to git to share them with your team; files in ~/.claude are personal configuration that applies across all your projects.",
       style: "judgment",
+      skill: "claude-code-operation",
     },
     {
       id: "user-project-claude-md-conflict",
@@ -2085,6 +2127,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How Claude remembers your project", url: "https://code.claude.com/docs/en/memory" },
       evidence: "Consistency: if two rules contradict each other, Claude may pick one arbitrarily. Review your CLAUDE.md files, nested CLAUDE.md files in subdirectories, and .claude/rules/ periodically to remove outdated or conflicting instructions.",
       style: "judgment",
+      skill: "claude-code-operation",
     },
     {
       id: "settings-enforce-not-claude-md",
@@ -2100,6 +2143,55 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How Claude remembers your project", url: "https://code.claude.com/docs/en/memory" },
       evidence: "Settings rules are enforced by the client regardless of what Claude decides to do. CLAUDE.md instructions shape Claude's behavior but are not a hard enforcement layer.",
       style: "judgment",
+      skill: "claude-code-operation",
+    },
+    {
+      id: "org-reminders-managed-claude-md",
+      prompt: "Your compliance team wants the same data-handling reminders in every Claude Code session, for every developer and every repository in the company. Individual developers must not be able to switch them off. A teammate proposes adding the reminders to each repository's CLAUDE.md. How should you guide the team?",
+      options: [
+        "Have IT deploy a managed CLAUDE.md to developer machines; it applies in every repo and can't be excluded",
+        "Add the reminders to a CLAUDE.md template that each new repository copies when it's created",
+        "Write the reminders as deny rules in managed settings, since those can't be overridden",
+        "Ask each developer to add the reminders to their user-level CLAUDE.md in their home directory",
+      ],
+      answer: [0],
+      explain: "A managed CLAUDE.md is the organization-wide level: it loads for all users on the machine, in every repository, and individual settings can't exclude it. Managed settings enforce technical rules such as deny lists; the docs put behavioral and compliance reminders in a managed CLAUDE.md.",
+      source: { label: "How Claude remembers your project", url: "https://code.claude.com/docs/en/memory" },
+      evidence: "Organizations can deploy a centrally managed CLAUDE.md that applies to all users on a machine. This file cannot be excluded by individual settings.",
+      style: "judgment",
+      skill: "claude-code-operation",
+    },
+    {
+      id: "named-session-per-workstream",
+      prompt: "A developer is spending a week on a database migration in Claude Code. Between steps, they fix unrelated bugs in the same long session, and Claude now mixes the two up. They plan to start a new session each morning and re-explain the migration. How should you advise them?",
+      options: [
+        "Keep the one session, and compact it each morning to shrink the bug-fix history",
+        "Start fresh each morning as planned, opening with a detailed written summary of the migration",
+        "Give the migration its own named session to resume each day, and fix bugs in other sessions",
+        "Record the migration's progress in the project CLAUDE.md, so every session starts with it",
+      ],
+      answer: [2],
+      explain: "Named sessions work like branches: each workstream keeps its own persistent context, and resuming it means nothing needs re-explaining. A fresh start with a summary works, but it throws away context the saved session already holds.",
+      source: { label: "Best practices for Claude Code", url: "https://code.claude.com/docs/en/best-practices" },
+      evidence: "Name sessions with /rename and treat them like branches: each workstream gets its own persistent context.",
+      style: "judgment",
+      skill: "claude-code-operation",
+    },
+    {
+      id: "style-guide-skill-not-subagent",
+      prompt: "A teammate packaged the team's long API style guide as a custom subagent. Developers write and refine endpoints with Claude in the main conversation, and there Claude ignores the guide. The guide only matters for API work. How should you advise them?",
+      options: [
+        "Paste the whole guide into the project CLAUDE.md, so it's in context for every session",
+        "Move the guide to the top of the subagent's instructions, so the subagent follows it more closely",
+        "Turn the guide into a hook that runs before every file edit Claude makes",
+        "Make the guide a skill, so it loads into the main conversation when API work needs it",
+      ],
+      answer: [3],
+      explain: "A skill is reusable content that loads into the conversation that needs it, and the docs name an API style guide as a typical reference skill. A subagent's context is isolated from the main conversation, and CLAUDE.md would load the long guide into every session, even for non-API work.",
+      source: { label: "Extend Claude Code", url: "https://code.claude.com/docs/en/features-overview" },
+      evidence: "Reference skills provide knowledge Claude uses throughout your session (like your API style guide).",
+      style: "judgment",
+      skill: "claude-code-operation",
     },
   ],
 
@@ -2113,6 +2205,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "API errors", url: `${DOCS}/api/errors` },
       evidence: "The official SDKs automatically retry transient failures (such as connection errors, rate limits, and 5xx server errors) with exponential backoff, twice by default, honoring the `retry-after` header when present.",
       style: "recall",
+      skill: "debugging",
     },
     {
       id: "truncated-json",
@@ -2129,6 +2222,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Handling stop reasons", url: `${DOCS}/build-with-claude/handling-stop-reasons` },
       evidence: "Every Messages API response includes a `stop_reason` field that tells you why Claude stopped generating.",
       style: "judgment",
+      skill: "debugging",
     },
     {
       id: "tool-result-400",
@@ -2145,6 +2239,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Troubleshooting tool use", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/troubleshooting-tool-use" },
       evidence: "Missing `tool_result` for some `tool_use` ids, or `tool_result` is not the first content block in the user message",
       style: "recall",
+      skill: "debugging",
     },
     {
       id: "cache-miss",
@@ -2161,6 +2256,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompt caching", url: `${DOCS}/build-with-claude/prompt-caching` },
       evidence: "Any requests to cache fewer than this number of tokens will be processed without caching, and no error is returned.",
       style: "recall",
+      skill: "debugging",
     },
     {
       id: "spend-cap-429",
@@ -2176,6 +2272,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude API errors", url: "https://platform.claude.com/docs/en/api/errors" },
       evidence: "A tier spend-cap 429 has no `retry-after` header and keeps failing until access resumes",
       style: "recall",
+      skill: "debugging",
     },
     {
       id: "content-by-type-not-position",
@@ -2191,6 +2288,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Migrating to Claude Opus 5.5", url: "https://platform.claude.com/docs/en/models/opus-5-5/migration-guide" },
       evidence: "Code that reads the reply by position, such as `content[0].text` or a stream handler that treats the first `content_block_start` event as text, breaks on these responses.",
       style: "recall",
+      skill: "debugging",
     },
     {
       id: "llm-grader-reason-first",
@@ -2206,6 +2304,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Define success criteria and build evaluations", url: "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests" },
       evidence: "Ask the LLM to reason first before producing an evaluation score, and then discard the reasoning.",
       style: "judgment",
+      skill: "debugging",
     },
     {
       id: "eval-volume-over-hand-grading",
@@ -2221,6 +2320,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Define success criteria and build evaluations", url: "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests" },
       evidence: "More questions with slightly lower signal automated grading is better than fewer questions with high-quality human hand-graded evals.",
       style: "judgment",
+      skill: "debugging",
     },
     {
       id: "eval-grader-choice-code",
@@ -2236,6 +2336,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Define success criteria and build evaluations", url: "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests" },
       evidence: "Fastest and most reliable, extremely scalable, but also lacks nuance for more complex judgments that require less rule-based rigidity.",
       style: "judgment",
+      skill: "debugging",
     },
     {
       id: "error-413-request-bytes",
@@ -2251,6 +2352,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude API errors", url: "https://platform.claude.com/docs/en/api/errors" },
       evidence: "413 - `request_too_large`: Request exceeds the maximum allowed number of bytes.",
       style: "recall",
+      skill: "debugging",
     },
     {
       id: "empty-reply-trace-integration",
@@ -2266,6 +2368,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Stop reasons and fallback", url: "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons" },
       evidence: "Adding text blocks immediately after tool results (Claude learns to expect the user to always insert text after tool results, so it ends its turn to follow the pattern)",
       style: "judgment",
+      skill: "debugging",
     },
     {
       id: "parallel-calls-trace-formatting",
@@ -2281,6 +2384,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Parallel tool use", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/parallel-tool-use" },
       evidence: "The most common issue is formatting tool results incorrectly in the conversation history. This \"teaches\" Claude to avoid parallel calls.",
       style: "judgment",
+      skill: "debugging",
     },
     {
       id: "range-check-app-layer",
@@ -2296,6 +2400,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Structured outputs", url: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs" },
       evidence: "This means Claude receives a simplified schema, but your code still enforces all constraints through validation.",
       style: "judgment",
+      skill: "debugging",
     },
     {
       id: "parse-not-string-match",
@@ -2311,6 +2416,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Troubleshooting tool use", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/troubleshooting-tool-use" },
       evidence: "Parse with json.loads() or JSON.parse(). Never do raw string matching on serialized input.",
       style: "judgment",
+      skill: "debugging",
     },
   ],
 
@@ -2324,6 +2430,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Choosing the right model", url: "https://platform.claude.com/docs/en/about-claude/models/choosing-a-model" },
       evidence: "For many applications, starting with a faster, more cost-effective model like Claude Haiku 4.5 can be the optimal approach:",
       style: "recall",
+      skill: "model-selection",
     },
     {
       id: "effort",
@@ -2339,6 +2446,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Effort", url: `${DOCS}/build-with-claude/effort` },
       evidence: "Because effort applies to every output token, it works whether or not thinking is enabled. Lower effort also means fewer and terser tool calls.",
       style: "recall",
+      skill: "llm-fundamentals",
     },
     {
       id: "adaptive",
@@ -2354,6 +2462,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Steering thinking", url: "https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost" },
       evidence: "Claude's thinking is adaptive: the model evaluates each request and decides for itself whether to think and how much.",
       style: "recall",
+      skill: "llm-fundamentals",
     },
     {
       id: "context-counts",
@@ -2369,6 +2478,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Context windows", url: `${DOCS}/build-with-claude/context-windows` },
       evidence: "Everything in the request counts toward the context window: the system prompt, every message in `messages` (including tool results, images, and documents), and your tool definitions. The output Claude generates for the turn, including its extended thinking, counts too.",
       style: "recall",
+      skill: "llm-fundamentals",
     },
     {
       id: "cache-economics",
@@ -2384,6 +2494,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompt caching", url: `${DOCS}/build-with-claude/prompt-caching` },
       evidence: "Cache read tokens are 0.1 times the base input tokens price (see the table footnote for per-model exceptions)",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "no-effort",
@@ -2394,6 +2505,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Migrating to Claude Sonnet 5", url: "https://platform.claude.com/docs/en/models/sonnet-5/migration-guide" },
       evidence: "to control thinking depth and token spend; it is not available on Claude Haiku 4.5, so no existing setting carries over.",
       style: "recall",
+      skill: "model-selection",
     },
     {
       id: "sonnet5-depth",
@@ -2410,6 +2522,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Thinking: supported models", url: `${DOCS}/build-with-claude/thinking-troubleshooting` },
       evidence: "\"thinking.type.enabled\" is not supported for this model. Use \"thinking.type.adaptive\" and \"output_config.effort\" to control thinking behavior.",
       style: "recall",
+      skill: "llm-fundamentals",
     },
     {
       id: "count-tokens",
@@ -2425,6 +2538,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Token counting", url: `${DOCS}/build-with-claude/token-counting` },
       evidence: "Token counting lets you determine the number of tokens in a message before you send it to Claude.",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "sonnet5-tokenizer-cost",
@@ -2440,6 +2554,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "What's new in Claude Sonnet 5", url: "https://platform.claude.com/docs/en/models/sonnet-5/whats-new-sonnet-5" },
       evidence: "produces approximately 30% more tokens for the same text, the cost of an equivalent request does not drop in direct proportion to the per-token prices when comparing with Claude Sonnet 4.6.",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "temperature-zero-nondeterminism",
@@ -2455,6 +2570,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Glossary", url: "https://platform.claude.com/docs/en/about-claude/glossary" },
       evidence: "Even with temperature set to 0, the results will not be fully deterministic and identical inputs may produce different outputs across API calls.",
       style: "recall",
+      skill: "llm-fundamentals",
     },
     {
       id: "sonnet5-migration-400s",
@@ -2470,6 +2586,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "What's new in Claude Sonnet 5", url: "https://platform.claude.com/docs/en/models/sonnet-5/whats-new-sonnet-5" },
       evidence: "manual extended thinking now returns a 400 error (it was deprecated on Claude Sonnet 4.6), and setting sampling parameters (`temperature`, `top_p`, `top_k`) to non-default values returns a 400 error.",
       style: "recall",
+      skill: "model-selection",
     },
     {
       id: "opus55-forced-tool-choice",
@@ -2485,6 +2602,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "What's new in Claude Opus 5.5", url: "https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5" },
       evidence: "Replace `tool_choice` types `any` and `tool` with `auto` plus [strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use).",
       style: "recall",
+      skill: "model-selection",
     },
     {
       id: "opus55-default-effort",
@@ -2500,6 +2618,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "What's new in Claude Opus 5.5", url: "https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5" },
       evidence: "A request that omits `effort` runs at `medium`; on Claude Opus 5 it ran at `high`.",
       style: "recall",
+      skill: "model-selection",
     },
     {
       id: "haiku45-extended-thinking",
@@ -2515,6 +2634,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Troubleshooting thinking", url: "https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting" },
       evidence: "This happens because the model supports only extended thinking",
       style: "recall",
+      skill: "model-selection",
     },
     {
       id: "thinking-display-omitted",
@@ -2530,6 +2650,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Troubleshooting thinking", url: "https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting" },
       evidence: "This happens because `display` defaults to `\"omitted\"` on newer models, which returns thinking blocks without their text.",
       style: "recall",
+      skill: "llm-fundamentals",
     },
     {
       id: "fable-escalation",
@@ -2545,6 +2666,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Choosing the right model", url: "https://platform.claude.com/docs/en/about-claude/models/choosing-a-model" },
       evidence: "If your evals at `xhigh` or `max` effort still fall short on demanding reasoning or long-horizon agentic work, move to [Claude Fable 5.1](https://platform.claude.com/docs/en/models/fable-5-1/whats-new-fable-5-1).",
       style: "recall",
+      skill: "model-selection",
     },
     {
       id: "few-shot-diverse",
@@ -2560,6 +2682,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "Cover edge cases and vary enough that Claude doesn't pick up unintended patterns.",
       style: "judgment",
+      skill: "llm-fundamentals",
     },
     {
       id: "cache-ttl-from-request-start",
@@ -2575,6 +2698,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompt caching", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" },
       evidence: "The lifetime is measured from the start of the request that writes or reads the cache entry, not from the end of its response.",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "cache-lookback-window",
@@ -2590,6 +2714,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompt caching", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" },
       evidence: "The system checks at most 20 positions per breakpoint, counting the breakpoint itself as the first.",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "opus55-cache-read-cost",
@@ -2605,6 +2730,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Pricing", url: "https://platform.claude.com/docs/en/about-claude/pricing" },
       evidence: "On Claude Opus 5.5, a cache hit costs 5% of the standard input price ($0.20 USD per million tokens).",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "fast-mode-facts",
@@ -2620,6 +2746,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Fast mode", url: "https://platform.claude.com/docs/en/build-with-claude/fast-mode" },
       evidence: "Fast mode delivers up to 2.5x higher output tokens per second from Claude Opus 5.5, Claude Opus 5, and Claude Opus 4.8 at premium pricing.",
       style: "recall",
+      skill: "model-selection",
     },
     {
       id: "long-context-no-premium",
@@ -2635,6 +2762,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Pricing", url: "https://platform.claude.com/docs/en/about-claude/pricing" },
       evidence: "A 900k-token request is billed at the same per-token rate as a 9k-token request.",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "batch-300k-output",
@@ -2650,6 +2778,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Models overview", url: "https://platform.claude.com/docs/en/about-claude/models/overview" },
       evidence: "On the Message Batches API, Claude Opus 5.5, Claude Opus 5, Claude Sonnet 5, Claude Opus 4.8, Claude Opus 4.7, Claude Opus 4.6, and Claude Sonnet 4.6 support up to 300k output tokens with the output-300k-2026-03-24 beta header.",
       style: "recall",
+      skill: "llm-fundamentals",
     },
     {
       id: "cache-1h-ttl-fit",
@@ -2665,6 +2794,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompt caching", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" },
       evidence: "When you have prompts that are likely used less frequently than 5 minutes, but more frequently than every hour.",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "batch-cache-read-stacking",
@@ -2680,6 +2810,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Pricing", url: "https://platform.claude.com/docs/en/about-claude/pricing" },
       evidence: "These multipliers stack with other pricing modifiers, including the Batch API discount and data residency.",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "summarized-thinking-billing",
@@ -2695,6 +2826,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building with thinking", url: "https://platform.claude.com/docs/en/build-with-claude/thinking" },
       evidence: "You're charged for the full thinking tokens generated by the original request, not the summary tokens.",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "effort-xhigh-availability",
@@ -2710,6 +2842,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Effort", url: "https://platform.claude.com/docs/en/build-with-claude/effort" },
       evidence: "Available on Claude Fable 5.1, Claude Mythos 5.1, Claude Fable 5, Claude Mythos 5, Claude Opus 5.5, Claude Opus 5, Claude Opus 4.8, Claude Opus 4.7, and Claude Sonnet 5.",
       style: "recall",
+      skill: "model-selection",
     },
     {
       id: "deprecation-bedrock-own-schedule",
@@ -2725,6 +2858,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Model deprecations", url: "https://platform.claude.com/docs/en/about-claude/model-deprecations" },
       evidence: "Partner-operated platforms (Amazon Bedrock and Google Cloud) set their own retirement schedules, so a model's lifecycle status and dates can differ.",
       style: "recall",
+      skill: "model-selection",
     },
     {
       id: "tool-use-system-prompt-tokens",
@@ -2740,6 +2874,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Pricing", url: "https://platform.claude.com/docs/en/about-claude/pricing" },
       evidence: "When you use `tools`, the API also automatically includes a special system prompt for the model that enables tool use.",
       style: "recall",
+      skill: "cost",
     },
     {
       id: "tier-live-autocomplete",
@@ -2755,6 +2890,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Reducing latency", url: "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-latency" },
       evidence: "For speed-critical applications, Claude Haiku 4.5 offers the fastest response times while maintaining high intelligence",
       style: "judgment",
+      skill: "model-selection",
     },
     {
       id: "tier-cost-per-completed-task",
@@ -2770,6 +2906,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Optimizing for cost and intelligence", url: "https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence" },
       evidence: "The ranking flips by workload, and no price list tells you which way. Price every candidate in cost per completed task on your own traffic",
       style: "judgment",
+      skill: "model-selection",
     },
     {
       id: "tier-capability-first-features",
@@ -2785,6 +2922,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Choosing the right model", url: "https://platform.claude.com/docs/en/about-claude/models/choosing-a-model" },
       evidence: "For complex tasks where intelligence and advanced capabilities are paramount, you may want to start capability-first: implement with the strongest starting point for your task, then optimize to more efficient models down the line",
       style: "judgment",
+      skill: "model-selection",
     },
     {
       id: "effort-before-tier-switch",
@@ -2800,6 +2938,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Choosing the right model", url: "https://platform.claude.com/docs/en/about-claude/models/choosing-a-model" },
       evidence: "Several Claude models support an effort parameter that trades intelligence for latency and cost within a single model. Tuning effort is often a better lever than switching models.",
       style: "judgment",
+      skill: "model-selection",
     },
     {
       id: "tier-routing-mixed-workload",
@@ -2815,6 +2954,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" },
       evidence: "Routing easy/common questions to smaller, cost-efficient models like Claude Haiku 4.5 and hard/unusual questions to more capable models like Claude Sonnet 4.5 to optimize for best performance.",
       style: "judgment",
+      skill: "model-selection",
     },
     {
       id: "recount-tokens-for-target-model",
@@ -2830,6 +2970,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Token counting", url: "https://platform.claude.com/docs/en/build-with-claude/token-counting" },
       evidence: "Recount prompts against the model you plan to use rather than reusing counts measured against earlier models.",
       style: "judgment",
+      skill: "cost",
     },
     {
       id: "price-each-usage-category",
@@ -2845,6 +2986,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Optimizing for cost and intelligence", url: "https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence" },
       evidence: "price the five priced token counts in each response's usage at their own rates (uncached input, 5-minute and 1-hour cache writes at 1.25x and 2x the input price, cache reads, and output)",
       style: "judgment",
+      skill: "cost",
     },
     {
       id: "capture-actual-usage-not-estimates",
@@ -2860,6 +3002,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Token counting", url: "https://platform.claude.com/docs/en/build-with-claude/token-counting" },
       evidence: "The token count is an estimate. In some cases, the actual number of input tokens used when creating a message might differ by a small amount.",
       style: "judgment",
+      skill: "cost",
     },
     {
       id: "agent-turn-cost-model",
@@ -2875,6 +3018,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Optimizing for cost and intelligence", url: "https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence" },
       evidence: "A 40-turn task sends its first turn 40 times, so task cost grows with roughly the square of turn count. Caching does not stop the resending, but each resend costs about a tenth as much and processes faster",
       style: "judgment",
+      skill: "cost",
     },
     {
       id: "cache-long-contract-what-it-discounts",
@@ -2890,6 +3034,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompt caching", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" },
       evidence: "Prompt caching optimizes your API usage by allowing resuming from specific prefixes in your prompts. This significantly reduces processing time and costs for repetitive tasks or prompts with consistent elements.",
       style: "judgment",
+      skill: "cost",
     },
     {
       id: "cache-pays-off-with-reuse",
@@ -2905,6 +3050,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Pricing", url: "https://platform.claude.com/docs/en/about-claude/pricing" },
       evidence: "A cache hit costs 10% of the standard input price, which means caching pays off after one cache read for the 5-minute duration (1.25x write), or after two cache reads for the 1-hour duration (2x write).",
       style: "judgment",
+      skill: "cost",
     },
     {
       id: "new-model-own-evals-first",
@@ -2920,6 +3066,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Choosing the right model", url: "https://platform.claude.com/docs/en/about-claude/models/choosing-a-model" },
       evidence: "Create benchmark tests specific to your use case - having a good evaluation set is the most important step in the process.",
       style: "judgment",
+      skill: "model-selection",
     },
     {
       id: "no-errors-not-same-behavior",
@@ -2935,6 +3082,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Optimizing for cost and intelligence", url: "https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence" },
       evidence: "Run the winner in shadow on a traffic slice before cutover, then keep the suite running.",
       style: "judgment",
+      skill: "model-selection",
     },
     {
       id: "word-limits-vs-tokens",
@@ -2950,6 +3098,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Reducing latency", url: "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-latency" },
       evidence: "Because of how LLMs count tokens instead of words, asking for an exact word count or a word count limit is not as effective a strategy as asking for paragraph or sentence count limits.",
       style: "judgment",
+      skill: "llm-fundamentals",
     },
     {
       id: "context-window-not-training",
@@ -2965,6 +3114,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Glossary", url: "https://platform.claude.com/docs/en/about-claude/glossary" },
       evidence: "This is different from the large corpus of data the language model was trained on, and instead represents a \"working memory\" for the model.",
       style: "judgment",
+      skill: "llm-fundamentals",
     },
     {
       id: "zero-shot-legal-summary",
@@ -2980,6 +3130,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "A few well-crafted examples (known as few-shot or multishot prompting) improve accuracy and consistency.",
       style: "judgment",
+      skill: "llm-fundamentals",
     },
     {
       id: "few-shot-ticket-samples",
@@ -2995,6 +3146,231 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Ticket routing guide", url: "https://platform.claude.com/docs/en/about-claude/use-case-guides/ticket-routing" },
       evidence: "The prompt includes a few examples (a.k.a. few-shot prompting) to illustrate how the output should be formatted, which improves accuracy and consistency.",
       style: "judgment",
+      skill: "llm-fundamentals",
+    },
+    {
+      id: "client-sdk-vs-raw-http",
+      prompt: "One service calls Claude through an official client SDK. Another sends raw HTTP requests and keeps failing on transient errors and on parsing streamed replies. A teammate thinks the SDK gets a smarter model. What's accurate? **Choose 2.**",
+      options: [
+        "Both reach the same Messages API, so the model's behavior doesn't depend on which you use",
+        "The SDK quietly adds a hidden system prompt that improves answers, the way claude.ai does",
+        "The SDK has built-in streaming, retries and error handling that raw HTTP lacks",
+        "Raw HTTP requests go to an older model unless they name a dated snapshot",
+      ],
+      answer: [0, 2],
+      explain: "The client SDKs are general-purpose clients for the same Messages API. They add conveniences such as streaming helpers, retries and error handling, not a different model or a hidden prompt.",
+      source: { label: "CLI, SDKs, and libraries", url: "https://platform.claude.com/docs/en/cli-sdks-libraries/overview" },
+      evidence: "General-purpose Messages API clients for Python, TypeScript, C#, Go, Java, PHP, and Ruby. Each SDK provides idiomatic interfaces, type safety, and built-in support for streaming, retries, and error handling.",
+      style: "judgment",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "sdk-builtin-retries",
+      prompt: "Your code wraps each Anthropic SDK call in its own loop that retries 429 and 5xx errors five times. Under load you see far more retries than your loop should make. Why?",
+      options: [
+        "Rate-limit 429s never carry a `retry-after` header, so your loop can't back off properly",
+        "The SDK switches off its own backoff whenever it detects an outer retry loop around the call",
+        "The SDK already retries them itself (twice by default), so the two retry layers multiply",
+        "5xx errors are permanent failures, so retrying them only repeats the same failed request",
+      ],
+      answer: [2],
+      explain: "The official SDKs retry connection errors, 429s and 5xx with exponential backoff (twice by default), honoring `retry-after`. Tune or disable that with `max_retries` instead of stacking loops.",
+      source: { label: "Claude API errors", url: "https://platform.claude.com/docs/en/api/errors" },
+      evidence: "The official SDKs automatically retry transient failures (such as connection errors, rate limits, and 5xx server errors) with exponential backoff, twice by default, honoring the `retry-after` header when present.",
+      style: "recall",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "sdk-error-handling-practices",
+      prompt: "You're hardening the error handling around your Anthropic SDK calls. Which practices do the docs recommend? **Choose 2.**",
+      options: [
+        "Match on the `error.message` text to decide whether each failure is worth retrying",
+        "Catch the SDK's typed error classes, most specific first, instead of matching message strings",
+        "Retry 400 `invalid_request_error` responses with exponential backoff until they succeed",
+        "Log each response's request ID and quote it when asking support about that call",
+      ],
+      answer: [1, 3],
+      explain: "The SDKs raise typed exceptions, and every response carries a `request-id` (exposed as `_request_id` in Python and TypeScript) for support. A 400 means the request itself is wrong, so retrying won't fix it.",
+      source: { label: "Claude API errors", url: "https://platform.claude.com/docs/en/api/errors" },
+      evidence: "Catch the SDK's typed classes rather than string-matching error messages, handling the most specific classes first.",
+      style: "recall",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "stream-error-after-200",
+      prompt: "Your streaming client treats HTTP 200 as success and only handles errors from the status code. At peak hours, some answers stop midway and nothing is logged. What's the likely gap?",
+      options: [
+        "The API switches the status to 529 at the end of the stream, which clients ignore after a 200",
+        "Streams longer than 10 minutes are closed silently, so long answers need non-streaming calls",
+        "An `error` event such as `overloaded_error` can arrive inside the stream after the 200",
+        "Overloaded streams end with `stop_reason: \"overloaded\"` in the last `message_delta`",
+      ],
+      answer: [2],
+      explain: "Mid-stream failures arrive as `error` events after the 200 has been sent, so the handler must watch the event stream. There is no `overloaded` stop reason, and streaming is the recommended path for long requests.",
+      source: { label: "Streaming messages", url: "https://platform.claude.com/docs/en/build-with-claude/streaming" },
+      evidence: "For example, during periods of high usage, you may receive an `overloaded_error`, which would normally correspond to an HTTP 529 in a non-streaming context",
+      style: "recall",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "stream-large-max-tokens",
+      prompt: "A user waits in your app for a long answer. You call the SDK's non-streaming `create()` with a large `max_tokens`, and the SDK rejects the call before sending it. You don't need to show text as it arrives. What's the fix?",
+      options: [
+        "Set the SDK client's timeout option to 0 so the non-streaming request can never time out",
+        "Add the `output-300k-2026-03-24` beta header so larger `max_tokens` is accepted",
+        "Call `.stream()` and use the SDK's final-message helper to get the complete `Message` object",
+        "Use the Message Batches API, the only endpoint that accepts large `max_tokens`",
+      ],
+      answer: [2],
+      explain: "The SDKs require streaming for large `max_tokens` to avoid HTTP timeouts; `.stream()` plus `get_final_message()`/`finalMessage()` returns the same `Message` as `create()`. The 300k header is for batches only, and a batch doesn't suit a user who's waiting.",
+      source: { label: "Streaming messages", url: "https://platform.claude.com/docs/en/build-with-claude/streaming" },
+      evidence: "This is especially useful for requests with large `max_tokens` values, where the SDKs require streaming to avoid HTTP timeouts.",
+      style: "recall",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "stream-tool-input-json",
+      prompt: "You stream a response in which Claude calls a tool. Your code runs `JSON.parse()` on each `input_json_delta` as it arrives, and it keeps throwing. What should you do?",
+      options: [
+        "Parse each delta on its own and log failures, since they mean the tool JSON is invalid",
+        "Stop streaming tool calls, since tool use and streaming can't be combined in one request",
+        "Read the full tool input from `message_start`, which carries it before the deltas arrive",
+        "Accumulate the partial JSON strings, then parse once that block's `content_block_stop` arrives",
+      ],
+      answer: [3],
+      explain: "Tool-input deltas are partial JSON strings; accumulate them and parse after `content_block_stop` (or let the SDK helpers do it). Each fragment on its own isn't valid JSON, and `message_start` has empty content.",
+      source: { label: "Streaming messages", url: "https://platform.claude.com/docs/en/build-with-claude/streaming" },
+      evidence: "You can accumulate the string deltas and parse the JSON once you receive a `content_block_stop` event",
+      style: "recall",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "tech-sdk-before-custom-client",
+      prompt: "A team starting a new Claude integration plans to spend a sprint writing its own HTTP client, with retry logic, error parsing and a parser for streamed replies. They'll build in a language that has an official SDK. What should you advise first?",
+      options: [
+        "Build the client in-house first, so the team understands every API detail before adopting a library",
+        "Start from an official client SDK, which already handles retries, errors and streamed replies",
+        "Use a framework compatibility layer instead, since it works as a general-purpose Messages API client",
+        "Hand-write only the stream parser, and send the other calls as plain HTTP with no retries",
+      ],
+      answer: [1],
+      explain: "The official SDKs are general-purpose Messages API clients with streaming, retries and error handling built in, so rebuilding them wastes the sprint. Compatibility layers expose Claude through another framework's API and aren't general-purpose clients.",
+      source: { label: "CLI, SDKs, and libraries", url: "https://platform.claude.com/docs/en/cli-sdks-libraries/overview" },
+      evidence: "Each SDK provides idiomatic interfaces, type safety, and built-in support for streaming, retries, and error handling.",
+      style: "judgment",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "tech-retry-plan-review",
+      prompt: "A service calls Claude through an official SDK. A teammate's pull request wraps every call in a new loop that retries any error five times after a fixed one-second pause, including malformed-request and invalid-key errors. How should you guide the revision? **Choose 2.**",
+      options: [
+        "Drop the new loop: the SDK already retries transient errors with backoff and honors the server's wait advice",
+        "Keep the loop but add exponential backoff to it, so both retry layers wait longer between attempts",
+        "Stop retrying malformed-request and invalid-key errors; surface them so the request or key gets fixed",
+        "Decide what to retry by matching words such as \"overloaded\" in each error message's text",
+      ],
+      answer: [0, 2],
+      explain: "The SDK already retries connection errors, rate limits and server errors with backoff, honoring the server's wait time, so a second loop only multiplies attempts. A malformed request or a bad key fails the same way every time, so it needs fixing, not retrying.",
+      source: { label: "Claude API errors", url: "https://platform.claude.com/docs/en/api/errors" },
+      evidence: "The official SDKs automatically retry transient failures (such as connection errors, rate limits, and 5xx server errors) with exponential backoff, twice by default, honoring the retry-after header when present.",
+      style: "judgment",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "tech-flaky-network-batch-poll",
+      prompt: "Field researchers queue long document analyses from laptops on unreliable connections. Nobody needs the results until the next day, but long requests keep failing when the connection drops partway. A teammate proposes raising the client timeout. What fits better?",
+      options: [
+        "Submit the analyses through the batch interface and poll for results later",
+        "Raise the client timeout well above the longest expected analysis, and wait on each call",
+        "Stream each analysis, keeping one connection open until the whole reply has arrived",
+        "Move to the smallest, fastest tier so each analysis finishes before the connection drops",
+      ],
+      answer: [0],
+      explain: "Nobody is waiting, and the batch interface lets you poll for results instead of holding an unbroken connection. Streaming helps against idle-connection drops, but it still needs the connection to stay up until the reply ends.",
+      source: { label: "Claude API errors", url: "https://platform.claude.com/docs/en/api/errors" },
+      evidence: "The Message Batches API can help you manage the risk of network issues by allowing you to poll for results rather than requiring an uninterrupted network connection.",
+      style: "judgment",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "tech-launch-traffic-plan",
+      prompt: "Your app moves from a small pilot to all customers on launch day. The organization's per-minute rate limits cover the expected volume, so the team plans to switch everyone over at once. How should you guide the launch? **Choose 2.**",
+      options: [
+        "Switch everyone at once, since the per-minute limits already cover the expected volume",
+        "Ramp traffic up gradually and keep usage steady, rather than switching everyone at once",
+        "Send each minute's requests together in one burst, since limits are counted per minute",
+        "Pace requests from the limit and remaining capacity the API reports on each response",
+      ],
+      answer: [1, 3],
+      explain: "A sharp jump in usage can hit acceleration limits even when the per-minute limits cover the volume, so ramp up gradually. Each response reports the limit in force, current usage and reset time, which is a better pacing signal than bursts, since limits can be enforced over shorter spans than a minute.",
+      source: { label: "Rate limits", url: "https://platform.claude.com/docs/en/api/rate-limits" },
+      evidence: "You might also encounter 429 errors because of acceleration limits on the API if your organization has a sharp increase in usage. To avoid hitting acceleration limits, ramp up your traffic gradually and maintain consistent usage patterns.",
+      style: "judgment",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "tech-long-report-stream",
+      prompt: "Users of your app request long reports and wait on screen for them. The backend makes one non-streaming call per report through an official SDK. On some customers' networks, long calls fail without any response. A teammate proposes raising the client timeout further. What should you recommend?",
+      options: [
+        "Raise the timeout well past the longest report, so slow calls can finish",
+        "Send reports through the batch interface and let users check back later",
+        "Lower the output limit so every report finishes within the current timeout",
+        "Stream the long calls; the SDK can still collect the stream into one complete reply",
+      ],
+      answer: [3],
+      explain: "Some networks drop idle connections, so a long non-streaming call can fail with no response however long the timeout is. Streaming avoids that and the SDK can still return one complete message; a lower output limit would cut reports short, and batch suits work nobody is waiting on.",
+      source: { label: "Python SDK", url: "https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python" },
+      evidence: "Avoid setting a large max_tokens value without using streaming. Some networks may drop idle connections after a certain period of time, which can cause the request to fail or timeout without receiving a response from Anthropic.",
+      style: "judgment",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "tech-interrupted-stream-continue",
+      prompt: "Your app streams long answers from a current model. At peak times, an overloaded error arrives partway through a stream, after text has started flowing. Today the app throws away the partial answer and resends the original request. What's a better recovery?",
+      options: [
+        "Keep resending the original request, since a partial answer can't be reused",
+        "Treat the stream as a success, since it began with a success status code",
+        "Save the partial text, then send it in a new user message asking the model to continue from there",
+        "Save the partial text and place it at the start of the assistant turn so the model carries on from it",
+      ],
+      answer: [2],
+      explain: "On current models, you save what arrived and ask, in a new user message, for the rest, so the whole answer isn't regenerated. Putting the partial text in the assistant turn was the approach for older models; current ones don't accept a prefilled assistant turn.",
+      source: { label: "Streaming messages", url: "https://platform.claude.com/docs/en/build-with-claude/streaming" },
+      evidence: "instead of placing the partial response in an assistant message, add a user message that instructs the model to continue from where it left off.",
+      style: "judgment",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "tech-trace-with-request-id",
+      prompt: "A customer reports that one answer in your app failed with a server error yesterday afternoon. Your logs hold timestamps, user IDs and prompts, but nothing that identifies that call to Anthropic support. What should you change so the next report like this can be traced?",
+      options: [
+        "Log the request ID from every response and error, and quote it when you contact support",
+        "Log the full prompt and reply for every call, so support can find it by its content",
+        "Log the status code of each failed call, keeping the logs small and easy to search",
+        "Stream every reply so that failures show up on screen as soon as they happen",
+      ],
+      answer: [0],
+      explain: "Every response, and every error body, carries a unique request ID, and support asks for it to find a specific call. Logging prompts and replies helps your own debugging but doesn't identify the call on Anthropic's side.",
+      source: { label: "Claude API errors", url: "https://platform.claude.com/docs/en/api/errors" },
+      evidence: "The same identifier appears as the request_id field in error response bodies. When contacting support about a specific request, include this ID to help quickly resolve your issue.",
+      style: "judgment",
+      skill: "technical-fundamentals",
+    },
+    {
+      id: "tech-short-timeout-still-slow",
+      prompt: "An autocomplete feature calls Claude through an official SDK and should show a canned suggestion if no reply arrives within a few seconds. The team set a short timeout, yet users sometimes wait several times that long before the fallback appears. What's the best next step?",
+      options: [
+        "Shorten the timeout further, dividing the target wait by the number of attempts you observe",
+        "Wrap the call in your own loop that keeps retrying until a reply arrives in time",
+        "Raise the retry count so a quick second attempt can replace a slow first one",
+        "Lower this call's retry count too, since timed-out requests are retried by default",
+      ],
+      answer: [3],
+      explain: "The SDK retries timed-out requests by default, so users can sit through several timeouts plus backoff, and more retries only lengthen that. Setting the retry count for this call fixes the total wait; shrinking the timeout alone cuts off replies that would have arrived in time.",
+      source: { label: "Python SDK", url: "https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python" },
+      evidence: "Note that requests that time out are retried twice by default.",
+      style: "judgment",
+      skill: "technical-fundamentals",
     },
   ],
 
@@ -3013,6 +3389,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: `${DOCS}/build-with-claude/prompt-engineering/claude-prompting-best-practices` },
       evidence: "Place your long documents and inputs near the top of your prompt, above your query, instructions, and examples. This improves performance across all models.",
       style: "judgment",
+      skill: "prompt-engineering",
     },
     {
       id: "few-shot",
@@ -3028,6 +3405,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: `${DOCS}/build-with-claude/prompt-engineering/claude-prompting-best-practices` },
       evidence: "Include 3–5 examples for best results. You can also ask Claude to evaluate your examples for relevance and diversity, or to generate additional ones based on your initial set.",
       style: "recall",
+      skill: "prompt-engineering",
     },
     {
       id: "structure",
@@ -3043,6 +3421,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: `${DOCS}/build-with-claude/prompt-engineering/claude-prompting-best-practices` },
       evidence: "Wrapping each type of content in its own tag (for example, `<instructions>`, `<context>`, `<input>`) reduces misinterpretation.",
       style: "recall",
+      skill: "prompt-engineering",
     },
     {
       id: "context-bloat",
@@ -3058,6 +3437,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Context editing", url: `${DOCS}/build-with-claude/context-editing` },
       evidence: "The `clear_tool_uses_20250919` strategy clears tool results when conversation context grows beyond your configured threshold.",
       style: "recall",
+      skill: "context-engineering",
     },
     {
       id: "structured-trust",
@@ -3073,6 +3453,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Structured outputs", url: `${DOCS}/build-with-claude/structured-outputs` },
       evidence: "While structured outputs guarantee schema compliance in most cases, there are scenarios where the output may not match your schema:",
       style: "recall",
+      skill: "output-handling",
     },
     {
       id: "prefill-to-structured-outputs",
@@ -3088,6 +3469,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "The [Structured Outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) feature is designed specifically to constrain Claude's responses to follow a given schema.",
       style: "recall",
+      skill: "output-handling",
     },
     {
       id: "format-positive-instructions",
@@ -3103,6 +3485,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "For example, removing markdown from your prompt can reduce the volume of markdown in the output.",
       style: "judgment",
+      skill: "prompt-engineering",
     },
     {
       id: "explicit-action-requests",
@@ -3118,6 +3501,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "If you say \"can you suggest some changes,\" Claude will sometimes provide suggestions rather than implementing them, even if making changes might be what you intended.",
       style: "judgment",
+      skill: "prompt-engineering",
     },
     {
       id: "explain-the-why",
@@ -3133,6 +3517,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "Providing context or motivation behind your instructions, such as explaining to Claude why such behavior is important, can help Claude better understand your goals and deliver more targeted responses.",
       style: "judgment",
+      skill: "prompt-engineering",
     },
     {
       id: "long-doc-quote-grounding",
@@ -3148,6 +3533,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "For long document tasks, ask Claude to quote relevant parts of the documents first before carrying out its task. This helps Claude focus on the relevant content and ignore the rest of the document.",
       style: "judgment",
+      skill: "prompt-engineering",
     },
     {
       id: "manual-cot-tags",
@@ -3163,6 +3549,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "Use structured tags like `<thinking>` and `<answer>` to cleanly separate reasoning from the final output.",
       style: "recall",
+      skill: "prompt-engineering",
     },
     {
       id: "compaction-persistent-rules",
@@ -3178,6 +3565,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Agent SDK: How the agent loop works", url: "https://code.claude.com/docs/en/agent-sdk/agent-loop" },
       evidence: "Persistent rules belong in CLAUDE.md (loaded via [`settingSources`](/docs/en/agent-sdk/claude-code-features)) rather than in the initial prompt, because CLAUDE.md content is re-injected on every request.",
       style: "recall",
+      skill: "context-engineering",
     },
     {
       id: "just-in-time-context",
@@ -3193,6 +3581,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Effective context engineering for AI agents", url: "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" },
       evidence: "The model can write targeted queries, store results, and leverage Bash commands like head and tail to analyze large volumes of data without ever loading the full data objects into context.",
       style: "judgment",
+      skill: "context-engineering",
     },
     {
       id: "structured-outputs-validation",
@@ -3208,6 +3597,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Structured outputs", url: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs" },
       evidence: "A Pydantic field with `minimum: 100` becomes a plain integer in the sent schema, but the SDK updates the description to \"Must be at least 100\" and validates the response against the original constraint.",
       style: "recall",
+      skill: "output-handling",
     },
     {
       id: "system-prompt-right-altitude",
@@ -3223,6 +3613,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Effective context engineering for AI agents", url: "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" },
       evidence: "The optimal altitude strikes a balance: specific enough to guide behavior effectively, yet flexible enough to provide the model with strong heuristics to guide behavior.",
       style: "judgment",
+      skill: "prompt-engineering",
     },
     {
       id: "context-rot-finite-budget",
@@ -3238,6 +3629,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Effective context engineering for AI agents", url: "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" },
       evidence: "Context, therefore, must be treated as a finite resource with diminishing marginal returns.",
       style: "judgment",
+      skill: "context-engineering",
     },
     {
       id: "structured-note-taking",
@@ -3253,6 +3645,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Effective context engineering for AI agents", url: "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" },
       evidence: "Like Claude Code creating a to-do list, or your custom agent maintaining a NOTES.md file, this simple pattern allows the agent to track progress across complex tasks",
       style: "judgment",
+      skill: "context-engineering",
     },
     {
       id: "prompt-parallel-tool-calls",
@@ -3268,6 +3661,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "If you intend to call multiple tools and there are no dependencies between the tool calls, make all of the independent tool calls in parallel.",
       style: "judgment",
+      skill: "prompt-engineering",
     },
     {
       id: "dial-back-aggressive-tool-prompts",
@@ -3283,6 +3677,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "If your prompts were designed to reduce undertriggering on tools or skills, these models may now overtrigger. The fix is to dial back any aggressive language.",
       style: "judgment",
+      skill: "prompt-engineering",
     },
     {
       id: "hallucination-uncertainty-and-claim-check",
@@ -3298,6 +3693,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Reduce hallucinations", url: "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations" },
       evidence: "You can also have Claude verify each claim by finding a supporting quote after it generates a response. If it can't find a quote, it must retract the claim.",
       style: "judgment",
+      skill: "output-handling",
     },
     {
       id: "compact-before-overflow",
@@ -3313,6 +3709,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Compaction on demand", url: "https://platform.claude.com/docs/en/build-with-claude/compaction-on-demand" },
       evidence: "The conversation must still fit the model's context window, so compact before you outgrow it, not after.",
       style: "judgment",
+      skill: "context-engineering",
     },
     {
       id: "compaction-prompt-recall-first",
@@ -3328,6 +3725,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Effective context engineering for AI agents", url: "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" },
       evidence: "Start by maximizing recall to ensure your compaction prompt captures every relevant piece of information from the trace, then iterate to improve precision by eliminating superfluous content.",
       style: "judgment",
+      skill: "context-engineering",
     },
     {
       id: "prune-tool-results-keep-reasoning",
@@ -3343,6 +3741,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Context editing", url: "https://platform.claude.com/docs/en/build-with-claude/context-editing" },
       evidence: "This is particularly useful for agentic workflows with heavy tool use. Older tool results (like file contents or search results) are no longer needed once Claude has processed them.",
       style: "judgment",
+      skill: "context-engineering",
     },
     {
       id: "compaction-lost-content",
@@ -3358,6 +3757,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Compaction on demand", url: "https://platform.claude.com/docs/en/build-with-claude/compaction-on-demand" },
       evidence: "Images, documents, container_upload blocks, and fetched URLs inside the summarized messages are gone once the block replaces them. Restate or re-upload anything a later turn still needs.",
       style: "judgment",
+      skill: "context-engineering",
     },
     {
       id: "long-docs-chain-for-audit",
@@ -3373,6 +3773,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices" },
       evidence: "Explicit prompt chaining (breaking a task into sequential API calls) is still useful when you need to inspect intermediate outputs or enforce a specific pipeline structure.",
       style: "judgment",
+      skill: "context-engineering",
     },
     {
       id: "dense-pdfs-split-sections",
@@ -3388,6 +3789,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "PDF support", url: "https://platform.claude.com/docs/en/build-with-claude/pdf-support" },
       evidence: "Requests with large PDFs can also fail before reaching the page limit, even when using the Files API. Try splitting the document into sections",
       style: "judgment",
+      skill: "context-engineering",
     },
     {
       id: "hybrid-context-loading",
@@ -3403,6 +3805,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Effective context engineering for AI agents", url: "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" },
       evidence: "The hybrid strategy might be better suited for contexts with less dynamic content, such as legal or finance work.",
       style: "judgment",
+      skill: "context-engineering",
     },
     {
       id: "durable-rule-system-prompt",
@@ -3418,6 +3821,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Mid-conversation system messages and tool changes", url: "https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages" },
       evidence: "When the two conflict, system instructions take precedence, so use the system role for operator-level facts and constraints that should hold even if the end user asks for something different.",
       style: "judgment",
+      skill: "prompt-engineering",
     },
     {
       id: "system-prompt-stable-turn-data",
@@ -3433,6 +3837,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Mid-conversation system messages and tool changes", url: "https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages" },
       evidence: "editing the top-level system field changes the very beginning of the prompt and invalidates the cache for everything that follows.",
       style: "judgment",
+      skill: "prompt-engineering",
     },
     {
       id: "structured-outputs-gate-downstream",
@@ -3448,6 +3853,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Structured outputs", url: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs" },
       evidence: "Without structured outputs, Claude can generate malformed JSON responses or invalid tool inputs that break your applications.",
       style: "judgment",
+      skill: "output-handling",
     },
     {
       id: "enum-case-defensive-matching",
@@ -3463,6 +3869,39 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Structured outputs", url: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs" },
       evidence: "Compare enum values case-insensitively, and avoid enum values that differ only in capitalization.",
       style: "judgment",
+      skill: "output-handling",
+    },
+    {
+      id: "best-of-n-flag-hallucinations",
+      prompt: "Your app extracts key figures from analyst reports. Answers always sound confident, but spot checks find the occasional invented figure. Reviewers can't check every answer, so you want an automated signal that flags which answers need a human look. Which approach fits?",
+      options: [
+        "Tell Claude to rely only on the report provided, never on its general knowledge of the companies",
+        "Run the same prompt several times and flag answers where the runs disagree",
+        "Turn on structured outputs, so every answer must match your schema for the key figures",
+        "Send every report to the highest-reasoning model tier, so invented figures stop appearing",
+      ],
+      answer: [1],
+      explain: "Best-of-N verification compares several runs of the same prompt, and inconsistencies between them point to likely hallucinations, giving you a per-answer flag. Restricting Claude to the report reduces hallucinations but doesn't tell you which answers to check, and a schema guarantees shape, not truth.",
+      source: { label: "Reduce hallucinations", url: "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations" },
+      evidence: "Best-of-N verification: Run Claude through the same prompt multiple times and compare the outputs. Inconsistencies across outputs could indicate hallucinations.",
+      style: "judgment",
+      skill: "output-handling",
+    },
+    {
+      id: "citations-feature-traceable-quotes",
+      prompt: "Your policy Q&A app tells Claude, in the prompt, to quote the handbook passage behind each answer. An audit finds a few quotes that appear nowhere in the handbook. Reviewers need every answer traceable to a real passage. What's the best change?",
+      options: [
+        "Tell Claude more firmly to copy every quote word for word from the handbook",
+        "Add a required quote field to a structured-output schema, so every answer carries one",
+        "Move the handbook into the system prompt, so Claude treats it as the authoritative source",
+        "Send the handbook as a document with citations turned on, so the API returns the exact passages",
+      ],
+      answer: [3],
+      explain: "With the citations feature, the API extracts the cited text itself, so citations are guaranteed to point to real passages in your documents. Firmer prompting is still a prompt-based approach, which the docs rate less reliable, and a schema can require a quote but can't check that it exists.",
+      source: { label: "Citations", url: "https://platform.claude.com/docs/en/build-with-claude/citations" },
+      evidence: "citations are guaranteed to contain valid pointers to the provided documents",
+      style: "judgment",
+      skill: "output-handling",
     },
   ],
 
@@ -3483,6 +3922,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Mitigate jailbreaks and prompt injections", url: `${DOCS}/test-and-evaluate/strengthen-guardrails/mitigate-jailbreaks` },
       evidence: "Apply the principle of least privilege so that a successful injection can do minimal damage: don't give Claude access to secrets it doesn't need, run tools in sandboxed environments, and scope permissions as narrowly as possible.",
       style: "judgment",
+      skill: "app-security",
     },
     {
       id: "least-privilege",
@@ -3498,6 +3938,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Subagents", url: `${CODE}/sub-agents` },
       evidence: "To restrict tools, use the `tools` field as an allowlist or the `disallowedTools` field as a denylist.",
       style: "judgment",
+      skill: "guardrails",
     },
     {
       id: "api-key",
@@ -3513,6 +3954,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Authentication", url: `${DOCS}/manage-claude/authentication` },
       evidence: "Store API keys in a secrets manager, rotate them periodically, and disable or delete any key you suspect has leaked.",
       style: "recall",
+      skill: "secrets",
     },
     {
       id: "hook-exit-2",
@@ -3528,6 +3970,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Hooks reference", url: `${CODE}/hooks` },
       evidence: "A hook that blocks by exiting 2 routes the same way as `\"deny\"`: Claude sees the stderr message as the denial reason.",
       style: "recall",
+      skill: "hooks",
     },
     {
       id: "deny-gaps",
@@ -3544,6 +3987,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude Code: Permissions", url: `${CODE}/permissions` },
       evidence: "to arbitrary subprocesses that read or write files indirectly, like a Python or Node script that opens files itself.",
       style: "recall",
+      skill: "guardrails",
     },
     {
       id: "untrusted-content-placement",
@@ -3559,6 +4003,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Mitigate jailbreaks and prompt injections", url: "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/mitigate-jailbreaks" },
       evidence: "Deliver third-party content to Claude inside `tool_result` blocks, never in `system` prompts or plain user `text` blocks.",
       style: "recall",
+      skill: "app-security",
     },
     {
       id: "harmlessness-screen",
@@ -3574,6 +4019,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Mitigate jailbreaks and prompt injections", url: "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/mitigate-jailbreaks" },
       evidence: "Use a lightweight model like Claude Haiku 4.5 to pre-screen user input before it reaches your main conversation.",
       style: "recall",
+      skill: "app-security",
     },
     {
       id: "sandbox-scope",
@@ -3589,6 +4035,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Configure the sandboxed Bash tool", url: "https://code.claude.com/docs/en/sandboxing" },
       evidence: "Read, Edit, and Write use the permission system directly rather than running through the sandbox.",
       style: "recall",
+      skill: "guardrails",
     },
     {
       id: "hook-deny-bypass-mode",
@@ -3604,6 +4051,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Automate actions with hooks", url: "https://code.claude.com/docs/en/hooks-guide" },
       evidence: "A hook that returns `permissionDecision: \"deny\"` blocks the tool even in `bypassPermissions` mode or with `--dangerously-skip-permissions`.",
       style: "recall",
+      skill: "hooks",
     },
     {
       id: "headless-untrusted-repo-hooks",
@@ -3619,6 +4067,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Hooks reference", url: "https://code.claude.com/docs/en/hooks" },
       evidence: "Claude Code never shows the dialog and treats the folder as trusted, so hooks committed in a repository's `.claude/settings.json` run in a folder you've never trusted",
       style: "recall",
+      skill: "hooks",
     },
     {
       id: "credential-proxy",
@@ -3634,6 +4083,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Securely deploying AI agents", url: "https://code.claude.com/docs/en/agent-sdk/secure-deployment" },
       evidence: "rather than giving an agent direct access to an API key, you could run a proxy outside the agent's environment that injects the key into requests.",
       style: "judgment",
+      skill: "secrets",
     },
     {
       id: "workload-identity-federation",
@@ -3649,6 +4099,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Authentication", url: "https://platform.claude.com/docs/en/manage-claude/authentication" },
       evidence: "Production workloads on cloud platforms (AWS, Google Cloud, Azure), CI/CD pipelines, and Kubernetes, where you want to eliminate static secrets",
       style: "recall",
+      skill: "secrets",
     },
     {
       id: "canusetool-bypassed",
@@ -3664,6 +4115,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Configure permissions (Agent SDK)", url: "https://code.claude.com/docs/en/agent-sdk/permissions" },
       evidence: "A tool call approved at any earlier step, by `acceptEdits` or `bypassPermissions`, or by an allow rule, skips your `canUseTool` callback, so permission checks you put there are silently bypassed for that tool.",
       style: "recall",
+      skill: "guardrails",
     },
     {
       id: "phi-in-strict-tool-schema",
@@ -3679,6 +4131,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "API and data retention", url: "https://platform.claude.com/docs/en/manage-claude/api-and-data-retention" },
       evidence: "These cached schemas do not receive the same PHI protections as prompts and responses. **Do not include PHI in JSON schema definitions.** This restriction applies to schema property names, `enum` values, `const` values, and `pattern` regular expressions.",
       style: "recall",
+      skill: "app-security",
     },
     {
       id: "leaked-key-disable-vs-delete",
@@ -3694,6 +4147,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Authentication", url: "https://platform.claude.com/docs/en/manage-claude/authentication" },
       evidence: "**Disable** is reversible (the Admin API reports the key's `status` as `\"inactive\"`, and **Re-enable** returns it to `\"active\"`), while **Delete** is permanent",
       style: "recall",
+      skill: "secrets",
     },
     {
       id: "zdr-non-eligible-feature",
@@ -3709,6 +4163,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "API and data retention", url: "https://platform.claude.com/docs/en/manage-claude/api-and-data-retention" },
       evidence: "Under ZDR, the API does **not** block these features; using one is a choice to step outside your ZDR arrangement for that specific data, and the feature's own documented retention policy applies.",
       style: "recall",
+      skill: "app-security",
     },
     {
       id: "sandbox-allowlist-domain-fronting",
@@ -3724,6 +4179,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Securely deploying AI agents", url: "https://code.claude.com/docs/en/agent-sdk/secure-deployment" },
       evidence: "The proxy allowlists domains based on the client-supplied hostname and does not terminate or inspect encrypted traffic.",
       style: "recall",
+      skill: "guardrails",
     },
     {
       id: "prompt-leak-monitor-first",
@@ -3739,6 +4195,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Reduce prompt leak", url: "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-prompt-leak" },
       evidence: "Try monitoring techniques first, like output screening and post-processing, to try to catch instances of prompt leak.",
       style: "judgment",
+      skill: "app-security",
     },
     {
       id: "injection-own-instructions-in-tool-result",
@@ -3754,6 +4211,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Mitigate jailbreaks and prompt injections", url: "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/mitigate-jailbreaks" },
       evidence: "Because Claude treats tool-result content as untrusted data, instructions you place there may be ignored or flagged as a potential injection.",
       style: "judgment",
+      skill: "app-security",
     },
     {
       id: "injection-red-team-before-launch",
@@ -3769,6 +4227,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Mitigate jailbreaks and prompt injections", url: "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/mitigate-jailbreaks" },
       evidence: "Before deploying, test your workflow with documents, emails, and tool outputs that deliberately contain injection attempts, and confirm that Claude ignores them and that your screening and confirmation steps catch the rest.",
       style: "judgment",
+      skill: "app-security",
     },
     {
       id: "defense-in-depth-beyond-model",
@@ -3784,6 +4243,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Securely deploying AI agents", url: "https://code.claude.com/docs/en/agent-sdk/secure-deployment" },
       evidence: "Defense in depth is still good practice though. For example, if an agent processes a malicious file that instructs it to send customer data to an external server, network controls can block that request entirely.",
       style: "judgment",
+      skill: "guardrails",
     },
     {
       id: "guardrails-application-layer",
@@ -3799,6 +4259,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Configure permissions", url: "https://code.claude.com/docs/en/permissions" },
       evidence: "Instructions in your prompt or CLAUDE.md shape what Claude tries to do, but they don't change what Claude Code allows. To grant or revoke access, use /permissions, the rules described here, a permission mode, or a PreToolUse hook.",
       style: "judgment",
+      skill: "guardrails",
     },
     {
       id: "hook-block-destructive-db-commands",
@@ -3814,6 +4275,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Agent SDK hooks", url: "https://code.claude.com/docs/en/agent-sdk/hooks" },
       evidence: "Block dangerous operations before they execute, like destructive shell commands or unauthorized file access",
       style: "judgment",
+      skill: "hooks",
     },
     {
       id: "team-key-service-account",
@@ -3829,6 +4291,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Authentication", url: "https://platform.claude.com/docs/en/manage-claude/authentication" },
       evidence: "A shared personal key acts as one person and breaks when they leave. For shared or automated workloads (CI, production services), have an organization admin create a service account",
       style: "judgment",
+      skill: "secrets",
     },
     {
       id: "no-key-in-shipped-app",
@@ -3844,6 +4307,151 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Authentication", url: "https://platform.claude.com/docs/en/manage-claude/authentication" },
       evidence: "Let genuine installations of your app call the Claude API without shipping an API key",
       style: "judgment",
+      skill: "secrets",
+    },
+    {
+      id: "hook-post-edit-cant-undo",
+      prompt: "A teammate wrote a Claude Code hook that runs after each file edit. If the edited file is in the deploy-config folder, it returns a block decision with a reason. Claude sees the message, yet the edits to that folder are still saved. What should you advise?",
+      options: [
+        "Make the block reason more specific, so Claude understands it must never touch that folder",
+        "Also add the rule to the project instructions, so Claude avoids that folder in the first place",
+        "Run the after-edit hook in the background, so it finishes before Claude moves on",
+        "Move the check into a hook that runs before file edits, so a matching edit is stopped first",
+      ],
+      answer: [3],
+      explain: "A hook that runs after a tool call fires once the edit is already made, so it can only react, for example with feedback; a hook that runs before the edit can block it. A clearer reason or a project instruction may make Claude less likely to try, but neither stops the edit.",
+      source: { label: "Automate actions with hooks", url: "https://code.claude.com/docs/en/hooks-guide" },
+      evidence: "PostToolUse hooks can't undo actions since the tool has already executed.",
+      style: "judgment",
+      skill: "hooks",
+    },
+    {
+      id: "hook-block-reason-feedback",
+      prompt: "Your hook that runs before shell commands blocks any attempt to publish packages, since only CI may publish. It blocks without giving a reason. Claude keeps retrying variations of the command, then tells the user it hit an unexplained error. What should you change first?",
+      options: [
+        "Add the no-publishing rule to the project instructions, so Claude knows before it tries",
+        "Have the hook return a short reason: CI handles publishing, so Claude should open a release PR instead",
+        "Replace it with a hook that runs after shell commands and reports any publish that happened",
+        "Allow the command, and have the hook log each publish attempt for the release team",
+      ],
+      answer: [1],
+      explain: "When a blocking hook explains why, Claude gets that feedback and can adjust its approach, here by opening a release PR. A project instruction is only guidance and says nothing at the moment of the block; a hook that runs afterward, or a log, can't stop the publish.",
+      source: { label: "Automate actions with hooks", url: "https://code.claude.com/docs/en/hooks-guide" },
+      evidence: "Claude receives feedback explaining why the edit was blocked, so it can adjust its approach.",
+      style: "judgment",
+      skill: "hooks",
+    },
+    {
+      id: "hook-review-repo-before-trust",
+      prompt: "A vendor sends your team a repository to evaluate. Its shared project settings define several hooks. When you open it in Claude Code, you're asked whether to trust the folder. What's the best next step?",
+      options: [
+        "Trust it, since Claude Code will still ask your permission before each hook command runs",
+        "Trust it, then turn hooks off in your personal settings, which override the project's settings",
+        "Read its hook commands first, since they'd run with your own user permissions",
+        "Trust it, since hook commands run in the sandbox and can't reach files outside the project",
+      ],
+      answer: [2],
+      explain: "Command hooks run with your full user permissions, so review what a repo's shared settings would run before you trust it. Turning hooks off in your personal settings isn't enough, since the project's settings take precedence over yours.",
+      source: { label: "Hooks reference", url: "https://code.claude.com/docs/en/hooks" },
+      evidence: "Command hooks execute shell commands with your full user permissions. They can modify, delete, or access any files your user account can access. Review and test all hook commands before adding them to your configuration.",
+      style: "judgment",
+      skill: "hooks",
+    },
+    {
+      id: "hook-managed-plus-sandbox",
+      prompt: "Your security lead wants Claude Code, across the whole company, never to send data to hosts outside an approved list. Today each repo's shared settings carry a hook that blocks shell commands naming common download tools. Which changes make this stronger? **Choose 2.**",
+      options: [
+        "Deliver the hook through managed settings, so project and user settings can't remove it",
+        "Add the approved-hosts rule to each repo's project instructions, so Claude reads it every session",
+        "Turn on sandboxing with network isolation, which the OS enforces whatever the command text says",
+        "Move the check to a hook that runs after each command, so it sees what the command actually did",
+      ],
+      answer: [0, 2],
+      explain: "Managed settings reach every developer, and user or project settings can't remove managed hooks. A hook only reads the command text, so a script can still reach the network; the OS-level sandbox holds whatever runs. Project instructions are only guidance, and a hook that runs afterward fires once the data has left.",
+      source: { label: "Configure permissions", url: "https://code.claude.com/docs/en/permissions" },
+      evidence: "For filesystem and network enforcement that doesn't depend on the command text, use sandboxing. To inspect the full command text with your own logic before it runs, use a PreToolUse hook.",
+      style: "judgment",
+      skill: "hooks",
+    },
+    {
+      id: "secrets-workspace-per-environment",
+      prompt: "Your team uses one Claude API key everywhere: on developers' laptops, in the staging service and in production. After a laptop is lost, security asks how to make sure a leaked development key can never reach production. What do you recommend?",
+      options: [
+        "Keep the one key, but store it in a secrets manager that all three environments read from",
+        "Give each developer a personal key that works in every workspace their role allows",
+        "Create development, staging and production workspaces, each with its own keys scoped to that workspace",
+        "Keep the one key, but give it a short expiration and rotate it weekly in all three places",
+      ],
+      answer: [2],
+      explain: "A key scoped to one workspace can reach only that workspace's resources, so a leaked development key can't touch production. A secrets manager or short expirations help, but one shared key still opens every environment.",
+      source: { label: "Workspaces", url: "https://platform.claude.com/docs/en/manage-claude/workspaces" },
+      evidence: "API keys can be scoped to a single workspace. In this case, they can only access resources within that workspace",
+      style: "judgment",
+      skill: "secrets",
+    },
+    {
+      id: "leaked-key-dont-wait-for-expiry",
+      prompt: "A service's Claude API key was pasted into a public issue. The key was created with a 30-day expiration that ends next week. A teammate suggests letting it expire rather than redeploying the service now. How should you advise the team?",
+      options: [
+        "Disable the leaked key now and move the service to a new key",
+        "Let it expire, but watch the usage reports closely for unexpected spend until then",
+        "Delete the issue comment so the key is no longer public, then let the key expire",
+        "Create a new key for the service now, and let the leaked key run out on its own schedule",
+      ],
+      answer: [0],
+      explain: "Expiration only limits how long a leaked key stays usable; the docs say to disable or delete any key you suspect has leaked, whatever its expiration. Issuing a new key is right, but leaving the old one active gives whoever copied it another week.",
+      source: { label: "Authentication", url: "https://platform.claude.com/docs/en/manage-claude/authentication" },
+      evidence: "Expiration limits the lifetime of a leaked credential, but it is not a substitute for secret hygiene. Regardless of expiration, store keys in a secrets manager and disable or delete any key you suspect has leaked.",
+      style: "judgment",
+      skill: "secrets",
+    },
+    {
+      id: "egress-firewall-not-proxy-settings",
+      prompt: "Your agent runs in cloud containers and processes customer-uploaded files. Its outbound traffic is meant to go through an allowlisting proxy, set through the container's proxy environment settings. A review finds that some programs inside ignore those settings and connect directly. What's the best fix?",
+      options: [
+        "Add a system-prompt rule telling the agent to send every request through the proxy",
+        "Turn on TLS inspection at the proxy, so it can read all the traffic that passes through it",
+        "Review the proxy's logs weekly for connections to hosts off the allowlist",
+        "Block all egress with cloud firewall rules, allowing only traffic to the proxy",
+      ],
+      answer: [3],
+      explain: "Firewall rules that block all egress except to the proxy leave no direct way out, whatever a program's proxy settings. TLS inspection and log reviews only touch traffic that already reaches the proxy, and a prompt rule doesn't bind the programs the agent runs.",
+      source: { label: "Securely deploying AI agents", url: "https://code.claude.com/docs/en/agent-sdk/secure-deployment" },
+      evidence: "Configure cloud firewall rules (AWS Security Groups, GCP VPC firewall) to block all egress except to your proxy",
+      style: "judgment",
+      skill: "guardrails",
+    },
+    {
+      id: "start-restrictive-then-loosen",
+      prompt: "Your team's Agent SDK app refactors legacy modules. To save reviewers time, a teammate wants every session to auto-approve file edits from the first turn. Reviewers still want a say in each session's approach before bulk edits land. Which approach fits best?",
+      options: [
+        "Auto-approve edits from the first turn, and have reviewers check the full diff when the session ends",
+        "Start in a mode that asks before edits, then switch to auto-approving once the approach looks right",
+        "Auto-approve edits, and add a system-prompt line asking Claude to pause before any large change",
+        "Block every edit tool, and have Claude print each patch for a reviewer to apply by hand",
+      ],
+      answer: [1],
+      explain: "The SDK lets you change the permission mode mid-session, so you can start restrictive and loosen as trust builds, such as auto-approving edits after reviewing Claude's first approach. Checking only the final diff comes after the bulk edits have already landed.",
+      source: { label: "Configure permissions", url: "https://code.claude.com/docs/en/agent-sdk/permissions" },
+      evidence: "The new mode takes effect immediately for all subsequent tool requests. This lets you start restrictive and loosen permissions as trust builds",
+      style: "judgment",
+      skill: "guardrails",
+    },
+    {
+      id: "prompt-leak-remove-unneeded-details",
+      prompt: "Your support bot answers shipping questions. Its system prompt also holds the internal refund playbook and staff notes about key customers, which the bot never uses. Outputs are already screened for leaks. The team wants to lower leak risk further without hurting answer quality. What's the best next step?",
+      options: [
+        "Add firm instructions never to reveal them, and repeat those instructions in every user turn",
+        "Move the playbook and customer notes out of the system prompt and into the first user turn",
+        "Take the playbook and notes out of the prompt; the bot doesn't need them",
+        "Add a second screening model that rewrites any answer mentioning refunds or customer names",
+      ],
+      answer: [2],
+      explain: "Anthropic's advice is that if Claude doesn't need something for the task, don't include it; what isn't in the prompt can't leak. Leak-resistant instructions are the tempting alternative, but the docs warn they add complexity that can degrade performance.",
+      source: { label: "Reduce prompt leak", url: "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-prompt-leak" },
+      evidence: "Avoid unnecessary proprietary details: If Claude doesn't need it to perform the task, don't include it. Extra content distracts Claude from focusing on \"no leak\" instructions.",
+      style: "judgment",
+      skill: "app-security",
     },
   ],
 
@@ -3862,6 +4470,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Define tools", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools" },
       evidence: "This is by far the most important factor in tool performance. Your descriptions should explain every detail about the tool, including:",
       style: "judgment",
+      skill: "tool-implementation",
     },
     {
       id: "mcp-control",
@@ -3872,6 +4481,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "MCP: Server concepts", url: "https://modelcontextprotocol.io/docs/learn/server-concepts" },
       evidence: "Prompts are structured templates that define expected inputs and interaction patterns. They are user-controlled, requiring explicit invocation rather than automatic triggering.",
       style: "recall",
+      skill: "mcp-development",
     },
     {
       id: "stdio",
@@ -3887,6 +4497,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "MCP: Transports", url: "https://modelcontextprotocol.io/specification/2025-06-18/basic/transports" },
       evidence: "The server reads JSON-RPC messages from its standard input (`stdin`) and sends messages to its standard output (`stdout`).",
       style: "recall",
+      skill: "mcp-development",
     },
     {
       id: "tool-error",
@@ -3902,6 +4513,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Handle tool calls", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls" },
       evidence: "If the tool itself throws an error during execution (for example, a network error when fetching weather data), you can return the error message in the `content` along with `\"is_error\": true`:",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "customization",
@@ -3919,6 +4531,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "MCP: Architecture", url: "https://modelcontextprotocol.io/docs/learn/architecture" },
       evidence: "Local MCP servers that use the STDIO transport typically serve a single MCP client, whereas remote MCP servers that use the Streamable HTTP transport will typically serve many MCP clients.",
       style: "judgment",
+      skill: "agentic-customization",
     },
     {
       id: "forced-tool-choice-opus-5-5",
@@ -3934,6 +4547,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Claude API errors", url: "https://platform.claude.com/docs/en/api/errors" },
       evidence: "`tool_choice: {\"type\": \"auto\"}` (the default) and `{\"type\": \"none\"}` are accepted. Use `auto` with [strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use) to keep tool inputs schema-valid",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "strict-tool-types",
@@ -3949,6 +4563,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Strict tool use", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use" },
       evidence: "Setting `strict: true` on a tool definition guarantees Claude's tool inputs match your JSON Schema by constraining the model's token sampling to schema-valid outputs",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "tool-name-namespacing",
@@ -3964,6 +4579,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Define tools", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools" },
       evidence: "When your tools span multiple services or resources, prefix names with the service (for example, `github_list_prs`, `slack_send_message`).",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "parallel-skipped-call",
@@ -3979,6 +4595,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Parallel tool use", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/parallel-tool-use" },
       evidence: "If you choose not to run a particular call (for example, because you ran the batch sequentially and an earlier call failed), still return a `tool_result` for it with `is_error: true` and a brief explanation.",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "server-tool-web-search",
@@ -3994,6 +4611,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Server tools", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/server-tools" },
       evidence: "Unlike client `tool_use` blocks, you don't need to respond with a `tool_result`.",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "tool-runner-behavior",
@@ -4009,6 +4627,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Tool runner (SDK)", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-runner" },
       evidence: "When a tool throws an exception, the tool runner catches it and returns the error to Claude as a tool result with `is_error: true`.",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "mcp-resources",
@@ -4024,6 +4643,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Understanding MCP servers", url: "https://modelcontextprotocol.io/docs/learn/server-concepts" },
       evidence: "Passive data sources that provide read-only access to information for context, such as file contents, database schemas, or API documentation.",
       style: "recall",
+      skill: "mcp-development",
     },
     {
       id: "mcp-transport-choice",
@@ -4039,6 +4659,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Architecture overview", url: "https://modelcontextprotocol.io/docs/learn/architecture" },
       evidence: "Local MCP servers that use the STDIO transport typically serve a single MCP client, whereas remote MCP servers that use the Streamable HTTP transport will typically serve many MCP clients.",
       style: "recall",
+      skill: "mcp-development",
     },
     {
       id: "mcp-project-scope-secrets",
@@ -4054,6 +4675,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Connect Claude Code to tools via MCP", url: "https://code.claude.com/docs/en/mcp" },
       evidence: "Claude Code supports environment variable expansion in `.mcp.json` files, allowing teams to share configurations while maintaining flexibility for machine-specific paths and sensitive values like API keys.",
       style: "recall",
+      skill: "mcp-development",
     },
     {
       id: "skill-vs-mcp-knowledge",
@@ -4069,6 +4691,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Extend Claude Code", url: "https://code.claude.com/docs/en/features-overview" },
       evidence: "A skill might include your team's database schema and query patterns, or a `/post-to-slack` workflow with your team's message formatting rules.",
       style: "judgment",
+      skill: "agentic-customization",
     },
     {
       id: "input-examples-must-validate",
@@ -4084,6 +4707,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Define tools", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools" },
       evidence: "Each example must be valid according to the tool's `input_schema`. Invalid examples return a 400 error",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "tool-search-defer-loading-setup",
@@ -4099,6 +4723,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Tool search tool", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool" },
       evidence: "You still send every tool's full definition in the `tools` array on every request, including the deferred ones.",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "ptc-good-fit",
@@ -4114,6 +4739,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Programmatic tool calling", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling" },
       evidence: "Fan-out or parallel operations across many items (for example, checking 50 endpoints or looking up 20 records)",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "bash-tool-client-side",
@@ -4129,6 +4755,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Bash tool", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/bash-tool" },
       evidence: "Your application runs that command in a bash session it owns and returns the output in a `tool_result` block.",
       style: "recall",
+      skill: "tool-implementation",
     },
     {
       id: "mcp-connector-allowlist",
@@ -4144,6 +4771,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "MCP connector", url: "https://platform.claude.com/docs/en/agents-and-tools/mcp-connector" },
       evidence: "Set `enabled: false` as the default, then explicitly enable specific tools:",
       style: "recall",
+      skill: "mcp-development",
     },
     {
       id: "mcp-annotations-untrusted",
@@ -4159,6 +4787,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "MCP specification: Tools", url: "https://modelcontextprotocol.io/specification/2026-07-28/server/tools" },
       evidence: "For trust & safety and security, clients **MUST** consider tool annotations to be untrusted unless they come from trusted servers.",
       style: "recall",
+      skill: "mcp-development",
     },
     {
       id: "mcp-single-consumer-custom-tool",
@@ -4174,6 +4803,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How tool use works", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works" },
       evidence: "This is the most common case: the vast majority of tool-use traffic is user-defined tools calling into application-specific logic.",
       style: "judgment",
+      skill: "agentic-customization",
     },
     {
       id: "mcp-signals-multi-consumer",
@@ -4189,6 +4819,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "What is the Model Context Protocol (MCP)?", url: "https://modelcontextprotocol.io/docs/getting-started/intro" },
       evidence: "and many others all support MCP — making it easy to build once and integrate everywhere",
       style: "judgment",
+      skill: "agentic-customization",
     },
     {
       id: "tool-eval-before-rewrite",
@@ -4204,6 +4835,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Writing effective tools for agents", url: "https://www.anthropic.com/engineering/writing-tools-for-agents" },
       evidence: "Building an evaluation allows you to systematically measure the performance of your tools.",
       style: "judgment",
+      skill: "tool-implementation",
     },
     {
       id: "tool-description-new-hire",
@@ -4219,6 +4851,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Writing effective tools for agents", url: "https://www.anthropic.com/engineering/writing-tools-for-agents" },
       evidence: "Consider the context that you might implicitly bring—specialized query formats, definitions of niche terminology, relationships between underlying resources—and make it explicit.",
       style: "judgment",
+      skill: "tool-implementation",
     },
     {
       id: "overlapping-tools-consolidate",
@@ -4234,6 +4867,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Writing effective tools for agents", url: "https://www.anthropic.com/engineering/writing-tools-for-agents" },
       evidence: "For example, tools can enrich tool responses with related metadata or handle frequently chained, multi-step tasks in a single tool call.",
       style: "judgment",
+      skill: "tool-implementation",
     },
     {
       id: "overlapping-tools-when-to-use",
@@ -4249,6 +4883,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Troubleshooting tool use", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/troubleshooting-tool-use" },
       evidence: "Sharpen descriptions. Differentiate tools by WHEN to use them, not only WHAT they do.",
       style: "judgment",
+      skill: "tool-implementation",
     },
     {
       id: "tool-error-actionable-message",
@@ -4264,6 +4899,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Writing effective tools for agents", url: "https://www.anthropic.com/engineering/writing-tools-for-agents" },
       evidence: "you can prompt-engineer your error responses to clearly communicate specific and actionable improvements, rather than opaque error codes or tracebacks.",
       style: "judgment",
+      skill: "tool-implementation",
     },
     {
       id: "tool-missing-param-descriptions",
@@ -4279,6 +4915,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Handle tool calls", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls" },
       evidence: "Your best bet during development is to try the request again with more-detailed description values in your tool definitions.",
       style: "judgment",
+      skill: "tool-implementation",
     },
     {
       id: "builtin-schema-over-custom",
@@ -4294,6 +4931,7 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "How tool use works", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works" },
       evidence: "Claude has been optimized on thousands of successful trajectories that use these exact tool signatures, so it calls them more reliably and recovers from errors more gracefully than it would with a custom tool that does the same thing.",
       style: "judgment",
+      skill: "agentic-customization",
     },
     {
       id: "skill-plus-mcp-pairing",
@@ -4309,6 +4947,103 @@ export const QUIZZES: Record<DomainId, QuizQuestion[]> = {
       source: { label: "Extend Claude Code", url: "https://code.claude.com/docs/en/features-overview" },
       evidence: "MCP connects Claude to external services. Skills extend what Claude knows, including how to use those services effectively.",
       style: "judgment",
+      skill: "agentic-customization",
+    },
+    {
+      id: "mcp-primitives-map-design",
+      prompt: "Your team is building an MCP server for its support platform. The model should issue refunds when it judges one is due, the host app should attach a customer's order history as read-only context, and support staff should pick a \"Draft an apology\" template from a menu. A teammate's draft makes all three tools. What do you advise?",
+      options: [
+        "Keep all three as tools, and sharpen each description so the model calls them at the right moments",
+        "Keep refunds as a tool; make order history a resource and the apology template a prompt",
+        "Make refunds a prompt so staff confirm each one, and keep the other two as tools",
+        "Make all three resources, so the host app decides when each one comes into play",
+      ],
+      answer: [1],
+      explain: "Refunds are actions the model decides to take (a tool), order history is read-only context the application controls (a resource), and a template the user picks is a prompt. Sharper tool descriptions help the model choose, but they don't give the host app or the user the control each need calls for.",
+      source: { label: "Understanding MCP servers", url: "https://modelcontextprotocol.io/docs/learn/server-concepts" },
+      evidence: "Resources expose data from files, APIs, databases, or any other source that an AI needs to understand context. Applications can access this information directly and decide how to use it",
+      style: "judgment",
+      skill: "mcp-development",
+    },
+    {
+      id: "mcp-local-server-env-credentials",
+      prompt: "A teammate is writing an MCP server that only their own coding assistant will use, on their own laptop, to query a staging database. They plan to run it as a network service with a full OAuth sign-in flow. How should you advise them?",
+      options: [
+        "Keep the network service, since the protocol recommends OAuth for getting access tokens",
+        "Launch it as a subprocess, and add the protocol's OAuth sign-in flow to it as well",
+        "Keep the network service but drop sign-in, since only one person will use it",
+        "Have the client launch it as a subprocess, and let it read the database credentials from its environment",
+      ],
+      answer: [3],
+      explain: "A server the client launches as a subprocess talks only to that client, and the spec says such servers should take credentials from the environment instead of following the OAuth flow. The network transport with OAuth suits a remote server that many clients reach; run locally without sign-in, it would be open to other processes.",
+      source: { label: "MCP specification: Authorization", url: "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization" },
+      evidence: "Implementations using an STDIO transport SHOULD NOT follow this specification, and instead retrieve credentials from the environment.",
+      style: "judgment",
+      skill: "mcp-development",
+    },
+    {
+      id: "mcp-local-logging-message-channel",
+      prompt: "Your local MCP server, which the client launches as a subprocess, passes its unit tests. Once connected, though, the client reports message-parsing errors. You notice the server prints progress notes on the same output it uses to send protocol messages. A teammate suggests raising the client's timeout. What's the best next step?",
+      options: [
+        "Raise the client's timeout and add retries, since the errors only appear once connected",
+        "Keep the progress notes, but tag each one clearly so the client can tell them apart from protocol messages",
+        "Write the progress notes to a log file or the separate error output, never the message channel",
+        "Print the progress notes only at startup, before the client sends its first request",
+      ],
+      answer: [2],
+      explain: "Anything on the channel that carries protocol messages, other than a valid message, corrupts it, so logs belong in a file or the separate error output the client captures. Tagging the notes still puts non-protocol text on that channel, and a longer timeout treats a symptom.",
+      source: { label: "MCP debugging guide", url: "https://modelcontextprotocol.io/docs/tools/debugging" },
+      evidence: "Local MCP servers should not log messages to stdout (standard out), as this will interfere with protocol operation.",
+      style: "judgment",
+      skill: "mcp-development",
+    },
+    {
+      id: "mcp-inspector-before-sharing",
+      prompt: "A teammate has finished the first version of an MCP server for your team's build system. They want to add it to the whole team's shared project configuration today and fix problems as people report them. What should come first?",
+      options: [
+        "Test it with the MCP Inspector, calling its tools, resources and prompts directly",
+        "Add it to your own coding assistant and have Claude try each tool on a few real tasks",
+        "Share it today, but ask teammates to approve each tool call so any problems surface safely",
+        "Write a detailed setup guide first, so teammates can configure the server without help",
+      ],
+      answer: [0],
+      explain: "The Inspector lets you exercise the server's tools, resources and prompts on their own, and MCP's debugging guide calls it the first stop. Trying the server in your own client is the next step, integration testing, once the basics work.",
+      source: { label: "MCP debugging guide", url: "https://modelcontextprotocol.io/docs/tools/debugging" },
+      evidence: "Connect to stdio or Streamable HTTP servers, invoke tools, prompts, and resources, and watch the notification stream. This should be your first stop.",
+      style: "judgment",
+      skill: "mcp-development",
+    },
+    {
+      id: "mcp-remote-token-audience",
+      prompt: "Your team is building a remote MCP server that lets employees' AI apps read and update records in the internal CRM. You're reviewing its security plan. Which design should you approve?",
+      options: [
+        "Forward each user's incoming token to the CRM unchanged, so the CRM enforces that user's permissions",
+        "Request every CRM scope at first sign-in, so users approve once and never see another prompt",
+        "Accept only tokens issued for this server, and reach the CRM with a separate token issued for the CRM",
+        "Skip input checks in the server, since every client already validates arguments against each tool's schema",
+      ],
+      answer: [2],
+      explain: "The spec forbids token passthrough: the server must accept only tokens meant for it and use a separate token for the upstream API. Forwarding users' tokens looks simpler but breaks audience checks and audit trails; requesting every scope up front and skipping server-side input validation also go against MCP's guidance.",
+      source: { label: "MCP authorization: Security considerations", url: "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations" },
+      evidence: "The access token used at the upstream API is a separate token, issued by the upstream authorization server. The MCP server MUST NOT pass through the token it received from the MCP client.",
+      style: "judgment",
+      skill: "mcp-development",
+    },
+    {
+      id: "mcp-team-config-no-secrets",
+      prompt: "Your team wants everyone's Claude Code to pick up the same issue-tracker MCP server when they clone the repo. Each developer has a personal API token. A teammate proposes committing the server config with their own token for now and rotating it later. How should you advise?",
+      options: [
+        "Commit the project config, referencing a token read from each developer's own environment",
+        "Have each developer add the server privately to their own config, following steps in the README",
+        "Commit the config with one shared service token, since the repository is private to the company",
+        "Commit the teammate's token for now, and rotate it once everyone has the server working",
+      ],
+      answer: [0],
+      explain: "A project-scoped config is shared through version control, and environment variable references let the team share it while each person's token stays out of the repo. Private per-developer setup keeps secrets safe but loses the shared, consistent config the team wants.",
+      source: { label: "Connect Claude Code to tools via MCP", url: "https://code.claude.com/docs/en/mcp" },
+      evidence: "Claude Code supports environment variable expansion in .mcp.json files, allowing teams to share configurations while maintaining flexibility for machine-specific paths and sensitive values like API keys.",
+      style: "judgment",
+      skill: "mcp-development",
     },
   ],
 };

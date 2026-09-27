@@ -167,7 +167,7 @@ export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefo
         says “Choose 2”. Every answer links to the official docs it comes from. Pass with {Math.round(QUIZ_PASS * 100)}%.
       </p>
       {bank.length > SET_SIZE && (
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-start gap-2 text-sm [&>input]:mt-1">
           <input
             type="checkbox"
             checked={!examStyle}
@@ -178,7 +178,9 @@ export function QuizPanel({ domain, passedBefore }: { domain: Domain; passedBefo
             }}
             className="accent-accent"
           />
-          Include <em>detail</em> questions (names, numbers, syntax), not just exam-style scenarios
+          <span>
+            Include <em>detail</em> questions (names, numbers, syntax), not just exam-style scenarios
+          </span>
         </label>
       )}
       {questions.map((q, i) => (

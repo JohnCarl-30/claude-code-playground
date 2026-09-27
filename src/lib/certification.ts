@@ -18,7 +18,36 @@ export type DomainId = "agents" | "apps" | "claude-code" | "eval" | "models" | "
 /** Something in the playground you can do: run an example, pass a challenge. */
 export type PracticeRef = { kind: "example"; id: string } | { kind: "challenge"; id: string };
 
+/** A test objective: the exam's score report breaks results down by these. */
+export type SkillId =
+  | "agent-architecture"
+  | "agent-construction"
+  | "agent-patterns"
+  | "requirements"
+  | "life-cycle"
+  | "api-mechanics"
+  | "engineering"
+  | "app-design"
+  | "config-management"
+  | "claude-code-operation"
+  | "debugging"
+  | "llm-fundamentals"
+  | "technical-fundamentals"
+  | "model-selection"
+  | "cost"
+  | "context-engineering"
+  | "prompt-engineering"
+  | "output-handling"
+  | "app-security"
+  | "guardrails"
+  | "hooks"
+  | "secrets"
+  | "tool-implementation"
+  | "mcp-development"
+  | "agentic-customization";
+
 export type Skill = {
+  id: SkillId;
   name: string;
   weight: number;
   summary: string;
@@ -38,18 +67,21 @@ export const DOMAINS: Domain[] = [
     weight: 14.7,
     skills: [
       {
+        id: "agent-architecture",
         name: "Agent Architecture",
         weight: 4.5,
         summary: "When to use a workflow vs. an agent, supervisor hierarchies, and how subagents improve a task.",
         practice: [ex("claude-code/subagent"), ex("claude-code/team"), ch("api-workflow"), ch("config-subagent")],
       },
       {
+        id: "agent-construction",
         name: "Agent Construction with Claude",
         weight: 5.3,
         summary: "The Agent SDK, custom agent loops and harnesses, self-hosted vs. Anthropic-hosted agents, and hooks for deterministic actions.",
         practice: [ex("agent-sdk/hello"), ex("build/agent-tool"), ex("claude-code/hooks"), ch("agent-tool"), ch("agent-guardrails")],
       },
       {
+        id: "agent-patterns",
         name: "Agent Patterns and Frameworks",
         weight: 4.9,
         summary: "Tool-use loops, subagents, memory and context-window management, plus agent frameworks.",
@@ -64,36 +96,42 @@ export const DOMAINS: Domain[] = [
     weight: 33.1,
     skills: [
       {
+        id: "requirements",
         name: "Understanding Requirements",
         weight: 3.4,
         summary: "Turning business needs into functional and infrastructure requirements.",
         practice: [ex("claude-code/plan-mode"), ex("claude-code/questions"), ch("api-todos")],
       },
       {
+        id: "life-cycle",
         name: "Systems Life Cycle",
         weight: 2.8,
         summary: "Developing, releasing, operating and maintaining systems.",
         practice: [ex("build/rest-api"), ch("api-filter")],
       },
       {
+        id: "api-mechanics",
         name: "Claude API Mechanics",
         weight: 6.8,
         summary: "Messages, tools, streaming, vision, thinking, caching, cloud providers, and batch vs. realtime.",
         practice: [ex("claude-api/raw-message"), ex("claude-api/content-blocks"), ch("api-streaming"), ch("api-batch"), ch("api-documents")],
       },
       {
+        id: "engineering",
         name: "Software Engineering Foundations",
         weight: 7.4,
         summary: "REST, JSON, async code, version control, code review and refactoring.",
         practice: [ex("claude-code/approve-edit"), ch("api-todos"), ch("debug-discount")],
       },
       {
+        id: "app-design",
         name: "Claude Application Design",
         weight: 8.6,
         summary: "How Claude reads instructions across interfaces, content boundaries, schema design and session hygiene.",
         practice: [ex("agent-sdk/system-prompt"), ch("api-structured"), ch("api-workflow")],
       },
       {
+        id: "config-management",
         name: "Configuration Management",
         weight: 4.1,
         summary: "CLAUDE.md, settings.json, pinning model versions, prompt versioning and plugin dependencies.",
@@ -108,6 +146,7 @@ export const DOMAINS: Domain[] = [
     weight: 3.1,
     skills: [
       {
+        id: "claude-code-operation",
         name: "Claude Code Operation",
         weight: 3.1,
         summary: "Rules, skills, commands, agents and memory; sessions, headless and streaming modes; the CLAUDE.md hierarchy and settings.",
@@ -122,6 +161,7 @@ export const DOMAINS: Domain[] = [
     weight: 2.6,
     skills: [
       {
+        id: "debugging",
         name: "Debugging and Error Handling",
         weight: 2.6,
         summary: "Identifying error types, choosing a recovery strategy, reading traces, and telling integration bugs from model output.",
@@ -136,24 +176,28 @@ export const DOMAINS: Domain[] = [
     weight: 16.8,
     skills: [
       {
+        id: "llm-fundamentals",
         name: "LLM Fundamentals",
         weight: 5.2,
         summary: "Tokens, context windows, sampling, thinking and effort, and zero-/few-shot prompting.",
         practice: [ex("claude-api/tokens"), ex("claude-code/context"), ch("api-thinking"), ch("api-token-budget")],
       },
       {
+        id: "technical-fundamentals",
         name: "Technical Fundamentals",
         weight: 6.1,
         summary: "SDKs that wrap REST APIs, streaming connections and everyday engineering practice.",
         practice: [ex("build/rest-api"), ch("api-streaming"), ch("api-errors")],
       },
       {
+        id: "model-selection",
         name: "Model Selection and Tradeoffs",
         weight: 2.7,
         summary: "Opus vs. Sonnet vs. Haiku, quality/latency/cost tradeoffs, and changes between model releases.",
         practice: [ex("claude-api/tokens"), ex("agent-sdk/spending-cap"), ch("api-model-routing"), ch("api-thinking")],
       },
       {
+        id: "cost",
         name: "Cost and Token Management",
         weight: 2.8,
         summary: "Tracking token usage, modeling cost, and prompt caching.",
@@ -168,18 +212,21 @@ export const DOMAINS: Domain[] = [
     weight: 11.0,
     skills: [
       {
+        id: "context-engineering",
         name: "Context Engineering",
         weight: 3.8,
         summary: "Managing the context window, preventing drift and bloat, compaction, and isolating context with subagents.",
         practice: [ex("claude-code/context"), ex("claude-code/subagent"), ch("api-context-trim")],
       },
       {
+        id: "prompt-engineering",
         name: "Prompt Engineering",
         weight: 4.6,
         summary: "Clear instructions, examples, system vs. user placement, output constraints and iteration.",
         practice: [ex("agent-sdk/system-prompt"), ch("api-workflow"), ch("api-few-shot")],
       },
       {
+        id: "output-handling",
         name: "Output Handling",
         weight: 2.6,
         summary: "Structured output, validating responses, defensive parsing, and not trusting confident output blindly.",
@@ -194,24 +241,28 @@ export const DOMAINS: Domain[] = [
     weight: 8.1,
     skills: [
       {
+        id: "app-security",
         name: "AI Application Security",
         weight: 3.2,
         summary: "Prompt injection, jailbreaks, untrusted input, data leakage and PII.",
         practice: [ex("config/deny-rule"), ch("security-hook"), ch("api-injection-gate")],
       },
       {
+        id: "guardrails",
         name: "Guardrails and Safe Deployment",
         weight: 2.3,
         summary: "Layered guardrails, least privilege and secure-by-design.",
         practice: [ex("claude-code/approve-edit"), ex("agent-sdk/spending-cap"), ch("config-guardrails"), ch("api-injection-gate")],
       },
       {
+        id: "hooks",
         name: "Claude Hooks",
         weight: 1.0,
         summary: "Hooks as guardrails that stop destructive actions.",
         practice: [ex("claude-code/hooks"), ch("security-hook"), ch("agent-guardrails")],
       },
       {
+        id: "secrets",
         name: "Identity, Secrets, and Key Management",
         weight: 1.6,
         summary: "Keeping API keys and credentials safe from development to production.",
@@ -226,18 +277,21 @@ export const DOMAINS: Domain[] = [
     weight: 10.6,
     skills: [
       {
+        id: "tool-implementation",
         name: "Tool Implementation",
         weight: 4.4,
         summary: "Tool definitions and descriptions, error handling, client vs. server tools and approval patterns.",
         practice: [ex("claude-api/content-blocks"), ex("mcp/demo-weather"), ch("api-tool-loop"), ch("mcp-errors"), ch("api-injection-gate")],
       },
       {
+        id: "mcp-development",
         name: "MCP Server Development",
         weight: 2.1,
         summary: "Writing, running and connecting MCP servers: tools, resources, prompts and transports.",
         practice: [ex("build/mcp-server"), ex("build/use-mcp-server"), ex("mcp/memory"), ch("mcp-text-tools"), ch("mcp-resources")],
       },
       {
+        id: "agentic-customization",
         name: "Agentic Customization",
         weight: 4.1,
         summary: "Choosing between built-in tools, custom tools, skills and MCP servers.",

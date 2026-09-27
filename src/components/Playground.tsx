@@ -106,7 +106,7 @@ export function Playground({
             <optgroup label={`Certification · ${ready}% ready`}>
               <option value={CERT_PLAN}>Study plan</option>
               <option value={CERT_OVERVIEW}>Exam blueprint &amp; readiness</option>
-              <option value={CERT_EXAM}>Mock exam ({MOCK_EXAM.items} questions, {MOCK_EXAM.minutes} min)</option>
+              <option value={CERT_EXAM}>Practice tests (mock exam: {MOCK_EXAM.items} questions, {MOCK_EXAM.minutes} min)</option>
               <option value={CERT_MISTAKES}>Mistakes deck ({mistakes})</option>
               {DOMAINS.map((d) => (
                 <option key={d.id} value={CERT + d.id}>
