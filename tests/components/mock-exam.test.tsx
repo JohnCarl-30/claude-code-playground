@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MockExamPanel } from "@/components/MockExamPanel";
 import { optionOrder } from "@/components/QuizPanel";
 import { examActions } from "@/lib/exam-store";
-import { findQuestion, MOCK_EXAM } from "@/lib/mock-exam";
+import { findQuestion, MOCK_EXAM, OBJECTIVES, scoreExam } from "@/lib/mock-exam";
 
 const KEY = "claude-code-playground:mock-exam:v1";
 
@@ -110,6 +110,28 @@ describe("MockExamPanel", () => {
     await userEvent.click(within(builder).getByRole("button", { name: "Start the custom test" }));
     expect(saved().current.spec).toMatchObject({ items: 37, singleAnswer: false, detail: false, timed: true });
     expect(await screen.findByRole("timer")).toHaveTextContent(/1:2[45]:\d\d/);
+  });
+
+  it("keeps \"Choose 2\" out when repeating a test saved before that switch existed", async () => {
+    const items = [{ domain: "apps", id: "req-class-business-goal" }];
+    const spec = { items: 37, objectives: OBJECTIVES.map((o) => o.id), detail: false, timed: false };
+    const old = { kind: "custom", items, answers: {}, flagged: [], startedAt: 1, finishedAt: 2, result: scoreExam(items as never, {}), spec };
+    localStorage.setItem(KEY, JSON.stringify({ current: old, history: [] }));
+    render(<MockExamPanel onDomain={jest.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "New test, same settings" }));
+    expect(saved().current.spec.singleAnswer).toBe(true);
+    expect(saved().current.items.every((i: { id: string }) => findQuestion(i.id)!.question.answer.length === 1)).toBe(true);
+  });
+
+  it("follows a question that moved to another domain while you were mid-test", async () => {
+    // Saved while this question still sat under Applications and Integration.
+    const moved = { kind: "retry", items: [{ domain: "apps", id: "client-sdk-vs-raw-http" }], answers: {}, flagged: [], startedAt: 1 };
+    localStorage.setItem(KEY, JSON.stringify({ current: moved, history: [] }));
+    render(<MockExamPanel onDomain={jest.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Check answers" }));
+    await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Finish" }));
+    const report = screen.getByLabelText("Percent correct by domain and objective");
+    expect(within(report).getByRole("list", { name: "Model Selection and Optimization objectives" })).toHaveTextContent("Technical Fundamentals");
   });
 
   it("offers your weak objectives from recent results", async () => {

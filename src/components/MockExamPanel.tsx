@@ -9,9 +9,9 @@ import {
   findQuestion,
   MOCK_EXAM,
   OBJECTIVES,
-  objectiveRoom,
   PASS_SHARE,
   testMinutes,
+  testSize,
   weakObjectives,
   type DomainScore,
 } from "@/lib/mock-exam";
@@ -30,6 +30,7 @@ function clock(ms: number) {
 
 const newSeed = () => Math.floor(Math.random() * 2 ** 31);
 const weak = (s: DomainScore) => s.correct / s.total < PASS_SHARE;
+const PASS_PERCENT = Math.round(PASS_SHARE * 100);
 
 /** Custom test lengths: a quick check, about half an exam, a longer review, and a full exam's worth. */
 export const LENGTHS = [10, 25, 37, 53];
@@ -50,11 +51,9 @@ function CustomTest({ history }: { history: PastExam[] }) {
 
   // Weak objectives: below the pass share across your last five tests.
   const weakOnes = weakObjectives(history.slice(0, 5).flatMap((h) => (h.byObjective ? [h.byObjective] : [])));
-  const room = objectiveRoom(detail, singleAnswer);
   const objectives = scope === "all" ? OBJECTIVES.map((o) => o.id) : picked;
-  const available = objectives.filter((id) => room[id] > 0);
-  const count = Math.min(items, available.reduce((sum, id) => sum + room[id], 0));
-  const covered = Math.min(count, available.length);
+  const spec = { items, objectives, detail, singleAnswer };
+  const { room, count, covered } = testSize(spec);
   const minutes = testMinutes(count);
   const toggle = (id: SkillId) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
@@ -156,7 +155,7 @@ function CustomTest({ history }: { history: PastExam[] }) {
 
       <div className="flex flex-wrap items-center gap-3">
         <button
-          onClick={() => examActions.startCustom(newSeed(), { items, objectives, detail, singleAnswer, timed })}
+          onClick={() => examActions.startCustom(newSeed(), { ...spec, timed })}
           disabled={count === 0}
           className="h-10 rounded-lg bg-accent px-4 font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
@@ -438,7 +437,7 @@ function ScoreReport({ attempt, onDomain }: { attempt: Attempt; onDomain: (id: s
         })}
       </ul>
       <p className="mt-3 text-xs text-muted">
-        Marked <span className="text-danger">weak</span> below about {Math.round(PASS_SHARE * 100)}% correct, the pass mark on our estimate. Like the real
+        Marked <span className="text-danger">weak</span> below about {PASS_PERCENT}% correct, the pass mark on our estimate. Like the real
         score report, these help you decide what to study; the pass mark applies to the total only.
       </p>
     </section>
@@ -477,10 +476,10 @@ function Results({ attempt, onDomain, onMistakes }: { attempt: Attempt; onDomain
               <span className="tabular-nums">{share}%</span>
               <span className="text-lg font-normal text-muted"> correct</span>
             </h1>
-            <p className={`font-medium ${result.correct / result.total >= PASS_SHARE ? "text-ok" : "text-danger"}`}>
-              {result.correct / result.total >= PASS_SHARE
-                ? `At or above about ${Math.round(PASS_SHARE * 100)}%, the pass mark on our estimate.`
-                : `Below about ${Math.round(PASS_SHARE * 100)}%, the pass mark on our estimate. Work on the objectives marked weak.`}
+            <p className={`font-medium ${weak(result) ? "text-danger" : "text-ok"}`}>
+              {weak(result)
+                ? `Below about ${PASS_PERCENT}%, the pass mark on our estimate. Work on the objectives marked weak.`
+                : `At or above about ${PASS_PERCENT}%, the pass mark on our estimate.`}
             </p>
           </>
         ) : (
@@ -504,7 +503,7 @@ function Results({ attempt, onDomain, onMistakes }: { attempt: Attempt; onDomain
         )}
         {custom && attempt.spec ? (
           <button
-            onClick={() => examActions.startCustom(newSeed(), attempt.spec!)}
+            onClick={() => examActions.startCustom(newSeed(), { ...attempt.spec!, singleAnswer: attempt.spec!.singleAnswer ?? true })}
             className="h-9 rounded-lg border border-line px-4 text-sm font-medium hover:bg-surface-2"
           >
             New test, same settings

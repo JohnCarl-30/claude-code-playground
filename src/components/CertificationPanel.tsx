@@ -39,6 +39,8 @@ function PracticeChip({ item, progress, onOpen }: { item: PracticeRef; progress:
 }
 
 /** The exam blueprint with your progress, or one domain with its quiz. */
+const CONTINUE = { exam: "Continue the exam", custom: "Continue your test", retry: "Continue your retry" } as const;
+
 export function CertificationPanel({
   domain,
   progress,
@@ -169,7 +171,7 @@ export function CertificationPanel({
             </p>
           </div>
           <button onClick={onExam} className="h-9 rounded-lg bg-accent px-4 text-sm font-medium text-white hover:opacity-90">
-            {current && !current.finishedAt ? (current.kind === "exam" ? "Continue the exam" : "Continue your test") : "Open practice tests"}
+            {current && !current.finishedAt ? CONTINUE[current.kind] : "Open practice tests"}
           </button>
         </section>
       )}

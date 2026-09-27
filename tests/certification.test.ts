@@ -124,6 +124,13 @@ describe("quizzes", () => {
     expect(thin).toEqual([]);
   });
 
+  it("has single-answer exam-style questions for every objective, since custom tests leave out \"Choose 2\" by default", () => {
+    const thin = DOMAINS.flatMap((d) => d.skills)
+      .map((s) => ({ objective: s.id, single: all.filter(({ q }) => q.skill === s.id && q.style === "judgment" && q.answer.length === 1).length }))
+      .filter((o) => o.single < 3);
+    expect(thin).toEqual([]);
+  });
+
   it("uses unique question ids", () => {
     const ids = all.map(({ q }) => q.id);
     expect(new Set(ids).size).toBe(ids.length);

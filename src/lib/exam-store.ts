@@ -50,8 +50,16 @@ const EMPTY: ExamState = { current: null, history: [] };
 
 const store = localStore<ExamState>("claude-code-playground:mock-exam:v1", EMPTY, (raw) => {
   const parsed = (raw ?? {}) as Partial<ExamState>;
-  // Drop questions that no longer exist (the bank changes over time).
-  const current = parsed.current ? { ...parsed.current, items: parsed.current.items.filter((i) => findQuestion(i.id)) } : null;
+  // The bank changes over time: drop questions that no longer exist, and follow any that moved to another domain.
+  const current = parsed.current
+    ? {
+        ...parsed.current,
+        items: parsed.current.items.flatMap((i) => {
+          const found = findQuestion(i.id);
+          return found ? [{ ...i, domain: found.domain }] : [];
+        }),
+      }
+    : null;
   return { current, history: Array.isArray(parsed.history) ? parsed.history : [] };
 });
 

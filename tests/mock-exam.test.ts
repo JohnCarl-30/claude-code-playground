@@ -10,6 +10,7 @@ import {
   objectiveRoom,
   scoreExam,
   testMinutes,
+  testSize,
   weakObjectives,
 } from "@/lib/mock-exam";
 import { QUIZZES } from "@/lib/quizzes";
@@ -110,7 +111,7 @@ describe("custom tests", () => {
   });
 
   it("covers every objective once the test is long enough, with exam-style questions only", () => {
-    const room = objectiveRoom(false);
+    const room = objectiveRoom({ detail: false });
     const items = drawTest(9, { items: 37, objectives: all, detail: false });
     expect(items).toHaveLength(37);
     expect(items.every((i) => findQuestion(i.id)!.question.style === "judgment")).toBe(true);
@@ -130,11 +131,11 @@ describe("custom tests", () => {
     expect(items).toHaveLength(10);
     expect(new Set(items.map((i) => skillOf(i.id)))).toEqual(new Set(picked));
 
-    const room = objectiveRoom(false).hooks;
+    const room = objectiveRoom({ detail: false }).hooks;
     expect(drawTest(4, { items: 53, objectives: ["hooks"], detail: false })).toHaveLength(room);
     // Detail questions widen the pool.
-    expect(objectiveRoom(true).hooks).toBeGreaterThan(room);
-    expect(drawTest(4, { items: 53, objectives: ["hooks"], detail: true })).toHaveLength(objectiveRoom(true).hooks);
+    expect(objectiveRoom({ detail: true }).hooks).toBeGreaterThan(room);
+    expect(drawTest(4, { items: 53, objectives: ["hooks"], detail: true })).toHaveLength(objectiveRoom({ detail: true }).hooks);
   });
 
   it("can leave out \"Choose 2\" questions and still cover every objective", () => {
@@ -145,7 +146,22 @@ describe("custom tests", () => {
     // Without the switch, a long enough test does include some.
     const mixed = drawTest(3, { items: 53, objectives: all, detail: false });
     expect(mixed.some((i) => findQuestion(i.id)!.question.answer.length > 1)).toBe(true);
-    expect(objectiveRoom(false, true).requirements).toBeLessThan(objectiveRoom(false).requirements);
+    expect(objectiveRoom({ detail: false, singleAnswer: true }).requirements).toBeLessThan(objectiveRoom({ detail: false }).requirements);
+  });
+
+  it("previews exactly what it draws", () => {
+    const specs = [
+      { items: 37, objectives: all, detail: false, singleAnswer: true },
+      { items: 10, objectives: all, detail: false },
+      { items: 53, objectives: ["hooks", "cost"] as SkillId[], detail: false, singleAnswer: true },
+      { items: 25, objectives: ["mcp-development"] as SkillId[], detail: true },
+      { items: 10, objectives: [] as SkillId[], detail: false },
+    ];
+    for (const spec of specs) {
+      const items = drawTest(8, spec);
+      const { count, covered } = testSize(spec);
+      expect({ count: items.length, covered: new Set(items.map((i) => skillOf(i.id))).size }).toEqual({ count, covered });
+    }
   });
 
   it("is timed at the real exam's pace", () => {

@@ -154,12 +154,21 @@ export type TestSpec = { items: number; objectives: SkillId[]; detail: boolean; 
 const mixFor = (spec: Pick<TestSpec, "detail">): Mix => (spec.detail ? "all" : "exam-style");
 const allowed = (spec: Pick<TestSpec, "singleAnswer">) => (q: QuizQuestion) => !spec.singleAnswer || q.answer.length === 1;
 
-/** How many questions each objective can offer a custom test. */
-export function objectiveRoom(detail: boolean, singleAnswer = false): Record<SkillId, number> {
-  const ok = allowed({ singleAnswer });
-  return Object.fromEntries(
-    OBJECTIVES.map((o) => [o.id, questionsFor(o).filter((q) => ok(q) && inMix(q, mixFor({ detail }))).length]),
-  ) as Record<SkillId, number>;
+/** How many questions each objective can offer a custom test with these settings. */
+export function objectiveRoom(spec: Pick<TestSpec, "detail" | "singleAnswer">): Record<SkillId, number> {
+  const ok = allowed(spec);
+  return Object.fromEntries(OBJECTIVES.map((o) => [o.id, questionsFor(o).filter((q) => ok(q) && inMix(q, mixFor(spec))).length])) as Record<
+    SkillId,
+    number
+  >;
+}
+
+/** The objectives a custom test can draw on, and how many questions it will have and cover: what `drawTest()` builds. */
+export function testSize(spec: TestSpec) {
+  const room = objectiveRoom(spec);
+  const usable = OBJECTIVES.filter((o) => spec.objectives.includes(o.id) && room[o.id] > 0);
+  const count = Math.min(spec.items, usable.reduce((sum, o) => sum + room[o.id], 0));
+  return { room, usable, count, covered: Math.min(count, usable.length) };
 }
 
 /** Minutes for a test of this length at the real exam's pace (120 minutes for 53), to the nearest 5. */
@@ -172,8 +181,7 @@ export const testMinutes = (items: number) => Math.max(5, Math.round((items * MO
  */
 export function drawTest(seed: number, spec: TestSpec): ExamItem[] {
   const random = seededRandom(seed);
-  const room = objectiveRoom(spec.detail, spec.singleAnswer);
-  let chosen = OBJECTIVES.filter((o) => spec.objectives.includes(o.id) && room[o.id] > 0);
+  let chosen = testSize(spec).usable;
   if (spec.items < chosen.length) {
     // Weighted sampling without replacement (Efraimidis–Spirakis), then back in blueprint order.
     const keyed = chosen.map((o) => ({ o, key: random() ** (1 / o.weight) }));
