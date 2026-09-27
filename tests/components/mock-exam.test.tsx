@@ -7,6 +7,10 @@ import { examActions } from "@/lib/exam-store";
 import { findQuestion, MOCK_EXAM } from "@/lib/mock-exam";
 
 const KEY = "claude-code-playground:mock-exam:v1";
+
+// These walk through whole tests click by click; on a busy machine running the full suite in
+// parallel they can take longer than Jest's 5-second default.
+jest.setTimeout(20_000);
 const saved = () => JSON.parse(localStorage.getItem(KEY) ?? "null");
 
 beforeEach(() => {
@@ -77,6 +81,8 @@ describe("MockExamPanel", () => {
     expect(screen.queryByRole("timer")).not.toBeInTheDocument();
     const skills = new Set(saved().current.items.map((i: { id: string }) => findQuestion(i.id)!.question.skill));
     expect(skills).toEqual(new Set(["requirements", "agent-construction"]));
+    // No "Choose 2" questions unless you ask for them.
+    expect(saved().current.items.every((i: { id: string }) => findQuestion(i.id)!.question.answer.length === 1)).toBe(true);
 
     await answerCurrent(true);
     await userEvent.click(screen.getByRole("button", { name: "Finish test" }));
@@ -99,7 +105,10 @@ describe("MockExamPanel", () => {
     render(<MockExamPanel onDomain={jest.fn()} />);
     const builder = screen.getByRole("region", { name: "Custom test" });
     expect(within(builder).getByText("37 questions across 25 objectives, 85 minutes.")).toBeInTheDocument();
+    expect(within(builder).getByRole("checkbox", { name: /Single-answer questions only/ })).toBeChecked();
+    await userEvent.click(within(builder).getByRole("checkbox", { name: /Single-answer questions only/ }));
     await userEvent.click(within(builder).getByRole("button", { name: "Start the custom test" }));
+    expect(saved().current.spec).toMatchObject({ items: 37, singleAnswer: false, detail: false, timed: true });
     expect(await screen.findByRole("timer")).toHaveTextContent(/1:2[45]:\d\d/);
   });
 

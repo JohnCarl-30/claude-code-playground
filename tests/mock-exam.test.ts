@@ -137,6 +137,17 @@ describe("custom tests", () => {
     expect(drawTest(4, { items: 53, objectives: ["hooks"], detail: true })).toHaveLength(objectiveRoom(true).hooks);
   });
 
+  it("can leave out \"Choose 2\" questions and still cover every objective", () => {
+    const items = drawTest(3, { items: 37, objectives: all, detail: false, singleAnswer: true });
+    expect(items).toHaveLength(37);
+    expect(items.every((i) => findQuestion(i.id)!.question.answer.length === 1)).toBe(true);
+    expect(new Set(items.map((i) => skillOf(i.id))).size).toBe(OBJECTIVES.length);
+    // Without the switch, a long enough test does include some.
+    const mixed = drawTest(3, { items: 53, objectives: all, detail: false });
+    expect(mixed.some((i) => findQuestion(i.id)!.question.answer.length > 1)).toBe(true);
+    expect(objectiveRoom(false, true).requirements).toBeLessThan(objectiveRoom(false).requirements);
+  });
+
   it("is timed at the real exam's pace", () => {
     expect(testMinutes(53)).toBe(MOCK_EXAM.minutes);
     expect(testMinutes(37)).toBe(85);

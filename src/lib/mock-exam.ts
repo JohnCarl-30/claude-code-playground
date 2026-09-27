@@ -107,9 +107,15 @@ const questionsFor = (o: Objective) => QUIZZES[o.domain].filter((q) => q.skill =
 const inMix = (q: QuizQuestion, mix: Mix) => mix === "all" || q.style === "judgment";
 
 /** `seats` questions from these objectives, spread across them by weight. */
-function drawObjectives(objectives: readonly Objective[], seats: number, mix: Mix, random: () => number): ExamItem[] {
+function drawObjectives(
+  objectives: readonly Objective[],
+  seats: number,
+  mix: Mix,
+  random: () => number,
+  ok: (q: QuizQuestion) => boolean = () => true,
+): ExamItem[] {
   const pools = objectives.map((o) => {
-    const bank = shuffled(questionsFor(o), random);
+    const bank = shuffled(questionsFor(o).filter(ok), random);
     return { o, first: bank.filter((q) => inMix(q, mix)), rest: mix === "exam-style-first" ? bank.filter((q) => q.style !== "judgment") : [] };
   });
   const take = (pick: (p: (typeof pools)[number]) => QuizQuestion[], n: number) => {
@@ -139,14 +145,21 @@ export function drawExam(seed: number, total = MOCK_EXAM.items): ExamItem[] {
   return shuffled(picked, random);
 }
 
-/** A custom test: how many questions, on which objectives, and whether detail questions may appear. */
-export type TestSpec = { items: number; objectives: SkillId[]; detail: boolean };
+/**
+ * A custom test: how many questions, on which objectives, whether detail questions may appear, and
+ * whether to leave out "Choose 2" questions (missing on tests saved before that choice existed).
+ */
+export type TestSpec = { items: number; objectives: SkillId[]; detail: boolean; singleAnswer?: boolean };
 
 const mixFor = (spec: Pick<TestSpec, "detail">): Mix => (spec.detail ? "all" : "exam-style");
+const allowed = (spec: Pick<TestSpec, "singleAnswer">) => (q: QuizQuestion) => !spec.singleAnswer || q.answer.length === 1;
 
 /** How many questions each objective can offer a custom test. */
-export function objectiveRoom(detail: boolean): Record<SkillId, number> {
-  return Object.fromEntries(OBJECTIVES.map((o) => [o.id, questionsFor(o).filter((q) => inMix(q, mixFor({ detail }))).length])) as Record<SkillId, number>;
+export function objectiveRoom(detail: boolean, singleAnswer = false): Record<SkillId, number> {
+  const ok = allowed({ singleAnswer });
+  return Object.fromEntries(
+    OBJECTIVES.map((o) => [o.id, questionsFor(o).filter((q) => ok(q) && inMix(q, mixFor({ detail }))).length]),
+  ) as Record<SkillId, number>;
 }
 
 /** Minutes for a test of this length at the real exam's pace (120 minutes for 53), to the nearest 5. */
@@ -159,7 +172,7 @@ export const testMinutes = (items: number) => Math.max(5, Math.round((items * MO
  */
 export function drawTest(seed: number, spec: TestSpec): ExamItem[] {
   const random = seededRandom(seed);
-  const room = objectiveRoom(spec.detail);
+  const room = objectiveRoom(spec.detail, spec.singleAnswer);
   let chosen = OBJECTIVES.filter((o) => spec.objectives.includes(o.id) && room[o.id] > 0);
   if (spec.items < chosen.length) {
     // Weighted sampling without replacement (Efraimidis–Spirakis), then back in blueprint order.
@@ -167,7 +180,7 @@ export function drawTest(seed: number, spec: TestSpec): ExamItem[] {
     const keep = new Set(keyed.sort((a, b) => b.key - a.key).slice(0, spec.items).map((k) => k.o));
     chosen = chosen.filter((o) => keep.has(o));
   }
-  return shuffled(drawObjectives(chosen, spec.items, mixFor(spec), random), random);
+  return shuffled(drawObjectives(chosen, spec.items, mixFor(spec), random, allowed(spec)), random);
 }
 
 const byId = new Map(DOMAINS.flatMap((d) => QUIZZES[d.id].map((q) => [q.id, { domain: d.id, question: q }] as const)));

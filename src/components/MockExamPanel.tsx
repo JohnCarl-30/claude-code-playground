@@ -46,10 +46,11 @@ function CustomTest({ history }: { history: PastExam[] }) {
   const [picked, setPicked] = useState<SkillId[]>([]);
   const [timed, setTimed] = useState(true);
   const [detail, setDetail] = useState(false);
+  const [singleAnswer, setSingleAnswer] = useState(true);
 
   // Weak objectives: below the pass share across your last five tests.
   const weakOnes = weakObjectives(history.slice(0, 5).flatMap((h) => (h.byObjective ? [h.byObjective] : [])));
-  const room = objectiveRoom(detail);
+  const room = objectiveRoom(detail, singleAnswer);
   const objectives = scope === "all" ? OBJECTIVES.map((o) => o.id) : picked;
   const available = objectives.filter((id) => room[id] > 0);
   const count = Math.min(items, available.reduce((sum, id) => sum + room[id], 0));
@@ -141,6 +142,10 @@ function CustomTest({ history }: { history: PastExam[] }) {
           <input type="checkbox" checked={timed} onChange={(e) => setTimed(e.target.checked)} className="accent-accent" />
           <span>Timed at the real exam&apos;s pace ({minutes} minutes)</span>
         </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={singleAnswer} onChange={(e) => setSingleAnswer(e.target.checked)} className="accent-accent" />
+          <span>Single-answer questions only (no &ldquo;Choose 2&rdquo;)</span>
+        </label>
         <label className="flex items-start gap-2 [&>input]:mt-1">
           <input type="checkbox" checked={detail} onChange={(e) => setDetail(e.target.checked)} className="accent-accent" />
           <span>
@@ -151,7 +156,7 @@ function CustomTest({ history }: { history: PastExam[] }) {
 
       <div className="flex flex-wrap items-center gap-3">
         <button
-          onClick={() => examActions.startCustom(newSeed(), { items, objectives, detail, timed })}
+          onClick={() => examActions.startCustom(newSeed(), { items, objectives, detail, singleAnswer, timed })}
           disabled={count === 0}
           className="h-10 rounded-lg bg-accent px-4 font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
