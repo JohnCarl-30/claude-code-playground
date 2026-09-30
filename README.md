@@ -1,4 +1,4 @@
-# Claude Code Playground
+# CCDV-F Study Lab
 
 [![CI](https://github.com/JohnCarl-30/claude-code-playground/actions/workflows/ci.yml/badge.svg)](https://github.com/JohnCarl-30/claude-code-playground/actions/workflows/ci.yml)
 
@@ -18,7 +18,11 @@ Build a real REST API, MCP server or agent with Claude, then run and test it rig
 - **See the code.** The Code tab shows the Agent SDK call that matches your current settings.
 - **Runs on your computer.** Works on macOS, Linux and Windows.
 
+**Just studying for the exam?** The certification track is also a free website: **[https://johncarl-30.github.io/claude-code-playground/](https://johncarl-30.github.io/claude-code-playground/)**. It has the knowledge checks, practice tests (mock exam and custom tests), mistakes deck and study plan, with no sign-in and no key. Your progress stays in your browser.
+
 Curious how it works under the hood? Read **[How the playground works](docs/HOW-IT-WORKS.md)**.
+
+*An unofficial study aid, not affiliated with or endorsed by Anthropic. The practice questions are written for it and checked against Anthropic's public docs; they aren't real exam items.*
 
 ## Before you start
 
@@ -30,6 +34,8 @@ You need **Node.js 20.9 or newer** ([download](https://nodejs.org)); check with 
 | **API key** | No subscription, or you'd rather pay per use | Get a key from the [Claude Console](https://console.anthropic.com), copy `.env.example` to `.env.local` and set `PLAYGROUND_AUTH=api-key` and `ANTHROPIC_API_KEY=…` | Billed per use; each conversation is capped ($1 by default) |
 | **Cloud provider** | Your company uses Amazon Bedrock, Google Vertex AI or Microsoft Foundry | Set Claude Code's provider variables in `.env.local` (for example `CLAUDE_CODE_USE_BEDROCK=1` plus your AWS region and credentials; see Claude Code's docs for each provider) | Billed by your provider |
 | **Practice mode** | No Claude access at all | Nothing: it's what you get when Claude isn't connected | Free |
+
+**Sharing the app with other people?** The Claude login is for your own use. Anthropic doesn't allow apps built on the Agent SDK to offer claude.ai login to other people without its approval ([Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview)), so others should use their own API key, a cloud provider or practice mode, or just the [study site](https://johncarl-30.github.io/claude-code-playground/).
 
 In **practice mode** you can still write and run code in the Workspace (Files, Run & test, the request tester, Changes), edit Claude Code config, and use **Check my work** on challenges. Running prompts is switched off until Claude is connected. After setting something up, click **I've set it up: check again**.
 
@@ -188,6 +194,7 @@ Start with [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) for the architecture, re
 - `templates/`: the starter projects `workspace/` is created from; `src/lib/templates.ts` lists them and their scripts
 - `src/lib/processes.ts`, `src/components/RunPanel.tsx`: running a starter's scripts and the request tester
 - `npm test`: the Jest test suite in `tests/` (logic and UI, no Claude calls). CI runs it with lint, type-check and build on every push.
+- `npm run build:study`: builds the study site (the certification track only, as static files in `out/`; see `src/lib/edition.ts`). `.github/workflows/pages.yml` publishes it to GitHub Pages on every push to `main`.
 - `npm run test:e2e`: end-to-end tests with real Claude calls (Haiku, a few cents) against a separate, isolated server. Run it yourself before big changes.
 
 > This playground signs in with your personal Claude account, which is right for learning on your own computer. If you build an app that other people use, give that app its own API key.

@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { DOMAINS, EXAM, type Progress } from "@/lib/certification";
+import { isStudyOnly } from "@/lib/edition";
 import { mockExams, useExamState } from "@/lib/exam-store";
 import { localStore } from "@/lib/local-store";
 import { CERT, CERT_EXAM, CERT_MISTAKES, CHALLENGE } from "@/lib/selection";
@@ -114,7 +115,7 @@ export function StudyPlanPanel({ progress, onOpen }: { progress: Progress; onOpe
       <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Study plan</h1>
       <p className="max-w-3xl text-muted">
         A day-by-day plan to your exam: a baseline mock exam first, then your weakest, heaviest domains, with mistakes-deck rounds every few days and a mock
-        exam each week. Tasks tick themselves off as you pass challenges, try examples, pass quizzes and take mock exams.
+        exam each week. Tasks tick themselves off as you{isStudyOnly() ? "" : " pass challenges, try examples,"} pass quizzes and take mock exams.
       </p>
     </header>
   );

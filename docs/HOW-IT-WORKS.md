@@ -273,6 +273,17 @@ Practice tests, the mistakes deck and the other browser-only state share one sma
 
 Readiness is `Σ weight × share done ÷ 100`, where a domain's share counts its examples tried, challenges passed and its quiz (passed at 80%, `markQuizPassed()`). The sidebar and `CertificationPanel.tsx` show it; `?cert=overview` and `?cert=<domain>` link straight to a page.
 
+### The study site
+
+The same code builds two editions (`src/lib/edition.ts`). The full app is everything above, on your computer. The **study site** (`NEXT_PUBLIC_STUDY_ONLY=1`, `npm run build:study`) is just the certification track, published to GitHub Pages by `.github/workflows/pages.yml`:
+
+- `next.config.ts` switches to `output: "export"` (plain static files in `out/`, no server), serves from the repo's sub-path (`NEXT_PUBLIC_BASE_PATH`), and sets `pageExtensions: ["tsx"]`. Every API route is a `route.ts`, so none of them is built: nothing on the site can reach Claude, the workspace or run code. CI checks `out/api` doesn't exist.
+- With no server to read `?cert=`, the page reads the address in the browser (`useSyncExternalStore` on `location.search`) and updates it with `history.replaceState`, relative to the sub-path.
+- The sidebar and phone picker list only the certification track, the header has no connection pill (it would call `/api/status`), and domain pages leave out the example and challenge chips. `practiceHere()` returns nothing on the study site, so readiness counts knowledge checks and the study plan schedules quizzes, mistakes rounds and mock exams only.
+- Everything a visitor does is saved in their own browser, the same `localStorage` keys as the full app.
+
+Both editions carry the name **CCDV-F Study Lab** and a footer saying it's unofficial and not affiliated with Anthropic. Anthropic's branding rules for Agent SDK products don't allow "Claude Code" in a product's name.
+
 ---
 
 ## 6. MCP servers
@@ -403,6 +414,7 @@ If storage is blocked (private windows, strict settings), everything still works
 | Add or fix a knowledge-check question | `src/lib/quizzes.ts` (with its source URL, an `evidence` quote, its `style` and its objective as `skill`; `tests/certification.test.ts` checks the format, `npm run verify:quizzes` checks the quote against the live docs) |
 | Change the mock exam's length, time or scoring | `MOCK_EXAM` and `scoreExam()` in `src/lib/mock-exam.ts` |
 | Change custom test lengths or pacing | `LENGTHS` in `MockExamPanel.tsx`, `testMinutes()` in `src/lib/mock-exam.ts` |
+| Change the app's name or what the study site includes | `APP_NAME` and `isStudyOnly()` in `src/lib/edition.ts`, `next.config.ts`, `.github/workflows/pages.yml` |
 | Change what the practice API answers | `practiceResponder()` in `src/lib/practice-api.ts` |
 | Change the question / plan cards, task list or context meter | `Timeline.tsx` (`QuestionCard`, `PlanCard`), `TaskListPanel.tsx`, `ContextMeter.tsx` |
 | Change the generated code in the Code tab | `src/components/CodePreview.tsx` |
@@ -435,6 +447,7 @@ npm run build
 | `practice-api.test.ts` | the practice API driven by the real `@anthropic-ai/sdk`: messages, tool use, the API's 400s, which models accept which effort and thinking settings, structured output, cache usage, streaming (text, tool_use and thinking), token counting, batches, 404s; and every Claude API reference solution running through `run.mjs` |
 | `api-challenges.test.ts` | the Claude API checkers are fair: common mistakes (no `is_error`, a dropped assistant turn, no `additionalProperties: false`, a timestamp in the cached prefix, retries turned off, a hard-coded key, no stream, no gate, an expensive model for simple work, effort on Haiku, `budget_tokens` on Sonnet 5, counting a different request than you send, cache tokens at full price) fail with a useful reason, and other correct styles (tool runner, `messages.parse` + Zod, automatic caching, Opus 5 at max effort, your own updated prices) pass |
 | `study-plan.test.ts` | the study plan: dates across months, priority order and dedupe, mock exams on day one / weekly / last day, mistakes rounds, days filled within the daily time, unscheduled work, ticking tasks from progress |
+| `components/study-site.test.tsx` | the study site: only the certification track in the sidebar, readiness from knowledge checks, a plan of quizzes only, the address kept in step, links to domains and fallbacks, no connection check |
 | `mock-exam.test.ts` | the mock exam's split by domain weight (and when a bank is short), seeded draws with no repeats, spread across objectives and mixed domains; splitting seats by weight; custom tests (same seed same test, every objective covered, shorter tests, picked objectives, detail questions, single-answer only, pacing); scoring by domain and objective, the scaled estimate, and weak objectives |
 | `certification.test.ts` | the blueprint matches the guide's weights (domains add up to 100%, skills to their domain), links only to real examples and challenges, and every quiz question is well-formed ("Choose 2" when it has two answers), sourced from an official docs host and shuffled, and that answer length doesn't give the answer away (the right option isn't usually the longest, or the shortest); every question's objective belongs to its domain, and every objective has at least four exam-style questions |
 | `examples.test.ts` | every sidebar example is well-formed |

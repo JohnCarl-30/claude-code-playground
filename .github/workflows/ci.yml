@@ -38,3 +38,7 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # The public study site: static files with no API routes (see src/lib/edition.ts).
+      - name: Build the study site
+        run: npm run build:study && test -f out/index.html && test ! -e out/api

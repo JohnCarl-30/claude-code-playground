@@ -3,6 +3,7 @@
 import { findChallenge } from "@/lib/challenges";
 import { DOMAINS, EXAM, domainProgress, focusDomain, isDone, readiness, type Domain, type PracticeRef, type Progress } from "@/lib/certification";
 import { mockExams, useExamState } from "@/lib/exam-store";
+import { isStudyOnly } from "@/lib/edition";
 import { findExample } from "@/lib/examples";
 import { MOCK_EXAM } from "@/lib/mock-exam";
 import { QUIZZES } from "@/lib/quizzes";
@@ -56,6 +57,7 @@ export function CertificationPanel({
 }) {
   const { history: allResults, current } = useExamState();
   const history = mockExams(allResults);
+  const study = isStudyOnly();
   if (domain) {
     const p = domainProgress(domain, progress);
     return (
@@ -81,11 +83,13 @@ export function CertificationPanel({
                 <span className="text-xs tabular-nums text-muted">{weight(s.weight)} of the exam</span>
               </div>
               <p className="mt-1 text-sm text-muted">{s.summary}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {s.practice.map((item) => (
-                  <PracticeChip key={`${item.kind}:${item.id}`} item={item} progress={progress} onOpen={onOpen} />
-                ))}
-              </div>
+              {!study && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {s.practice.map((item) => (
+                    <PracticeChip key={`${item.kind}:${item.id}`} item={item} progress={progress} onOpen={onOpen} />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </section>
@@ -103,8 +107,9 @@ export function CertificationPanel({
         <p className="text-xs font-medium uppercase tracking-wide text-accent">Certification track · {EXAM.code}</p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{EXAM.name}</h1>
         <p className="max-w-3xl text-muted">
-          The official exam blueprint, mapped to this playground. Each domain lists its skills, the examples and challenges that practice them,
-          and a knowledge check. Your readiness is weighted the way the exam is.
+          {study
+            ? "The official exam blueprint. Each domain lists its skills and a knowledge check, and practice tests cover them all. Your readiness is weighted the way the exam is."
+            : "The official exam blueprint, mapped to this playground. Each domain lists its skills, the examples and challenges that practice them, and a knowledge check. Your readiness is weighted the way the exam is."}
         </p>
         <p className="text-sm text-muted">
           {EXAM.items} questions · {EXAM.minutes} minutes · pass with {EXAM.passing} ·{" "}

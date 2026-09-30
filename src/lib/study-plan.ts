@@ -1,4 +1,4 @@
-import { DOMAINS, domainPractice, domainProgress, isDone, type DomainId, type PracticeRef, type Progress } from "./certification";
+import { DOMAINS, domainProgress, isDone, practiceHere, type DomainId, type PracticeRef, type Progress } from "./certification";
 import { findChallenge } from "./challenges";
 import { findExample } from "./examples";
 import { MOCK_EXAM } from "./mock-exam";
@@ -62,7 +62,7 @@ export function practiceQueue(progress: Progress): PlanTask[] {
   );
   const queue: PlanTask[] = [];
   for (const d of byPriority) {
-    const refs = domainPractice(d).filter((p) => !isDone(p, progress));
+    const refs = practiceHere(d).filter((p) => !isDone(p, progress));
     const ordered = [...refs.filter((p) => p.kind === "example"), ...refs.filter((p) => p.kind === "challenge")];
     for (const ref of ordered) {
       const task = practiceTask(ref, d.id);

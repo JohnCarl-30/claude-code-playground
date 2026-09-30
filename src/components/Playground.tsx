@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { DOMAINS, EXAM, findDomain, readiness, skillsFor, type PracticeRef } from "@/lib/certification";
+import { isStudyOnly } from "@/lib/edition";
 import { useMistakes } from "@/lib/mistakes";
 import { MOCK_EXAM } from "@/lib/mock-exam";
 import { CERT, CERT_EXAM, CERT_MISTAKES, CERT_OVERVIEW, CERT_PLAN, CHALLENGE } from "@/lib/selection";
@@ -27,6 +28,21 @@ function initialSelection(exampleId?: string, challengeId?: string, certId?: str
   if (findChallenge(challengeId)) return CHALLENGE + challengeId;
   return findExample(exampleId)?.id ?? BLANK_EXAMPLE_ID;
 }
+
+// The study site has no server to read the address, so it follows `?cert=` in the browser.
+const URL_CHANGED = "study:url";
+function subscribeToUrl(onChange: () => void) {
+  window.addEventListener("popstate", onChange);
+  window.addEventListener(URL_CHANGED, onChange);
+  return () => {
+    window.removeEventListener("popstate", onChange);
+    window.removeEventListener(URL_CHANGED, onChange);
+  };
+}
+const urlSearch = () => window.location.search;
+
+/** On the study site: what `?cert=` points to, or the exam blueprint (there are no examples or challenges there). */
+const studySelection = (search: string) => initialSelection(undefined, undefined, new URLSearchParams(search).get("cert") ?? "overview");
 
 function urlFor(id: string) {
   if (id === BLANK_EXAMPLE_ID) return "/";
@@ -70,7 +86,10 @@ export function Playground({
   const quizzes = useQuizzesPassed();
   const mistakes = Object.keys(useMistakes()).length;
   const progress = { tried, passed, quizzes };
-  const [selectedId, setSelectedId] = useState(() => initialSelection(initialExampleId, initialChallengeId, initialCertId));
+  const study = isStudyOnly();
+  const search = useSyncExternalStore(subscribeToUrl, urlSearch, () => "");
+  const [chosen, setChosen] = useState(() => initialSelection(initialExampleId, initialChallengeId, initialCertId));
+  const selectedId = study ? studySelection(search) : chosen;
   const example = findExample(selectedId);
   const challenge = selectedId.startsWith(CHALLENGE) ? findChallenge(selectedId.slice(CHALLENGE.length)) : undefined;
   const cert = selectedId.startsWith(CERT);
@@ -80,8 +99,14 @@ export function Playground({
   const ready = Math.round(readiness(progress) * 100);
 
   function select(id: string) {
-    setSelectedId(id);
-    router.replace(urlFor(id), { scroll: false });
+    if (study) {
+      // Relative, so the site's sub-path (such as /claude-code-playground) stays in the address.
+      window.history.replaceState(null, "", urlFor(id).slice(1) || window.location.pathname);
+      window.dispatchEvent(new Event(URL_CHANGED));
+    } else {
+      setChosen(id);
+      router.replace(urlFor(id), { scroll: false });
+    }
     if (id.startsWith(CERT)) window.scrollTo?.({ top: 0 });
   }
   const openPractice = (item: PracticeRef) => select(item.kind === "challenge" ? CHALLENGE + item.id : item.id);
@@ -95,14 +120,14 @@ export function Playground({
         {/* Phones: a compact picker. */}
         <label className="block lg:hidden">
           <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-muted">
-            Example · {doneCount}/{EXAMPLES.length} tried
+            {study ? `${EXAM.code} · ${ready}% ready` : `Example · ${doneCount}/${EXAMPLES.length} tried`}
           </span>
           <select
             value={selectedId}
             onChange={(e) => select(e.target.value)}
             className="h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm"
           >
-            <option value={BLANK_EXAMPLE_ID}>Blank: write your own prompt</option>
+            {!study && <option value={BLANK_EXAMPLE_ID}>Blank: write your own prompt</option>}
             <optgroup label={`Certification · ${ready}% ready`}>
               <option value={CERT_PLAN}>Study plan</option>
               <option value={CERT_OVERVIEW}>Exam blueprint &amp; readiness</option>
@@ -115,24 +140,28 @@ export function Playground({
                 </option>
               ))}
             </optgroup>
-            <optgroup label={`Challenges · ${passedCount}/${CHALLENGES.length} passed`}>
-              {CHALLENGES.map((c) => (
-                <option key={c.id} value={CHALLENGE + c.id}>
-                  {passed.has(c.id) ? "🏆 " : ""}
-                  {c.title}
-                </option>
-              ))}
-            </optgroup>
-            {EXAMPLE_GROUPS.map((group) => (
-              <optgroup key={group} label={group}>
-                {EXAMPLES.filter((e) => e.group === group).map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {tried.has(e.id) ? "✓ " : ""}
-                    {e.title}
-                  </option>
+            {!study && (
+              <>
+                <optgroup label={`Challenges · ${passedCount}/${CHALLENGES.length} passed`}>
+                  {CHALLENGES.map((c) => (
+                    <option key={c.id} value={CHALLENGE + c.id}>
+                      {passed.has(c.id) ? "🏆 " : ""}
+                      {c.title}
+                    </option>
+                  ))}
+                </optgroup>
+                {EXAMPLE_GROUPS.map((group) => (
+                  <optgroup key={group} label={group}>
+                    {EXAMPLES.filter((e) => e.group === group).map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {tried.has(e.id) ? "✓ " : ""}
+                        {e.title}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
-              </optgroup>
-            ))}
+              </>
+            )}
           </select>
         </label>
 

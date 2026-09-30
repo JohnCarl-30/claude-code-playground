@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { DOMAINS, EXAM, domainProgress, focusDomain, readiness, type Progress } from "@/lib/certification";
 import { CHALLENGES } from "@/lib/challenges";
+import { isStudyOnly } from "@/lib/edition";
 import { BLANK_EXAMPLE_ID, EXAMPLES, EXAMPLE_GROUPS } from "@/lib/examples";
 import { localStore } from "@/lib/local-store";
 import { useMistakes } from "@/lib/mistakes";
@@ -144,6 +145,29 @@ export function Sidebar({ selectedId, onSelect, progress }: { selectedId: string
       </span>
     ),
   });
+
+  if (isStudyOnly()) {
+    return (
+      <nav aria-label="Study" className="hidden space-y-4 text-sm lg:block">
+        <div className="px-2">
+          <div className="mb-2 flex items-baseline justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">{EXAM.code} readiness</p>
+            <p className={`text-xs tabular-nums ${ready === 100 ? "text-ok" : "text-muted"}`}>{ready}%</p>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
+            <div className="h-full rounded-full bg-ok transition-[width]" style={{ width: `${ready}%` }} />
+          </div>
+        </div>
+        <ul className="space-y-0.5">
+          {certRows.map((row) => (
+            <li key={row.id}>
+              <RowButton row={row} active={row.id === selectedId} onSelect={onSelect} />
+            </li>
+          ))}
+        </ul>
+      </nav>
+    );
+  }
 
   // Search: everything whose title (or description, area, group) contains the text.
   const q = query.trim().toLowerCase();

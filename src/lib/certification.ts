@@ -3,6 +3,8 @@
 // come from the official exam guide (v1.0, effective July 2026); the one-line
 // summaries are ours.
 
+import { isStudyOnly } from "./edition";
+
 export const EXAM = {
   name: "Claude Certified Developer – Foundations",
   code: "CCDV-F",
@@ -305,6 +307,12 @@ export function findDomain(id: string | undefined) {
   return DOMAINS.find((d) => d.id === id);
 }
 
+/**
+ * What you can practice for a domain in this edition: its examples and challenges, or nothing on the
+ * study site, which has neither (only knowledge checks and practice tests).
+ */
+export const practiceHere = (domain: Domain): PracticeRef[] => (isStudyOnly() ? [] : domainPractice(domain));
+
 /** Each thing to practice in a domain, once, in the order the skills list them. */
 export function domainPractice(domain: Domain): PracticeRef[] {
   const seen = new Set<string>();
@@ -322,9 +330,9 @@ export type Progress = { tried: ReadonlySet<string>; passed: ReadonlySet<string>
 
 export const isDone = (p: PracticeRef, progress: Progress) => (p.kind === "example" ? progress.tried : progress.passed).has(p.id);
 
-/** How much of a domain you've practiced: its examples and challenges, plus its quiz. */
+/** How much of a domain you've practiced: its examples and challenges (where there are any), plus its quiz. */
 export function domainProgress(domain: Domain, progress: Progress) {
-  const practice = domainPractice(domain);
+  const practice = practiceHere(domain);
   const done = practice.filter((p) => isDone(p, progress)).length + (progress.quizzes.has(domain.id) ? 1 : 0);
   const total = practice.length + 1;
   return { done, total, share: done / total };
