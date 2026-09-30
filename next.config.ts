@@ -9,6 +9,7 @@ const studySite: NextConfig = {
   // leaves every API route (Claude, the workspace, running code) out of the build.
   pageExtensions: ["tsx"],
   images: { unoptimized: true },
+  typescript: { tsconfigPath: "tsconfig.study.json" },
 };
 
 const fullApp: NextConfig = {
