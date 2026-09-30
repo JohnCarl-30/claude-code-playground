@@ -6,11 +6,11 @@ import { isStudyOnly } from "@/lib/edition";
 import { mockExams, useExamState } from "@/lib/exam-store";
 import { localStore } from "@/lib/local-store";
 import { CERT, CERT_EXAM, CERT_MISTAKES, CHALLENGE } from "@/lib/selection";
-import { addDays, buildPlan, dateKey, daysBetween, taskDone, type PlanStatus, type PlanTask, type StudyPlan } from "@/lib/study-plan";
+import { addDays, buildPlan, dateKey, daysBetween, PLAN_KEY, taskDone, type PlanStatus, type PlanTask, type StudyPlan } from "@/lib/study-plan";
 
 type Saved = { plan: StudyPlan | null; checked: string[] };
 
-const planStore = localStore<Saved>("claude-code-playground:study-plan:v1", { plan: null, checked: [] }, (raw) => {
+const planStore = localStore<Saved>(PLAN_KEY, { plan: null, checked: [] }, (raw) => {
   const r = (raw ?? {}) as Partial<Saved>;
   return { plan: r.plan && Array.isArray(r.plan.days) ? r.plan : null, checked: Array.isArray(r.checked) ? r.checked.filter((x) => typeof x === "string") : [] };
 });

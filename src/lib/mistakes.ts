@@ -12,7 +12,9 @@ export type Deck = Record<string, Mistake>;
 /** Right answers in a row that clear a question from the deck. */
 export const MASTERED_AFTER = 2;
 
-const store = localStore<Deck>("claude-code-playground:mistakes:v1", {}, (raw) => {
+export const MISTAKES_KEY = "claude-code-playground:mistakes:v1";
+
+const store = localStore<Deck>(MISTAKES_KEY, {}, (raw) => {
   const deck: Deck = {};
   if (raw && typeof raw === "object") {
     for (const [id, m] of Object.entries(raw as Record<string, Partial<Mistake>>)) {

@@ -396,6 +396,16 @@ The current conversation (its session id and turns) lives only in the page: relo
 
 If storage is blocked (private windows, strict settings), everything still works; these just aren't remembered.
 
+### Sign-in and progress sync
+
+When the build has a Supabase project (`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; see the README), the header shows **Sign in to sync** (`AccountMenu.tsx`). Without them, it shows nothing and nothing loads.
+
+- **Sign-in:** GitHub, through Supabase Auth with the PKCE flow (`src/lib/cloud.ts`). The Supabase library loads only when needed. Sign-in won't start on plain `http`, except on this computer, because the one-time code comes back in the address. (Supabase's built-in email sender allows only 2 emails an hour, so there's no email sign-in.)
+- **The database:** one row per user in `public.progress` (`supabase/migrations/`): the synced keys as JSON, capped at 256 KB, with `updated_at` set by the database. Row-level security lets a signed-in user read, write and delete only their own row; signed-out visitors can't read anything. `delete_my_account()` deletes the user, and their row with it.
+- **What syncs:** the study progress keys in the table above (knowledge checks passed, practice tests, mistakes deck, study plan, and in the full app examples tried and challenges passed). Sidebar sections and saved MCP servers never leave the browser.
+- **How** (`src/lib/progress-sync.ts`): the browser stays the working copy. `localStore()` reports each change (`onStoreChange()`), and a change to a synced key is saved about 1.5 seconds later. On sign-in, and whenever the tab comes back into view, it pulls. A browser with no unsaved changes takes the saved copy, so something cleared on one device stays cleared. A browser with unsaved changes, or signing in for the first time, merges both with `mergeSnapshots()` and saves the result: quiz passes and ticked tasks are combined, finished tests are combined (newest 20), mistakes keep the more recent copy, and the newest study plan wins. Arriving values go in with `replaceStored()`, which refreshes the page without counting as a new change. A failed save shows in the menu and retries after 30 seconds.
+- `claude-code-playground:sync:v1` remembers which account this browser synced, which version, and whether there are unsaved changes. Signing out forgets it and keeps the progress in the browser.
+
 ---
 
 ## 11. Where to change things
@@ -414,6 +424,7 @@ If storage is blocked (private windows, strict settings), everything still works
 | Add or fix a knowledge-check question | `src/lib/quizzes.ts` (with its source URL, an `evidence` quote, its `style` and its objective as `skill`; `tests/certification.test.ts` checks the format, `npm run verify:quizzes` checks the quote against the live docs) |
 | Change the mock exam's length, time or scoring | `MOCK_EXAM` and `scoreExam()` in `src/lib/mock-exam.ts` |
 | Change custom test lengths or pacing | `LENGTHS` in `MockExamPanel.tsx`, `testMinutes()` in `src/lib/mock-exam.ts` |
+| Change what syncs, or how two copies merge | `SYNCED_KEYS` and `MERGE` in `src/lib/progress-sync.ts` (and the table in `supabase/migrations/`) |
 | Change the app's name or what the study site includes | `APP_NAME` and `isStudyOnly()` in `src/lib/edition.ts`, `next.config.ts`, `.github/workflows/pages.yml` |
 | Change what the practice API answers | `practiceResponder()` in `src/lib/practice-api.ts` |
 | Change the question / plan cards, task list or context meter | `Timeline.tsx` (`QuestionCard`, `PlanCard`), `TaskListPanel.tsx`, `ContextMeter.tsx` |
@@ -447,6 +458,8 @@ npm run build
 | `practice-api.test.ts` | the practice API driven by the real `@anthropic-ai/sdk`: messages, tool use, the API's 400s, which models accept which effort and thinking settings, structured output, cache usage, streaming (text, tool_use and thinking), token counting, batches, 404s; and every Claude API reference solution running through `run.mjs` |
 | `api-challenges.test.ts` | the Claude API checkers are fair: common mistakes (no `is_error`, a dropped assistant turn, no `additionalProperties: false`, a timestamp in the cached prefix, retries turned off, a hard-coded key, no stream, no gate, an expensive model for simple work, effort on Haiku, `budget_tokens` on Sonnet 5, counting a different request than you send, cache tokens at full price) fail with a useful reason, and other correct styles (tool runner, `messages.parse` + Zod, automatic caching, Opus 5 at max effort, your own updated prices) pass |
 | `study-plan.test.ts` | the study plan: dates across months, priority order and dedupe, mock exams on day one / weekly / last day, mistakes rounds, days filled within the daily time, unscheduled work, ticking tasks from progress |
+| `progress-sync.test.ts` | merging two copies of progress (quizzes, tests, mistakes, study plan), the store registry, and syncing against a fake table: first sign-in saves, a merge on sign-in, a clean device takes the saved copy, unsaved changes merge, changes saved after a pause (study progress only), retry after a failed save, nothing saved after sign-out |
+| `components/account-menu.test.tsx` | the account menu: hidden without a Supabase project, says what's stored, signs in with GitHub back to the site, refuses plain http, syncs when signed in, deleting the account after confirming |
 | `components/study-site.test.tsx` | the study site: only the certification track in the sidebar, readiness from knowledge checks, a plan of quizzes only, the address kept in step, links to domains and fallbacks, no connection check |
 | `mock-exam.test.ts` | the mock exam's split by domain weight (and when a bank is short), seeded draws with no repeats, spread across objectives and mixed domains; splitting seats by weight; custom tests (same seed same test, every objective covered, shorter tests, picked objectives, detail questions, single-answer only, pacing); scoring by domain and objective, the scaled estimate, and weak objectives |
 | `certification.test.ts` | the blueprint matches the guide's weights (domains add up to 100%, skills to their domain), links only to real examples and challenges, and every quiz question is well-formed ("Choose 2" when it has two answers), sourced from an official docs host and shuffled, and that answer length doesn't give the answer away (the right option isn't usually the longest, or the shortest); every question's objective belongs to its domain, and every objective has at least four exam-style questions |

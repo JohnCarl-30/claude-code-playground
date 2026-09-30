@@ -7,6 +7,9 @@ import { MOCK_EXAM } from "./mock-exam";
 // your weakest, heaviest domains' examples, challenges and knowledge checks,
 // with mistakes-deck rounds every few days and a mock exam each week.
 
+/** Where your plan is saved in the browser: `{ plan, checked }`. */
+export const PLAN_KEY = "claude-code-playground:study-plan:v1";
+
 export type TaskKind = "mock-exam" | "mistakes" | "example" | "challenge" | "quiz";
 export type PlanTask = { id: string; kind: TaskKind; label: string; minutes: number; ref?: string; domain?: DomainId };
 export type PlanDay = { date: string; tasks: PlanTask[] };

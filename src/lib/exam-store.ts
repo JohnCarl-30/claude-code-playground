@@ -48,7 +48,9 @@ export type ExamState = { current: Attempt | null; history: PastExam[] };
 
 const EMPTY: ExamState = { current: null, history: [] };
 
-const store = localStore<ExamState>("claude-code-playground:mock-exam:v1", EMPTY, (raw) => {
+export const EXAM_KEY = "claude-code-playground:mock-exam:v1";
+
+const store = localStore<ExamState>(EXAM_KEY, EMPTY, (raw) => {
   const parsed = (raw ?? {}) as Partial<ExamState>;
   // The bank changes over time: drop questions that no longer exist, and follow any that moved to another domain.
   const current = parsed.current

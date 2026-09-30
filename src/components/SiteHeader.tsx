@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { APP_NAME, isStudyOnly } from "@/lib/edition";
+import { AccountMenu } from "./AccountMenu";
 import { SetupPill } from "./SetupStatus";
 
 export function SiteHeader() {
@@ -15,6 +16,7 @@ export function SiteHeader() {
         <div className="ml-auto flex items-center gap-3 text-sm">
           {/* The study site never talks to Claude, so there's no connection to show. */}
           {!isStudyOnly() && <SetupPill />}
+          <AccountMenu />
           <a
             href="https://github.com/JohnCarl-30/claude-code-playground"
             target="_blank"

@@ -151,6 +151,19 @@ Open the **MCP servers** tab to:
 Servers you add are remembered in your browser. When Claude calls one of their tools you choose **Allow**, **Always allow** (for the rest of that run) or **Deny**.
 Only add servers you trust: a stdio server is a program running on your computer.
 
+## Sync progress across devices (optional)
+
+Without signing in, progress is kept in each browser. To let people keep it on every device, the site can sign them in with GitHub and sync their progress to a [Supabase](https://supabase.com) project you own. Until you set this up, there's no sign-in button at all. Only you (the site owner) do these steps; visitors just click **Sign in to sync**.
+
+1. **Turn on HTTPS for the site first.** Sign-in is switched off on plain `http` pages, because the sign-in code travels in the address. For a custom domain, open the Pages settings of the repository that owns the domain and tick **Enforce HTTPS**; if GitHub hasn't issued a certificate yet, remove and re-add the custom domain to request one.
+2. **Create a free Supabase project** at [supabase.com](https://supabase.com/dashboard).
+3. **Create the progress table** by running [`supabase/migrations/20261001000000_progress.sql`](supabase/migrations/20261001000000_progress.sql). Either paste it into the project's **SQL Editor**, or use the [Supabase MCP server](https://supabase.com/docs/guides/getting-started/mcp) from Claude Code: add it with `claude mcp add --transport http supabase "https://mcp.supabase.com/mcp?project_ref=<your-project-ref>"` (no `--scope project`, so no config lands in this public repo), authenticate through `/mcp`, and ask Claude to apply the migration and run the security advisors. The table's row-level security lets each person read and change only their own progress.
+4. **Add GitHub sign-in.** Create an OAuth app at [github.com/settings/developers](https://github.com/settings/developers): the homepage is your site's address, and the callback URL is `https://<your-project-ref>.supabase.co/auth/v1/callback`. Paste its client ID and a new client secret into Supabase under **Authentication › Sign In / Providers › GitHub**, and turn it on.
+5. **Allow the site's address.** In Supabase under **Authentication › URL Configuration**, set the Site URL to your site (for example `https://dyeyyyccc.me/claude-code-playground/`) and add it to the Redirect URLs, plus `http://127.0.0.1:3000/` to try it locally.
+6. **Give the site the project's public keys.** From **Settings › API Keys**, copy the project URL and the **publishable** key (`sb_publishable_...`), and save them as repository variables: `gh variable set NEXT_PUBLIC_SUPABASE_URL --body https://<your-project-ref>.supabase.co` and `gh variable set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY --body sb_publishable_...`. Then re-run the **Study site** workflow. For your local app, put the same two lines in `.env.local`. Both values are public by design. **Never** use the secret key (`sb_secret_...`) in the site, the repo or `.env.local`.
+
+What visitors get: a **Sign in to sync** button that says what's stored (their GitHub username, email address and study progress, only for syncing), progress that follows them to any device, and **Delete my account and synced progress** in the same menu. Signing out keeps their progress in that browser.
+
 ## Good to know
 
 - **Usage:** each run uses your Claude plan's usage, just like using Claude Code in the terminal. The examples use small prompts, and you can pick the fast Haiku model under **Settings**.
