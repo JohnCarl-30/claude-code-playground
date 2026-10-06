@@ -116,7 +116,7 @@ export function Playground({
 
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[272px_1fr] lg:gap-10 lg:py-8">
-      <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto lg:pr-2">
+      <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-2">
         {/* Phones: a compact picker. */}
         <label className="block lg:hidden">
           <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-muted">

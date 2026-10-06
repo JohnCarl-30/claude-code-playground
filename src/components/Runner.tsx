@@ -272,7 +272,7 @@ export function Runner({
           <button
             onClick={() => switchTemplate(needed.id)}
             disabled={workspaceBusy || live.working}
-            className="h-9 shrink-0 rounded-lg bg-info px-4 font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="press h-9 shrink-0 rounded-lg bg-info px-4 font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {workspaceBusy ? "Switching…" : `Switch to ${needed.title}`}
           </button>
@@ -297,7 +297,7 @@ export function Runner({
             <button
               onClick={() => newConversation("")}
               title="End this Claude Code session and start over (your files stay as they are)"
-              className="h-8 rounded-lg border border-line bg-surface px-3 text-sm hover:bg-surface-2"
+              className="press h-8 rounded-lg border border-line bg-surface px-3 text-sm hover:bg-surface-2"
             >
               ＋ New conversation
             </button>
@@ -342,7 +342,7 @@ export function Runner({
       <TaskListPanel tasks={tasks} />
       <section
         aria-label="Composer"
-        className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm transition-shadow focus-within:border-accent/50 focus-within:shadow-md"
+        className="overflow-hidden rounded-[21px] border border-transparent bg-surface shadow-card transition-[box-shadow,border-color] duration-150 ease-out focus-within:border-accent/50 hover:shadow-card-hover"
       >
         <label htmlFor="prompt" className="sr-only">
           Prompt
@@ -425,7 +425,7 @@ export function Runner({
                 <button
                   onClick={() => void live.control("interrupt")}
                   title="Stop the current turn (like Esc). The session stays open."
-                  className="h-9 rounded-lg bg-danger px-3 text-sm font-medium text-white hover:opacity-90"
+                  className="press h-9 rounded-lg bg-danger px-3 text-sm font-medium text-white hover:opacity-90"
                 >
                   ■ Stop
                 </button>
@@ -433,7 +433,7 @@ export function Runner({
                   onClick={() => void submit("steer")}
                   disabled={!config.prompt.trim()}
                   title="Send now: Claude drops the current task and answers this (⇧⌘/Ctrl + Enter)"
-                  className="h-9 rounded-lg border border-accent px-3 text-sm font-medium text-accent hover:bg-accent-soft disabled:opacity-40"
+                  className="press h-9 rounded-lg border border-accent px-3 text-sm font-medium text-accent hover:bg-accent-soft disabled:opacity-40"
                 >
                   ↪ Steer
                 </button>
@@ -441,7 +441,7 @@ export function Runner({
                   onClick={() => void submit("queue")}
                   disabled={!config.prompt.trim()}
                   title="Send when Claude finishes the current task (⌘/Ctrl + Enter)"
-                  className="h-9 rounded-lg bg-accent px-3 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+                  className="press h-9 rounded-lg bg-accent px-3 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
                 >
                   ⏎ Queue
                 </button>
@@ -454,7 +454,7 @@ export function Runner({
                   disabled={!config.prompt.trim() || starting || noClaude}
                   title={noClaude ? "Connect Claude to run prompts (see the banner above)" : "Ctrl/⌘ + Enter"}
                   aria-label={live.active ? "▶ Send follow-up" : "▶ Run"}
-                  className="h-9 rounded-lg bg-accent px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+                  className="press h-9 rounded-lg bg-accent px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
                 >
                   {starting ? (
                     "Starting…"
@@ -478,7 +478,7 @@ export function Runner({
                 <button
                   onClick={() => changeSettings({ ...initial, prompt: config.prompt })}
                   disabled={starting}
-                  className="h-8 rounded-lg px-3 text-sm text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-50"
+                  className="press h-8 rounded-lg px-3 text-sm text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-50"
                 >
                   Reset settings
                 </button>
@@ -486,7 +486,7 @@ export function Runner({
               <button
                 onClick={() => setTab(null)}
                 aria-label="Close panel"
-                className="grid size-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink"
+                className="press grid size-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink"
               >
                 ✕
               </button>

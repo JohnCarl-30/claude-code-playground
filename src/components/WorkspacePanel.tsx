@@ -131,7 +131,7 @@ export function WorkspacePanel({
   ];
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+    <section className="overflow-hidden rounded-2xl border border-transparent bg-surface shadow-card">
       <header className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:gap-4">
         <div className="min-w-0 flex-1 space-y-0.5">
           <h2 className="font-medium">Workspace</h2>
@@ -161,7 +161,7 @@ export function WorkspacePanel({
             download
             aria-disabled={!workspace}
             title="Download this project as a .zip"
-            className="flex h-9 shrink-0 items-center rounded-lg border border-line px-3 text-sm hover:bg-surface-2"
+            className="press flex h-9 shrink-0 items-center rounded-lg border border-line px-3 text-sm hover:bg-surface-2"
           >
             ⤓ .zip
           </a>
@@ -171,7 +171,7 @@ export function WorkspacePanel({
               onReset()
             }
             disabled={busy || !workspace}
-            className="h-9 shrink-0 rounded-lg border border-line px-3 text-sm hover:bg-surface-2 disabled:opacity-50"
+            className="press h-9 shrink-0 rounded-lg border border-line px-3 text-sm hover:bg-surface-2 disabled:opacity-50"
           >
             Reset
           </button>
