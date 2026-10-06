@@ -71,7 +71,7 @@ export function RunPanel({
             <button
               key={s.id}
               onClick={() => act(isRunning ? { action: "stop" } : { action: "start", script: s.id })}
-              className={`h-9 rounded-lg px-3 font-medium ${
+              className={`press h-9 rounded-lg px-3 font-medium ${
                 isRunning ? "bg-danger text-white hover:opacity-90" : "border border-line hover:bg-surface-2"
               }`}
             >
@@ -113,12 +113,12 @@ export function RunPanel({
             {mcpConnected ? (
               <>
                 <span className="flex h-9 items-center rounded-lg bg-ok-soft px-3 font-medium text-ok">✓ Connected</span>
-                <button onClick={onTryMcp} className="h-9 rounded-lg bg-accent px-3 font-medium text-white hover:opacity-90">
+                <button onClick={onTryMcp} className="press h-9 rounded-lg bg-accent px-3 font-medium text-white hover:opacity-90">
                   Ask Claude to try my tools
                 </button>
               </>
             ) : (
-              <button onClick={onConnectMcp} className="h-9 rounded-lg bg-accent px-3 font-medium text-white hover:opacity-90">
+              <button onClick={onConnectMcp} className="press h-9 rounded-lg bg-accent px-3 font-medium text-white hover:opacity-90">
                 Connect to the playground
               </button>
             )}
@@ -179,7 +179,7 @@ function RequestTester({ port }: { port: number }) {
           placeholder="/todos"
           className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 font-mono text-[13px]"
         />
-        <button type="submit" disabled={sending} className="h-9 rounded-lg bg-accent px-4 font-medium text-white hover:opacity-90 disabled:opacity-50">
+        <button type="submit" disabled={sending} className="press h-9 rounded-lg bg-accent px-4 font-medium text-white hover:opacity-90 disabled:opacity-50">
           {sending ? "…" : "Send"}
         </button>
       </div>

@@ -21,6 +21,14 @@
   --info-soft: #e8effd;
   --code-bg: #1e1d1b;
   --code-text: #ece8e1;
+  --shadow-border:
+    0px 0px 0px 1px oklch(0 0 0 / 0.06),
+    0px 1px 2px -1px oklch(0 0 0 / 0.06),
+    0px 2px 4px 0px oklch(0 0 0 / 0.04);
+  --shadow-border-hover:
+    0px 0px 0px 1px oklch(0 0 0 / 0.08),
+    0px 1px 2px -1px oklch(0 0 0 / 0.08),
+    0px 2px 4px 0px oklch(0 0 0 / 0.06);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -45,6 +53,8 @@
     --info-soft: #1c2640;
     --code-bg: #0f0e0d;
     --code-text: #ece8e1;
+    --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
+    --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
   }
 }
 
@@ -69,6 +79,8 @@
   --info-soft: #1c2640;
   --code-bg: #0f0e0d;
   --code-text: #ece8e1;
+  --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
+  --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
 }
 
 @theme inline {
@@ -94,6 +106,21 @@
   --color-code-text: var(--code-text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Elevation without a visible border; pair with a transparent border so forced-colors mode still draws an edge. */
+  --shadow-card: var(--shadow-border);
+  --shadow-card-hover: var(--shadow-border-hover);
+}
+
+/* Action buttons shrink slightly while pressed. Disabled buttons don't, and neither does anything under reduced motion. */
+@utility press {
+  transition-property: scale, color, background-color, border-color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+  @media (prefers-reduced-motion: no-preference) {
+    &:not(:disabled):active {
+      scale: 0.96;
+    }
+  }
 }
 
 body {

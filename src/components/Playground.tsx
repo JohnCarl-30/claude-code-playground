@@ -24,7 +24,7 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
 
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[272px_1fr] lg:gap-10 lg:py-8">
-      <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto lg:pr-2">
+      <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-2">
         {/* Phones: a compact picker. */}
         <label className="block lg:hidden">
           <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-muted">
@@ -65,8 +65,8 @@ export function Playground({ initialExampleId }: { initialExampleId?: string }) 
           <button
             onClick={() => select(BLANK_EXAMPLE_ID)}
             aria-current={selectedId === BLANK_EXAMPLE_ID ? "true" : undefined}
-            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-              selectedId === BLANK_EXAMPLE_ID ? "border-accent bg-accent-soft" : "border-line bg-surface hover:bg-surface-2"
+            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow] duration-150 ease-out ${
+              selectedId === BLANK_EXAMPLE_ID ? "border-accent bg-accent-soft" : "border-transparent bg-surface shadow-card hover:shadow-card-hover"
             }`}
           >
             <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-md bg-accent text-base leading-none text-white">
