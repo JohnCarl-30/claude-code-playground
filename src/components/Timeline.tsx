@@ -511,20 +511,20 @@ export function Timeline({
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       onClick={() => onDecide(event.id, "allow")}
-                      className="rounded-md bg-ok px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+                      className="press rounded-md bg-ok px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
                     >
                       Allow
                     </button>
                     <button
                       onClick={() => onDecide(event.id, "always")}
                       title={`Allow ${event.tool} for the rest of this run`}
-                      className="rounded-md border border-ok/40 bg-surface px-3 py-1.5 text-sm font-medium text-ok hover:bg-ok-soft"
+                      className="press rounded-md border border-ok/40 bg-surface px-3 py-1.5 text-sm font-medium text-ok hover:bg-ok-soft"
                     >
                       Always allow
                     </button>
                     <button
                       onClick={() => onDecide(event.id, "deny")}
-                      className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-2"
+                      className="press rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-2"
                     >
                       Deny
                     </button>

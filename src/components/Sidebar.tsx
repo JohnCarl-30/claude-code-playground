@@ -236,8 +236,8 @@ export function Sidebar({ selectedId, onSelect, progress }: { selectedId: string
           <button
             onClick={() => onSelect(BLANK_EXAMPLE_ID)}
             aria-current={selectedId === BLANK_EXAMPLE_ID ? "true" : undefined}
-            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-              selectedId === BLANK_EXAMPLE_ID ? "border-accent bg-accent-soft" : "border-line bg-surface hover:bg-surface-2"
+            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow] duration-150 ease-out ${
+              selectedId === BLANK_EXAMPLE_ID ? "border-accent bg-accent-soft" : "border-transparent bg-surface shadow-card hover:shadow-card-hover"
             }`}
           >
             <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-md bg-accent text-base leading-none text-white">

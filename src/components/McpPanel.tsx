@@ -190,7 +190,7 @@ export function McpPanel({
               type="button"
               onClick={test}
               disabled={testing}
-              className="h-9 rounded-lg border border-line px-3 font-medium hover:bg-surface-2 disabled:opacity-50"
+              className="press h-9 rounded-lg border border-line px-3 font-medium hover:bg-surface-2 disabled:opacity-50"
             >
               {testing ? "Connecting…" : "Test connection"}
             </button>
@@ -221,7 +221,7 @@ export function McpPanel({
                 type="button"
                 onClick={() => add(p.server)}
                 disabled={added}
-                className="rounded-lg border border-line bg-surface px-3 py-2.5 text-left hover:bg-surface-2 disabled:cursor-default disabled:opacity-60"
+                className="press rounded-lg border border-line bg-surface px-3 py-2.5 text-left hover:bg-surface-2 disabled:cursor-default disabled:opacity-60"
               >
                 <span className="flex items-center justify-between font-medium">
                   {p.title}
@@ -258,7 +258,7 @@ export function McpPanel({
             aria-label={type === "stdio" ? "Command" : "URL"}
             className={input}
           />
-          <button type="submit" className="h-9 rounded-lg bg-accent px-4 font-medium text-white hover:opacity-90">
+          <button type="submit" className="press h-9 rounded-lg bg-accent px-4 font-medium text-white hover:opacity-90">
             Add
           </button>
         </div>
