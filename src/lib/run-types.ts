@@ -111,6 +111,47 @@ export function validateMcpServers(value: unknown): CustomMcpServer[] | string {
   return clean;
 }
 
+/** What the MCP inspector asks a server to do (src/lib/mcp-inspect.ts). */
+export type InspectAction =
+  | { kind: "list" }
+  | { kind: "call"; name: string; arguments: Record<string, unknown> }
+  | { kind: "read"; uri: string }
+  | { kind: "prompt"; name: string; arguments: Record<string, string> }
+  | { kind: "disconnect" };
+
+const plainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+
+/** Checks an inspector action sent from the browser. Returns an error message, or the clean action. */
+export function validateInspectAction(value: unknown): InspectAction | string {
+  if (!plainObject(value)) return "Missing action.";
+  const name = typeof value.name === "string" ? value.name : "";
+  switch (value.kind) {
+    case "list":
+    case "disconnect":
+      return { kind: value.kind };
+    case "call": {
+      const args = value.arguments ?? {};
+      if (!name || name.length > 200) return "Which tool?";
+      if (!plainObject(args) || JSON.stringify(args).length > 20_000) return "Tool arguments must be a JSON object (under 20 KB).";
+      return { kind: "call", name, arguments: args };
+    }
+    case "read": {
+      const uri = typeof value.uri === "string" ? value.uri.trim() : "";
+      if (!uri || uri.length > 2000) return "Which resource URI?";
+      return { kind: "read", uri };
+    }
+    case "prompt": {
+      const args = value.arguments ?? {};
+      if (!name || name.length > 200) return "Which prompt?";
+      if (!plainObject(args) || Object.values(args).some((v) => typeof v !== "string") || JSON.stringify(args).length > 20_000)
+        return "Prompt arguments must be text.";
+      return { kind: "prompt", name, arguments: args as Record<string, string> };
+    }
+    default:
+      return "Unknown action.";
+  }
+}
+
 export type RunConfig = {
   prompt: string;
   /** Empty string = whatever model your Claude Code install defaults to. */

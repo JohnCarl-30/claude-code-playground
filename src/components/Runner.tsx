@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import type { ClaudeConfig } from "@/lib/claude-config";
 import { DEFAULT_CONFIG, type Answer, type CustomMcpServer, type RunConfig, type SessionEvent } from "@/lib/run-types";
 import { loadSavedMcpServers, mergeServers, saveMcpServers, useSavedMcpServers } from "@/lib/saved-mcp";
-import { WORKSPACE_MCP_SERVER, findTemplate, type TemplateId } from "@/lib/templates";
+import { WORKSPACE_HTTP_MCP_SERVER, WORKSPACE_MCP_SERVER, findTemplate, type TemplateId } from "@/lib/templates";
 import { taskListFrom } from "@/lib/tasks";
 import { markTried } from "@/lib/tried";
 import { CodePreview } from "./CodePreview";
 import { ContextMeter, type ContextUsage } from "./ContextMeter";
 import { McpPanel } from "./McpPanel";
+import { ApproveCommands } from "./ApproveCommands";
+import { unapproved, useApprovedCommands } from "@/lib/mcp-approvals";
 import { SettingsPanel } from "./SettingsPanel";
 import { SetupBanner, useSetupStatus } from "./SetupStatus";
 import { TaskListPanel } from "./TaskListPanel";
@@ -63,6 +65,8 @@ export function Runner({
   const [sessionConfig, setSessionConfig] = useState<RunConfig | null>(null);
   const [starting, setStarting] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [confirmRun, setConfirmRun] = useState(false);
+  const approvedCommands = useApprovedCommands();
   const [showRaw, setShowRaw] = useState(showRawByDefault);
   const [tab, setTab] = useState<Tab | null>(null);
   const [answered, setAnswered] = useState<Record<string, string>>({});
@@ -167,6 +171,9 @@ export function Runner({
     if (!text || starting || noClaude) return;
     setSendError("");
     if (!live.active) {
+      // Local (stdio) MCP servers run commands on this computer: confirm each new one first.
+      if (unapproved(effective.mcpServers).length) return setConfirmRun(true);
+      setConfirmRun(false);
       setStarting(true);
       setTab(null);
       const error = await live.start({ ...effective, prompt: text });
@@ -215,6 +222,10 @@ export function Runner({
   const mcpConnected = effective.mcpServers.some((s) => s.name === WORKSPACE_MCP_SERVER.name);
   function connectWorkspaceMcp() {
     setConfig((c) => ({ ...c, mcpServers: mergeServers(c.mcpServers, [WORKSPACE_MCP_SERVER]) }));
+  }
+  const httpMcpConnected = effective.mcpServers.some((s) => s.name === WORKSPACE_HTTP_MCP_SERVER.name);
+  function connectWorkspaceHttpMcp() {
+    setConfig((c) => ({ ...c, mcpServers: mergeServers(c.mcpServers, [WORKSPACE_HTTP_MCP_SERVER]) }));
   }
   function tryWorkspaceMcp() {
     setConfig((c) => ({
@@ -401,6 +412,16 @@ export function Runner({
           </p>
         )}
         {sendError && <p className="mx-3 mb-1 rounded-lg bg-danger-soft px-3 py-1.5 text-xs text-danger">{sendError}</p>}
+        {confirmRun && !live.active && (
+          <div className="mx-3 mb-2">
+            <ApproveCommands
+              servers={unapproved(effective.mcpServers, approvedCommands)}
+              before="this run starts"
+              onApprove={() => void submit()}
+              onCancel={() => setConfirmRun(false)}
+            />
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2 px-3 pt-1 pb-3">
           <div role="tablist" aria-label="Run options" className="flex min-w-0 flex-wrap items-center gap-1.5">
             {tabs.map((t) => (
@@ -507,6 +528,8 @@ export function Runner({
         onReset={() => changeWorkspace({ method: "DELETE" })}
         mcpConnected={mcpConnected}
         onConnectMcp={connectWorkspaceMcp}
+        httpMcpConnected={httpMcpConnected}
+        onConnectHttpMcp={connectWorkspaceHttpMcp}
         onTryMcp={tryWorkspaceMcp}
         claudeConfig={claudeConfig}
         projectConfig={config.projectConfig}

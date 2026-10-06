@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { unapproved, useApprovedCommands } from "@/lib/mcp-approvals";
 import { MCP_PRESETS, type CustomMcpServer, type RunConfig } from "@/lib/run-types";
+import { ApproveCommands } from "./ApproveCommands";
+import { McpInspector } from "./McpInspector";
 
 type TestResult = { name: string; status: string; error?: string; tools: { name: string; description?: string }[] };
 
@@ -36,6 +39,9 @@ export function McpPanel({
   const [testing, setTesting] = useState(false);
   const [results, setResults] = useState<TestResult[] | null>(null);
   const [testError, setTestError] = useState("");
+  const [confirmTest, setConfirmTest] = useState(false);
+  const [inspecting, setInspecting] = useState<string | null>(null);
+  const approved = useApprovedCommands();
 
   const servers = config.mcpServers;
   const setServers = (next: CustomMcpServer[]) => {
@@ -72,6 +78,9 @@ export function McpPanel({
   }
 
   async function test() {
+    // Local (stdio) servers run commands on this computer: confirm each new one first.
+    if (unapproved(servers).length) return setConfirmTest(true);
+    setConfirmTest(false);
     setTesting(true);
     setTestError("");
     setResults(null);
@@ -128,10 +137,23 @@ export function McpPanel({
                         {result.status}
                       </span>
                     )}
+                    {s.type === "stdio" && unapproved([s], approved).length > 0 && (
+                      <span className="rounded bg-warn-soft px-1.5 text-[11px] text-warn" title="You'll be asked to confirm this command before it first runs.">
+                        not run yet
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setInspecting(inspecting === s.name ? null : s.name)}
+                      aria-pressed={inspecting === s.name}
+                      className="ml-auto h-8 rounded-md px-2 text-muted hover:bg-surface-2 hover:text-ink"
+                    >
+                      Inspect
+                    </button>
                     <button
                       type="button"
                       onClick={() => setServers(servers.filter((x) => x.name !== s.name))}
-                      className="ml-auto h-8 rounded-md px-2 text-muted hover:bg-surface-2 hover:text-danger"
+                      className="h-8 rounded-md px-2 text-muted hover:bg-surface-2 hover:text-danger"
                       aria-label={`Remove ${s.name}`}
                     >
                       Remove
@@ -139,6 +161,11 @@ export function McpPanel({
                   </div>
                   <p className="mt-0.5 break-all font-mono text-xs text-muted">{describe(s)}</p>
                   {result?.error && <p className="mt-1 text-xs text-danger">{result.error}</p>}
+                  {inspecting === s.name && (
+                    <div className="mt-2">
+                      <McpInspector server={s} onClose={() => setInspecting(null)} />
+                    </div>
+                  )}
                   {result && result.tools.length > 0 && (
                     <details className="mt-1 text-xs">
                       <summary className="cursor-pointer text-muted hover:text-ink">{result.tools.length} tools</summary>
@@ -167,7 +194,17 @@ export function McpPanel({
             >
               {testing ? "Connecting…" : "Test connection"}
             </button>
-            <span className="text-xs text-muted">Connects and lists tools without using Claude.</span>
+            <span className="text-xs text-muted">Connects and lists tools without using Claude. Inspect a server to call its tools yourself.</span>
+          </div>
+        )}
+        {confirmTest && (
+          <div className="mt-2">
+            <ApproveCommands
+              servers={unapproved(servers, approved)}
+              before={`Test connection starts ${unapproved(servers, approved).length === 1 ? "it" : "them"}`}
+              onApprove={test}
+              onCancel={() => setConfirmTest(false)}
+            />
           </div>
         )}
         {testError && <p className="mt-2 text-xs text-danger">{testError}</p>}

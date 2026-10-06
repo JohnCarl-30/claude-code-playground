@@ -1,4 +1,4 @@
-import { validateMcpServers } from "@/lib/run-types";
+import { validateInspectAction, validateMcpServers } from "@/lib/run-types";
 
 describe("validateMcpServers", () => {
   it("accepts stdio and http servers", () => {
@@ -28,5 +28,26 @@ describe("validateMcpServers", () => {
     [Array.from({ length: 9 }, (_, i) => ({ name: `s${i}`, type: "http", url: "https://x.com" })), /Up to 8/],
   ])("rejects %j", (servers, message) => {
     expect(validateMcpServers(servers)).toMatch(message);
+  });
+});
+
+describe("validateInspectAction", () => {
+  it("accepts each kind of inspector action", () => {
+    expect(validateInspectAction({ kind: "list" })).toEqual({ kind: "list" });
+    expect(validateInspectAction({ kind: "call", name: "greet", arguments: { name: "Ada" } })).toEqual({ kind: "call", name: "greet", arguments: { name: "Ada" } });
+    expect(validateInspectAction({ kind: "call", name: "greet" })).toEqual({ kind: "call", name: "greet", arguments: {} });
+    expect(validateInspectAction({ kind: "read", uri: " docs://x " })).toEqual({ kind: "read", uri: "docs://x" });
+    expect(validateInspectAction({ kind: "prompt", name: "summarize", arguments: { text: "hi" } })).toEqual({ kind: "prompt", name: "summarize", arguments: { text: "hi" } });
+    expect(validateInspectAction({ kind: "disconnect" })).toEqual({ kind: "disconnect" });
+  });
+
+  it("rejects anything else", () => {
+    expect(validateInspectAction(null)).toMatch(/Missing/);
+    expect(validateInspectAction({ kind: "exec" })).toMatch(/Unknown/);
+    expect(validateInspectAction({ kind: "call", name: "" })).toMatch(/Which tool/);
+    expect(validateInspectAction({ kind: "call", name: "t", arguments: [1] })).toMatch(/JSON object/);
+    expect(validateInspectAction({ kind: "call", name: "t", arguments: { big: "x".repeat(30_000) } })).toMatch(/20 KB/);
+    expect(validateInspectAction({ kind: "read", uri: "" })).toMatch(/URI/);
+    expect(validateInspectAction({ kind: "prompt", name: "p", arguments: { n: 1 } })).toMatch(/text/);
   });
 });

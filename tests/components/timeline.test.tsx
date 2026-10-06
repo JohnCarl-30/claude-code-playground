@@ -37,6 +37,25 @@ describe("Timeline", () => {
     expect(screen.getByText("All done.")).toBeInTheDocument();
   });
 
+  it("shows MCP calls and replies in protocol form, and each server's handshake", async () => {
+    const events: RunEvent[] = [
+      {
+        kind: "sdk",
+        message: { ...init.message, tools: ["Read", "mcp__demo__roll_dice", "mcp__demo__get_weather"], mcp_servers: [{ name: "demo", status: "connected" }] },
+      },
+      { kind: "sdk", message: { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "tool_use", id: "t9", name: "mcp__demo__roll_dice", input: { sides: 6 } }] } } },
+      { kind: "sdk", message: { type: "user", parent_tool_use_id: null, message: { content: [{ type: "tool_result", tool_use_id: "t9", content: [{ type: "text", text: "4" }] }] } } },
+    ];
+    render(<Timeline events={events} {...props} />);
+    expect(screen.getByText(/demo: initialize → notifications\/initialized → tools\/list \(2 tools\)/)).toBeInTheDocument();
+    await userEvent.click(screen.getByText("tools/call sent to demo"));
+    expect(screen.getByText(/"method": "tools\/call"/)).toBeInTheDocument();
+    expect(screen.getByText(/"name": "roll_dice"/)).toBeInTheDocument();
+    await userEvent.click(screen.getByText("reply from demo"));
+    expect(screen.getByText(/"result": \{/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Rebuilt from the run/).length).toBeGreaterThan(0);
+  });
+
   it("sends Allow, Always allow and Deny choices", async () => {
     const onDecide = jest.fn();
     const ask: RunEvent = { kind: "permission_request", id: "p1", tool: "Edit", input: { file_path: "server.js" } };

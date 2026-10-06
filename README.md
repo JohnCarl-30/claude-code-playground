@@ -147,9 +147,14 @@ Open the **MCP servers** tab to:
 - **quick-add** Memory, DeepWiki or Context7
 - **add your own**: a command like `npx -y @modelcontextprotocol/server-sequential-thinking`, or a URL like `https://example.com/mcp`
 - **Test connection** to see whether each server connects and which tools it offers, without using Claude
+- **Inspect** a server: the playground acts as the MCP client, so it's free. Browse its tools, resources and prompts, call a tool from a form built from its input schema, read a resource or get a prompt, and see every JSON-RPC message exactly as it went over the wire, plus the server's own log. The connection stays open while the inspector is, so a stateful server keeps its state.
 
 Servers you add are remembered in your browser. When Claude calls one of their tools you choose **Allow**, **Always allow** (for the rest of that run) or **Deny**.
-Only add servers you trust: a stdio server is a program running on your computer.
+Only add servers you trust: a stdio server is a program running on your computer. The first time a stdio server's exact command would run (for a run, Test connection or the inspector), the playground shows the command and asks first.
+
+During a run, each MCP tool call and its result can be opened in **protocol form** (the `tools/call` request and its reply), and the session card shows each server's handshake. Claude Code is the client during a run, so these are rebuilt from the run; the inspector shows real messages.
+
+The **MCP server** starter has two versions of your server: `server.js` over **stdio** (a local program, one per client) and `server-http.js` over **HTTP** at `http://127.0.0.1:4101/mcp` (one URL many clients share, like a remote server). The HTTP version also has a resource and a prompt, and it only answers requests addressed to this computer, which blocks DNS-rebinding attacks. Start it from **Run & test**, then **Connect HTTP server**.
 
 ## Sync progress across devices (optional)
 

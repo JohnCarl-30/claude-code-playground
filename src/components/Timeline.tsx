@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { Answer, Question, RunEvent, SdkMessageLike } from "@/lib/run-types";
+import { handshake, splitMcpToolName, toolsCallRequest, toolsCallResponse } from "@/lib/mcp-protocol";
 import { TASK_TOOL_NAMES } from "@/lib/tasks";
 import { ClaudeText } from "./ClaudeText";
 
@@ -100,6 +101,22 @@ function Card({
   );
 }
 
+/**
+ * An MCP exchange in protocol form. Claude Code is the MCP client during a run, so
+ * these are rebuilt from the run: the inspector in the MCP tab shows real ones.
+ */
+function McpWire({ label, value }: { label: string; value: unknown }) {
+  return (
+    <details className="mt-1.5 text-xs">
+      <summary className="cursor-pointer text-muted hover:text-ink">
+        <span className="rounded bg-info-soft px-1 font-mono text-[11px] text-info">MCP</span> {label}
+      </summary>
+      <pre className="mt-1 max-h-56 overflow-auto rounded-md bg-surface-2 p-2 font-mono text-[11px]">{JSON.stringify(value, null, 2)}</pre>
+      <p className="mt-0.5 text-[11px] text-muted">Rebuilt from the run in the shape the MCP spec defines. Use Inspect in the MCP tab to see real messages.</p>
+    </details>
+  );
+}
+
 function Chip({ children }: { children: ReactNode }) {
   return <span className="rounded-full border border-line bg-surface px-2 py-0.5 font-mono text-[12px]">{children}</span>;
 }
@@ -108,6 +125,19 @@ function Chip({ children }: { children: ReactNode }) {
 const SUBAGENT_COLORS = ["bg-hook", "bg-info", "bg-ok", "bg-warn", "bg-danger"];
 
 type AgentInfo = { name: string; color: string };
+
+/** Map each MCP tool call's id to its server and tool, so its result can show the reply in protocol form. */
+function mcpCallsById(events: RunEvent[]) {
+  const map: Record<string, { server: string; tool: string }> = {};
+  for (const e of events) {
+    if (e.kind !== "sdk" || e.message.type !== "assistant") continue;
+    for (const b of (e.message.message as { content?: Block[] } | undefined)?.content ?? []) {
+      const parts = b.type === "tool_use" ? splitMcpToolName(str(b.name)) : null;
+      if (parts) map[str(b.id)] = parts;
+    }
+  }
+  return map;
+}
 
 /** Map each Agent tool_use id to the subagent it started, e.g. "bug-hunter". */
 function subagentsById(events: RunEvent[]) {
@@ -131,6 +161,7 @@ function SdkMessage({
   workspace,
   showRaw,
   agents,
+  mcpCalls = {},
   followUp,
   project,
   stoppedByYou,
@@ -144,6 +175,8 @@ function SdkMessage({
   workspace: string;
   showRaw: boolean;
   agents: Record<string, AgentInfo>;
+  /** MCP tool calls in this run, by tool_use id. */
+  mcpCalls?: Record<string, { server: string; tool: string }>;
   project?: ProjectNames;
   /** A follow-up turn: the session already started earlier in the conversation. */
   followUp?: boolean;
@@ -206,6 +239,18 @@ function SdkMessage({
             </>
           )}
         </dl>
+        {servers
+          .filter((s) => s.status === "connected")
+          .map((s) => {
+            const h = handshake(s.name, tools);
+            return (
+              <McpWire
+                key={s.name}
+                label={`${s.name}: ${h.steps.join(" → ")} (${h.tools.length} tool${h.tools.length === 1 ? "" : "s"})`}
+                value={{ steps: h.steps, tools: h.tools }}
+              />
+            );
+          })}
         {raw}
       </Card>
     );
@@ -259,6 +304,12 @@ function SdkMessage({
                 indent={isSub}
               >
                 {raw ?? <Raw value={block.input} />}
+                {splitMcpToolName(name) && (
+                  <McpWire
+                    label={`tools/call sent to ${splitMcpToolName(name)!.server}`}
+                    value={toolsCallRequest(str(block.id), splitMcpToolName(name)!.tool, block.input)}
+                  />
+                )}
               </Card>
             );
           }
@@ -294,6 +345,12 @@ function SdkMessage({
               <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md bg-surface-2 p-2 font-mono text-[12px]">
                 {text.length > 4000 ? text.slice(0, 4000) + "\n… (truncated)" : text}
               </pre>
+              {mcpCalls[str(block.tool_use_id)] && (
+                <McpWire
+                  label={`reply from ${mcpCalls[str(block.tool_use_id)].server}`}
+                  value={toolsCallResponse(str(block.tool_use_id), block.content, !!block.is_error)}
+                />
+              )}
               {raw}
             </Card>
           );
@@ -416,6 +473,7 @@ export function Timeline({
 }) {
   const workspace = workspacePath ?? "";
   const agents = subagentsById(events);
+  const mcpCalls = mcpCallsById(events);
   const hiddenIds = new Set<string>();
   for (const e of events) {
     if (e.kind !== "sdk" || e.message.type !== "assistant") continue;
@@ -431,6 +489,7 @@ export function Timeline({
           case "sdk":
             return <SdkMessage key={i} message={event.message} workspace={workspace} showRaw={showRaw}
                 agents={agents}
+                mcpCalls={mcpCalls}
                 followUp={followUp}
                 project={project}
                 hiddenIds={hiddenIds}
