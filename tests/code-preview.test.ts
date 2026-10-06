@@ -8,18 +8,23 @@ describe("sdkCodeFor (Code tab)", () => {
       prompt: "hi",
       model: "claude-haiku-4-5",
       permissionMode: "acceptEdits",
-      claudeMd: true,
+      projectConfig: true,
       mcpServers: [{ name: "wiki", type: "http", url: "https://mcp.example.com/mcp" }],
     });
     expect(code).toContain('model: "claude-haiku-4-5"');
     expect(code).toContain('permissionMode: "acceptEdits"');
-    expect(code).toContain('settingSources: ["project"]');
+    expect(code).toContain('settingSources: ["project", "local"]');
     expect(code).toContain('"wiki": { type: "http", url: "https://mcp.example.com/mcp" }');
     expect(code).not.toContain("resume:");
   });
 
-  it("adds resume during a conversation", () => {
-    expect(sdkCodeFor({ ...DEFAULT_CONFIG, prompt: "next" }, "abc-123")).toContain('resume: "abc-123"');
+  it("shows a live session: a message stream, interrupt and live model changes", () => {
+    const code = sdkCodeFor({ ...DEFAULT_CONFIG, prompt: "next" });
+    expect(code).toContain("async function* yourMessages()");
+    expect(code).toContain("prompt: yourMessages()");
+    expect(code).toContain("includePartialMessages: true");
+    expect(code).toContain("session.interrupt()");
+    expect(code).toContain('priority: "now"');
   });
 
   it("splits long prompts over several lines", () => {

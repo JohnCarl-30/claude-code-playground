@@ -1,5 +1,6 @@
 import "server-only";
 import { execFile } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -44,7 +45,8 @@ const git = (...args: string[]) =>
 async function initGit() {
   try {
     await git("init", "-q", "-b", "main");
-    await writeFile(path.join(WORKSPACE_DIR, ".gitignore"), ".playground-template\nnode_modules/\n");
+    // settings.local.json holds personal settings, so (as in Claude Code) it isn't committed.
+    await writeFile(path.join(WORKSPACE_DIR, ".gitignore"), ".playground-template\nnode_modules/\n.claude/settings.local.json\n");
     await git("add", "-A");
     await git("commit", "-q", "-m", "Starting point");
   } catch {
@@ -126,13 +128,40 @@ export async function workspaceDiff(): Promise<{ available: boolean; changes: Fi
   }
 }
 
-/** True when `target` (absolute or workspace-relative) stays inside workspace/. */
-export function isInsideWorkspace(target: string) {
-  const resolved = path.resolve(WORKSPACE_DIR, target);
-  return resolved === WORKSPACE_DIR || resolved.startsWith(WORKSPACE_DIR + path.sep);
+/**
+ * The real location of a path, following symlinks. For a path that doesn't exist
+ * yet (a file Claude is about to create), resolve its nearest existing folder.
+ */
+function realLocation(p: string): string {
+  const rest: string[] = [];
+  let current = p;
+  while (true) {
+    try {
+      return path.join(realpathSync.native(current), ...rest.reverse());
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return p;
+      rest.push(path.basename(current));
+      current = parent;
+    }
+  }
 }
 
-export type WorkspaceFile = { path: string; content: string };
+/**
+ * True when `target` (absolute or workspace-relative) really is inside workspace/.
+ * Compares real paths, so /var vs /private/var style aliases still match, and a
+ * symlink inside the workspace that points outside it doesn't count as inside.
+ */
+export function isInsideWorkspace(target: string) {
+  const root = realLocation(WORKSPACE_DIR);
+  const resolved = realLocation(path.resolve(WORKSPACE_DIR, target));
+  return resolved === root || resolved.startsWith(root + path.sep);
+}
+
+/** A workspace file for the Files tab. Binary files (images, PDFs) are listed but not shown or editable as text. */
+export type WorkspaceFile = { path: string; content: string; binary?: boolean };
+
+const BINARY_EXTENSIONS = /\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|tgz|woff2?|ttf|otf|mp[34]|mov|wasm)$/i;
 
 /** Every file you'd want to take with you (no .git, node_modules or playground markers), as bytes. */
 export async function workspaceFilesForExport(): Promise<{ path: string; data: Buffer }[]> {
@@ -150,18 +179,129 @@ export async function workspaceFilesForExport(): Promise<{ path: string; data: B
   return out;
 }
 
+/**
+ * Copy the current starter's Claude Code config (.claude/, CLAUDE.md) into the
+ * workspace without overwriting anything, for workspaces created before the
+ * starters had it. Returns the files that were added.
+ */
+export async function addStarterConfig(): Promise<string[]> {
+  await ensureWorkspace();
+  return copyMissing([".claude", "CLAUDE.md"]);
+}
+
+/** The current starter's files (under `roots`) that aren't in the workspace, as "/" paths. */
+async function missingFrom(roots: string[]): Promise<string[]> {
+  const starter = path.join(TEMPLATES_DIR, await currentTemplate());
+  const missing: string[] = [];
+  async function walk(rel: string) {
+    const from = path.join(starter, rel);
+    const info = await stat(from).catch(() => null);
+    if (!info) return;
+    if (info.isDirectory()) {
+      for (const name of await readdir(from)) await walk(path.join(rel, name));
+    } else if (!(await exists(path.join(WORKSPACE_DIR, rel)))) {
+      missing.push(rel.split(path.sep).join("/"));
+    }
+  }
+  for (const root of roots) await walk(root);
+  return missing.sort();
+}
+
+/** Copy the starter's files under `roots` that the workspace doesn't have. Never overwrites. */
+async function copyMissing(roots: string[]): Promise<string[]> {
+  const starter = path.join(TEMPLATES_DIR, await currentTemplate());
+  const added = await missingFrom(roots);
+  for (const rel of added) {
+    await mkdir(path.dirname(path.join(WORKSPACE_DIR, rel)), { recursive: true });
+    await cp(path.join(starter, rel), path.join(WORKSPACE_DIR, rel));
+  }
+  return added;
+}
+
+/**
+ * Starter files your workspace doesn't have: usually files added to the starter
+ * after your workspace was created (new challenges), or ones you deleted.
+ */
+export async function missingStarterFiles(): Promise<string[]> {
+  await ensureWorkspace();
+  return missingFrom(await readdir(path.join(TEMPLATES_DIR, await currentTemplate())));
+}
+
+/**
+ * Add the missing starter files without touching anything you've changed, and
+ * commit just those files in the workspace's git repo, so the Changes tab keeps
+ * showing only your own changes.
+ */
+export async function addMissingStarterFiles(): Promise<string[]> {
+  await ensureWorkspace();
+  const added = await copyMissing(await readdir(path.join(TEMPLATES_DIR, await currentTemplate())));
+  if (added.length) {
+    try {
+      await git("add", "--", ...added);
+      await git("commit", "-q", "-m", "Add new starter files", "--", ...added);
+    } catch {
+      // No git: the files are still there.
+    }
+  }
+  return added;
+}
+
+/** Checks a workspace-relative path you want to edit. Returns an error message, or null when it's fine. */
+export function checkEditablePath(rel: string): string | null {
+  if (typeof rel !== "string" || !rel.trim()) return "Enter a file path, e.g. .claude/commands/review.md";
+  if (path.isAbsolute(rel) || !isInsideWorkspace(rel) || path.resolve(WORKSPACE_DIR, rel) === WORKSPACE_DIR) {
+    return "The path must be a file inside the workspace.";
+  }
+  const parts = rel.split(/[\\/]/);
+  if (parts.includes(".git") || parts.includes("node_modules") || parts.at(-1) === ".playground-template") {
+    return "That file is managed by the playground.";
+  }
+  return null;
+}
+
+const MAX_EDIT_BYTES = 200_000;
+
+/** Create or overwrite a text file in the workspace (the Files tab's Save). */
+export async function writeWorkspaceFile(rel: string, content: string): Promise<string | null> {
+  const problem = checkEditablePath(rel);
+  if (problem) return problem;
+  if (typeof content !== "string" || Buffer.byteLength(content) > MAX_EDIT_BYTES) return "The file is too large to edit here.";
+  await ensureWorkspace();
+  const full = path.resolve(WORKSPACE_DIR, rel);
+  await mkdir(path.dirname(full), { recursive: true });
+  await writeFile(full, content);
+  return null;
+}
+
+export async function deleteWorkspaceFile(rel: string): Promise<string | null> {
+  const problem = checkEditablePath(rel);
+  if (problem) return problem;
+  await rm(path.resolve(WORKSPACE_DIR, rel), { force: true });
+  return null;
+}
+
 export async function readWorkspace(): Promise<WorkspaceFile[]> {
   await ensureWorkspace();
   const files: WorkspaceFile[] = [];
   async function walk(dir: string) {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
-      if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+      // Show dotfiles like .claude/ and .env; hide git internals and the playground's marker.
+      if (entry.name === "node_modules" || entry.name === ".git" || entry.name === ".playground-template") continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) await walk(full);
       else {
         const { size } = await stat(full);
-        const content = size > 100_000 ? "(file too large to preview)" : await readFile(full, "utf8");
-        files.push({ path: path.relative(WORKSPACE_DIR, full), content });
+        const rel = path.relative(WORKSPACE_DIR, full);
+        if (size > 100_000) {
+          files.push({ path: rel, content: "(file too large to preview)" });
+          continue;
+        }
+        const bytes = await readFile(full);
+        if (BINARY_EXTENSIONS.test(entry.name) || bytes.subarray(0, 8000).includes(0)) {
+          files.push({ path: rel, content: `(binary file, ${size.toLocaleString("en-US")} bytes)`, binary: true });
+        } else {
+          files.push({ path: rel, content: bytes.toString("utf8") });
+        }
       }
     }
   }

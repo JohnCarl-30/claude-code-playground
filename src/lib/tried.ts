@@ -1,59 +1,40 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { localStore } from "./local-store";
 
-// Examples you have run successfully, stored in this browser only.
-const KEY = "claude-code-playground:tried:v1";
+// Small sets of ids remembered in this browser (and synced, if you sign in): examples you've run, challenges and quizzes you've passed.
 const EMPTY: readonly string[] = [];
 
-let cachedRaw: string | null = null;
-let cachedList: readonly string[] = EMPTY;
-const listeners = new Set<() => void>();
-
-function read(): readonly string[] {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(KEY);
-  } catch {
-    // Storage blocked (private window, strict settings): progress just isn't kept.
-  }
-  if (raw !== cachedRaw) {
-    cachedRaw = raw;
-    try {
-      const parsed: unknown = raw ? JSON.parse(raw) : [];
-      cachedList = Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : EMPTY;
-    } catch {
-      cachedList = EMPTY;
-    }
-  }
-  return cachedList;
-}
-
-function write(list: readonly string[]) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list));
-  } catch {}
-  listeners.forEach((l) => l());
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  // Keep other tabs in sync.
-  const onStorage = (e: StorageEvent) => e.key === KEY && listener();
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
+function idSetStore(key: string) {
+  const store = localStore<readonly string[]>(key, EMPTY, (raw) => (Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string") : EMPTY));
+  return {
+    add(id: string) {
+      if (!store.read().includes(id)) store.update((list) => [...list, id]);
+    },
+    /** Empty during server rendering. */
+    useSet(): ReadonlySet<string> {
+      return new Set(store.useValue());
+    },
   };
 }
 
-export function markTried(id: string) {
-  const list = read();
-  if (!list.includes(id)) write([...list, id]);
-}
+export const TRIED_KEY = "claude-code-playground:tried:v1";
+export const PASSED_KEY = "claude-code-playground:challenges-passed:v1";
+export const QUIZZES_KEY = "claude-code-playground:quizzes-passed:v1";
 
-/** The set of example ids you've run successfully. Empty during server rendering. */
-export function useTried(): ReadonlySet<string> {
-  const list = useSyncExternalStore(subscribe, read, () => EMPTY);
-  return new Set(list);
-}
+const tried = idSetStore(TRIED_KEY);
+const passed = idSetStore(PASSED_KEY);
+
+/** An example you've run successfully. */
+export const markTried = (id: string) => tried.add(id);
+export const useTried = () => tried.useSet();
+
+/** A challenge whose checks all passed. */
+export const markPassed = (id: string) => passed.add(id);
+export const usePassed = () => passed.useSet();
+
+const quizzes = idSetStore(QUIZZES_KEY);
+
+/** An exam domain whose knowledge check you passed. */
+export const markQuizPassed = (domain: string) => quizzes.add(domain);
+export const useQuizzesPassed = () => quizzes.useSet();

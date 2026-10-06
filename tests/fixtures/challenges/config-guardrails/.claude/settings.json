@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "deny": ["Edit(./README.md)", "Edit(./src/cart.test.js)"],
+    "ask": ["Bash(git push:*)"]
+  },
+  "hooks": {
+    "PostToolUse": [{ "matcher": "Edit|Write", "hooks": [{ "type": "command", "command": "node --test" }] }]
+  }
+}

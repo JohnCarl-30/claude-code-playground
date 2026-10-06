@@ -17,7 +17,7 @@ flowchart LR
     end
 
     subgraph Server["Next.js server (your computer)"]
-        Routes["API routes<br/>/api/run · /api/permission<br/>/api/workspace · /api/process"]
+        Routes["API routes<br/>/api/session · /api/permission<br/>/api/workspace · /api/process"]
         SDK["Claude Agent SDK<br/>query()"]
         Procs["Run & test<br/>(node server.js, …)"]
     end
@@ -46,82 +46,118 @@ flowchart LR
 
 ---
 
-## 1. No API key: how authentication works
+## 1. Signing in: login, API key, cloud provider or practice mode
 
-The Agent SDK does not call the Claude API itself. It starts the **Claude Code program** (a binary bundled with the SDK package) and talks to it over stdin/stdout. Claude Code signs in the same way it does in your terminal: with the login you created by running `claude` and signing in.
+The Agent SDK does not call the Claude API itself. It starts the **Claude Code program** (a binary bundled with the SDK package) and talks to it over stdin/stdout. Claude Code signs in the same way it does in your terminal. Everything that starts Claude Code or your agent scripts gets its environment from `claudeEnv()` in `src/lib/auth.ts`:
 
-The playground makes sure that login is used:
+| Mode | How you choose it | What Claude Code gets |
+|---|---|---|
+| **Login** (default) | nothing | your environment **without** `ANTHROPIC_API_KEY`, so Claude Code uses the `claude` login and a key in your shell is never billed by accident |
+| **API key** | `PLAYGROUND_AUTH=api-key` in `.env.local` | your environment **with** `ANTHROPIC_API_KEY` |
+| **Cloud provider** | Claude Code's provider variables (for example `CLAUDE_CODE_USE_BEDROCK=1`) | passed through as-is; Claude Code signs in with the provider's credentials |
+| **Practice mode** | none of the above works | the page switches off running prompts; everything else works |
 
-- It **removes `ANTHROPIC_API_KEY`** from the environment it passes to Claude Code (`src/lib/run-agent.ts`), so a key in your shell is never used by accident.
-- The **Session started** card shows the SDK's `apiKeySource`. `none` means "no API key; using your Claude login", and the card says so in plain words.
+The **Session started** card shows the SDK's `apiKeySource` (`none` means "no API key; using your Claude login").
 
-**Checking the login without spending anything.** `src/lib/account.ts` starts a query with a prompt stream that never sends a message, and asks Claude Code for `accountInfo()`. No model call happens, so it costs nothing. The result powers:
+**Failing fast.** With a bad key, Claude Code would retry the rejected request with backoff for about three minutes. So the playground checks keys up front with one free call (`models.list` through the official Anthropic SDK, no tokens), and a live session stops at the first `api_retry` whose error is `authentication_failed` (or status 401), with advice for the mode you're in (`signInHelp()`).
 
-- the **Signed in** badge in the header and the "Claude isn't ready yet" banner (`src/components/SetupStatus.tsx`, via `GET /api/status`)
+**Checking without spending anything.** `getAccountStatus()` in `src/lib/account.ts` returns `{ ready, mode, label }` or `{ ready: false, reason }`. In login mode it starts a query with a prompt stream that never sends a message and asks Claude Code for `accountInfo()` (a non-`firstParty` `apiProvider` means a cloud provider is set up). In API-key mode it lists models with the key. Neither uses tokens. The result powers:
+
+- the badge in the header and the **practice mode** banner, with **I've set it up: check again** (`src/components/SetupStatus.tsx`, via `GET /api/status`)
 - the check that runs before `npm run dev` (`scripts/check-setup.mjs`)
 
 > Signing in with your Claude account is fine for learning on your own computer. An app you build for other people should use its own API key.
 
+Checks for challenges (`challenge-checks.ts`) always run your programs without any key, because they never need Claude.
+
 ---
 
-## 2. What happens when you click Run
+## 2. Live sessions: what happens when you click Run
+
+Each conversation is **one live Claude Code session**, like a terminal session. The first **Run** starts it; after that you can send messages at any time, even while Claude is working, stop the current turn, and change the model or permission mode without restarting.
 
 ```mermaid
 sequenceDiagram
-    participant B as Browser (Runner)
-    participant R as /api/run
-    participant A as runAgent()
+    participant B as Browser (useLiveSession)
+    participant S as /api/session
+    participant L as LiveSession
     participant C as Claude Code
     participant M as Claude
 
-    B->>R: POST settings (prompt, tools, mode, MCP servers…)
-    R->>R: validate settings
-    R->>A: runAgent(config, request.signal)
-    A->>C: query({ prompt, options })
-    C->>M: request (system prompt + tools + prompt)
-    M-->>C: assistant message (text / tool_use)
-    C-->>A: SDK message
-    A-->>R: event
-    R-->>B: one JSON line per event
-    Note over C,M: loop: run tool → send result → next turn
-    C-->>A: result (turns, cost, tokens)
-    R-->>B: {"kind":"done"}
+    B->>S: POST settings + first message
+    S->>L: createSession(config)
+    L->>C: query({ prompt: yourMessages(), options })
+    B->>S: GET /api/session/<id>/events (NDJSON, stays open)
+    C->>M: request
+    M-->>C: reply streams (text deltas, tool_use)
+    C-->>L: SDK messages
+    L-->>B: one JSON line per event
+    Note over B,L: meanwhile: POST .../message (queue or steer),<br/>POST .../control (interrupt, model, permission mode)
+    B->>S: DELETE .../<id> (New conversation)
+    L->>C: close()
 ```
 
-1. **The browser sends your settings.** `Runner.tsx` posts the whole `RunConfig` (see `src/lib/run-types.ts`) to `/api/run`.
-2. **The route validates them.** Unknown tools, permission modes or bad MCP server entries are rejected with a 400 (`src/app/api/run/route.ts`).
-3. **`runAgent()` builds the SDK options** (`src/lib/run-agent.ts`):
+1. **Starting.** `POST /api/session` validates your settings (`parseRunConfig()` in `src/lib/run-types.ts`) and calls `createSession()` (`src/lib/live-session.ts`). The session builds the SDK options with `buildOptions()` (`src/lib/run-agent.ts`) and starts `query()` in **streaming-input mode**: the prompt is an async generator of your messages, so the session stays open between them.
 
-   | Setting in the UI | Agent SDK option |
-   |---|---|
-   | Model | `model` |
-   | Permission mode | `permissionMode` |
-   | Built-in tools | `tools` (only these tools exist for the run) |
-   | Max turns / Spending cap | `maxTurns` / `maxBudgetUsd` |
-   | Append to system prompt | `systemPrompt: { type: "preset", preset: "claude_code", append }` |
-   | Load CLAUDE.md | `settingSources: ["project"]` (otherwise `[]`) |
-   | MCP servers | `mcpServers` (+ `strictMcpConfig: true`) |
-   | Subagents / review team | `agents` (+ the `Agent` tool) |
-   | Hooks | `hooks` |
-   | Allow / Deny cards | `canUseTool` |
+   | Setting in the UI | Agent SDK option | Changes mid-session? |
+   |---|---|---|
+   | Model | `model` | yes: `query.setModel()` |
+   | Permission mode | `permissionMode` | yes: `query.setPermissionMode()` |
+   | Built-in tools | `tools` (only these tools exist) | new conversation |
+   | Max turns / Spending cap | `maxTurns` / `maxBudgetUsd` (for the whole conversation) | new conversation |
+   | Append to system prompt | `systemPrompt: { type: "preset", preset: "claude_code", append }` | new conversation |
+   | Project config | `settingSources: ["project", "local"]` (otherwise `[]`) | new conversation |
+   | MCP servers | `mcpServers` (+ `strictMcpConfig: true`) | new conversation |
+   | Subagents / review team | `agents` (+ the `Agent` tool) | new conversation |
+   | Hooks | `hooks` | new conversation |
+   | Allow / Deny cards | `canUseTool` | |
 
-   It always sets `cwd` to `workspace/`, `settingSources: []` unless you ask for CLAUDE.md, and `strictMcpConfig: true`. Together these mean your personal `~/.claude` settings and MCP servers never leak into a run, so everyone gets the same results.
+   It always sets `cwd` to `workspace/`, `strictMcpConfig: true`, `includePartialMessages: true` (word-by-word replies) and `includeHookEvents: true`. When you change a "new conversation" setting during a session, the composer says so and offers to start one.
 
-4. **Messages stream back as NDJSON.** `query()` yields SDK messages (`system` init, `assistant`, `user` tool results, `result`, and some bookkeeping). The route wraps each one as `{"kind":"sdk","message":…}` and writes one JSON object per line. The browser reads the stream line by line and appends each event to the timeline.
-5. **Side events are merged into the same stream.** Permission prompts, auto-decisions and hook calls happen inside callbacks, not as SDK messages. `runAgent()` queues them and races the next SDK message against new side events, so everything arrives in order in one stream.
-6. **Stopping.** The **Stop** button aborts the browser's fetch. The route's `request.signal` fires, which aborts the SDK's `AbortController` and shuts Claude Code down.
+2. **Events.** `GET /api/session/<id>/events?from=<seq>` streams NDJSON. Every stored event has a `seq` number; if the connection drops, the browser (`src/components/useLiveSession.ts`) reconnects with the next `seq` and the server replays what it missed. Word-by-word `stream_event` deltas are sent live only (not stored), because the full message follows. Events include the SDK's own messages (`{"kind":"sdk"}`), your messages (`user_prompt`), permission cards and decisions, hooks, control notes (`control`) and `closed`.
 
-**The timeline** (`src/components/Timeline.tsx`) turns raw messages into cards: `system/init` → **Session started**, `text` → 💬, `tool_use` → 🔧, `tool_result` → 📄, `result` → **Done** (turns, time, estimated cost, tokens). **Show raw messages** shows the exact JSON your own code would receive.
+3. **Sending while Claude works.** `POST /api/session/<id>/message { text, how }` adds your message to the input stream:
+   - **Queue** (default): it waits until the current task finishes, then runs.
+   - **Steer**: it is sent with `priority: "now"`, so Claude Code ends the current task and answers this instead. The page files the interrupted task's result under the turn it belongs to.
 
-**Follow-ups.** Every SDK message carries a `session_id`. The browser keeps the one from the first run, and each follow-up sends it back as `resumeSessionId`, which becomes the SDK's `resume` option: Claude Code reloads the earlier turns of that session, so Claude remembers the conversation. Settings can change between turns. **＋ New conversation** simply forgets the id; switching or resetting the workspace does too, because the old conversation was about other files. The page shows the conversation as turns (your prompt, then its timeline), and the Code tab adds `resume: "<id>"`. Runs also pass `settings: { autoMemoryEnabled: false }`, so Claude Code keeps no memory files between separate conversations.
+4. **Stop** (`POST .../control { action: "interrupt" }`) calls `query.interrupt()`: the current turn ends with an `error_during_execution` result (shown as **Stopped by you**) and the session stays open for your next message, like pressing Esc in the terminal.
 
-**Error results.** When a run hits the spending cap or the turn limit, the SDK sends a `result` with `error_max_budget_usd` / `error_max_turns` and then throws. `runAgent()` ignores that throw after a result has arrived, so you see one clear card instead of two.
+5. **Ending.** **＋ New conversation**, switching or resetting the workspace, leaving the example, or closing the tab (`navigator.sendBeacon` to `.../close`) closes the session and its Claude Code process. The server also closes sessions nobody is watching once nothing has happened for 15 minutes, and keeps at most three sessions at a time, closing the oldest.
+
+**Why "Claude is working"?** The page counts your messages against `result` messages: while some message has no result yet, Claude is working. The SDK marks each finished message with a `result`, including interrupted and steered ones.
+
+**The timeline** (`src/components/Timeline.tsx`) turns raw messages into cards: `system/init` → **Session started** (a one-line note on later messages), streaming text → a live 💬 card, `text` → 💬, `tool_use` → 🔧, `tool_result` → 📄, `result` → **Done** (turns, time, estimated cost, tokens). **Show raw messages** shows the exact JSON your own code would receive.
+
+**No memory files.** Sessions pass `settings: { autoMemoryEnabled: false }`, so Claude Code keeps no memory between separate conversations: a conversation remembers only its own messages.
+
+---
+
+### Inside the session: context, tasks, questions and plans
+
+The playground shows the parts of the harness you'd see in the terminal:
+
+| What you see | Where it comes from |
+|---|---|
+| **Context meter** in the conversation header: how full the context window is, what's using it, and where auto-compaction kicks in | `GET /api/session/<id>/context` → `query.getContextUsage()` (the data behind `/context`), refreshed after every reply |
+| **🗜 Compact now** and the **Context compacted** card | sends `/compact` as a message; Claude Code answers with a `system` message `compact_boundary` (`trigger`, `pre_tokens`, `post_tokens`) |
+| **Claude's task list** above the prompt box (○ to do, ● in progress, ✓ done) | the `TaskCreate` / `TaskUpdate` tool calls, rebuilt by `taskListFrom()` in `src/lib/tasks.ts`; they're allowed without asking because they touch no files |
+| **❓ Question cards**: pick an option or type your own answer | Claude calls `AskUserQuestion`; `canUseTool` shows the card and returns your picks as the tool's `answers` |
+| **📋 Plan review** in `plan` mode: approve (auto-accept edits or ask before edits) or keep planning with feedback | Claude writes its plan to `.claude/plans/` (the `plansDirectory` setting) and calls `ExitPlanMode`; approving returns `updatedPermissions: [{ type: "setMode", mode }]`, keeping planning denies with your feedback (or `interrupt: true` without feedback, so Claude stops and waits) |
+
+These tools (`TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet`, `AskUserQuestion`, `ExitPlanMode`) are always available, like in the terminal (`HARNESS_TOOLS` in `run-types.ts`). Your answers to all cards go through `POST /api/permission` and are checked by `parseAnswer()`.
 
 ---
 
 ## 3. Permissions: the Allow / Deny cards
 
-Claude never touches your computer directly. It asks Claude Code to run a tool, and Claude Code asks the playground's **`canUseTool`** callback whenever a tool isn't pre-approved.
+Claude never touches your computer directly. It asks Claude Code to run a tool. Before anything else, the playground's always-on **workspace guard** hook checks the call; then Claude Code applies permission modes and rules; and whenever a tool still isn't approved, it asks the playground's **`canUseTool`** callback.
+
+**The workspace guard** (`guardTool()` in `src/lib/permissions.ts`, registered as a `PreToolUse` hook on every run) can't be switched off. Because hooks run before permission rules, it holds even when an allow rule in `.claude/settings.local.json` would skip `canUseTool`:
+
+- a file path outside `workspace/` is **denied**. Paths are compared by their real location (symlinks followed), so `/var` vs `/private/var` aliases still match and a symlink pointing out of the workspace doesn't count as inside;
+- an `Edit`/`Write` to `.claude/settings.json` or `.claude/settings.local.json` returns **ask**, so it always shows a card (even in `acceptEdits`), because those files can grant permissions and run shell commands.
+
+Then `canUseTool` decides the rest:
 
 ```mermaid
 flowchart TD
@@ -148,6 +184,7 @@ Things to know:
 - **Claude Code has its own read-only allowlist.** Simple commands like `ls` can run without a card when Bash is on.
 - **The demo MCP server's tools are pre-approved** (`allowedTools`), so they skip `canUseTool`. Tools from MCP servers you add always ask.
 - **Hooks run before permissions.** A `PreToolUse` hook that returns `deny` blocks the tool whatever the permission mode says.
+- **With project config on, `.claude/` rules apply too** (see section 5): deny rules block, allow rules in `settings.local.json` approve without a card.
 
 ---
 
@@ -167,7 +204,89 @@ The timeline links each subagent's messages to the `Agent` call that started it 
 
 ---
 
-## 5. MCP servers
+## 5. Claude Code config: the `.claude/` folder
+
+With **Project config** on (a checkbox in Settings and in the Workspace panel's **Claude config** tab), a run loads the workspace the way `claude` would when started in that folder:
+
+| File | What it does | How it's loaded |
+|---|---|---|
+| `CLAUDE.md` | project instructions read at the start of every session | `settingSources: ["project", "local"]` |
+| `.claude/settings.json` | shared settings: `permissions` (`allow`/`ask`/`deny` rules like `Bash(npm test:*)`, `Read(./.env)`) and command `hooks` | same |
+| `.claude/settings.local.json` | your personal settings (git-ignored in the workspace) | same |
+| `.claude/commands/<name>.md` | a **slash command**: a saved prompt run as `/name args`; `$ARGUMENTS` is replaced by `args` | Claude Code expands it |
+| `.claude/skills/<name>/SKILL.md` | a **skill**: know-how Claude loads when a task needs it | adds the `Skill` tool |
+| `.claude/agents/<name>.md` | a **subagent** with its own prompt, `tools` and `model` in the frontmatter | adds the `Agent` tool |
+
+Each starter ships a small `.claude/` folder (in `templates/*/.claude/`) that shows these off: the REST API starter has a deny rule for `.env`, a `PostToolUse` hook that runs `node --check server.js`, an allow rule for `node --check` in the local file, the `/add-route` command, the `rest-conventions` skill and the `api-reviewer` subagent.
+
+Behaviors worth knowing, all taken from real Claude Code (and checked by the e2e tests):
+
+- **Allow rules only count in `settings.local.json`.** In the shared, committed `settings.json`, deny rules and hooks apply but allow rules are ignored: a repo you clone can restrict Claude, but can't grant itself permissions.
+- **Command hooks are real shell commands.** Their output streams into the timeline as 🪝 cards (`includeHookEvents: true`, `system` messages with `subtype: "hook_response"`). That's why the workspace guard always asks before settings files change.
+- **Claude Code also brings built-in skills, commands and subagents.** The Session started card lists only the ones that came from your `.claude/`.
+
+The **Claude config** tab (`src/components/ClaudeConfigPanel.tsx`) reads the folder through `GET /api/workspace/config` (`readClaudeConfig()` in `src/lib/claude-config.ts`: settings JSON with invalid-JSON warnings, and Markdown frontmatter for commands, skills and subagents). **＋ New command / skill / subagent** opens a starter file in the Files tab; **Use** puts `/name ` in the prompt; typing `/` in the prompt suggests your commands. Workspaces created before starters had `.claude/` get an **Add the starter's .claude/ config** button (`POST /api/workspace/config`), which only adds missing files.
+
+**Editing files.** The Files tab is an editor (`PUT` / `DELETE /api/workspace/file`, `writeWorkspaceFile()`): paths must be inside the workspace and not in `.git` or `node_modules`, files are limited to 200 KB, and PUTs must be JSON like every other write.
+
+---
+
+### Practice challenges
+
+A challenge (`src/lib/challenges.ts`) is a goal, a starter (`template`), requirements and hints. **Check my work** calls `POST /api/challenges/<id>/check`, which runs `runChallengeChecks()` in `src/lib/challenge-checks.ts` against the current workspace. It refuses if the workspace has a different starter. Checks never call Claude:
+
+- **REST API**: starts `server.js` on a free port of its own (so it never clashes with Run & test on 4100), sends real HTTP requests, then kills it. A crash is reported with its error line (`crashSummary()`), not Node's stack trace.
+- **MCP**: connects with the MCP SDK's `Client` + `StdioClientTransport` (`node server.js` in the workspace, like Claude Code) and lists and calls the tools.
+- **Claude Code config**: `readClaudeConfig()` and the files' frontmatter.
+- **Debugging**: imports `src/cart.js` in a child process and runs `node --test`.
+- **MCP resources and prompts**: the same client lists and reads resources, and lists and gets prompts.
+- **Agent SDK**: `node --check` plus a few patterns in `agent.mjs`. The guardrails challenge imports `guards.mjs` and calls the hook with real `PreToolUse` input, `canUseTool` with real tool inputs (real paths, as Claude Code sends them, plus a `src/../` escape attempt) and a stand-in for the SDK's `{ signal }`, then reads the `reviewer` subagent definition.
+- **Claude API** (`src/lib/challenge-checks-api.ts`): each check starts a **mock Claude API** (`startMockApi()` in `src/lib/practice-api.ts`) that plays a scripted scenario: Claude asks for a tool, asks for two at once, gets cut off at `max_tokens`, refuses, returns a 400 or keeps returning 529, or reports a batch as `in_progress` twice before it ends. A small harness imports your file in a child process with `ANTHROPIC_BASE_URL` pointing at the mock, calls your exported functions (or reads an exported value, like the cost challenge's `PRICES`, so your own price table is the reference; an `approve` callback can stand in for a person, recording what it was asked and answering yes or no), and the check looks at both what it returned and every request your code sent (the tools you described, the `tool_result` ids, `output_config`, `cache_control`, how many retries…). Requests the real API would reject (no `max_tokens`, an unanswered `tool_use`, a stray `tool_result`, an unknown model, `effort` on a model without it) get the real API's error, shown in the check's reason as `400 invalid_request_error: …`. A workspace created before a challenge existed is told which file is missing.
+- **Security**: runs your `PreToolUse` hook script the way Claude Code does, with the event JSON on stdin (`Read .env`, `cat .env`, a `node -e` script that opens `.env`, and harmless calls), and accepts either exit code 2 or a JSON `deny` decision as blocking. It also checks the hook is registered with a matcher that covers Read and Bash.
+
+Your programs run without any `ANTHROPIC_*` variables or `NODE_OPTIONS`, with timeouts. Passed challenges are remembered in the browser (`markPassed()` in `src/lib/tried.ts`).
+
+**Adding a challenge:** add it to `CHALLENGES`, write its checker in `CHECKERS` (or `MODULE_CHECKERS`, for checks that call your module's exports), put a reference solution in `tests/fixtures/challenges/`, and list the exam skill it practices in `src/lib/certification.ts`. `tests/challenges.test.ts` then proves the untouched starter fails and the reference solution passes every requirement; `tests/api-challenges.test.ts` checks the Claude API checkers are fair both ways (common mistakes fail with a useful reason, other correct styles such as the SDK's tool runner or `messages.parse` pass).
+
+### Certification track
+
+`src/lib/certification.ts` holds the CCDV-F blueprint from the official exam guide: 8 domains and 25 skills with their weights, each skill linked to the examples and challenges that practice it (`skillsFor()` goes the other way, for the "Practices for CCDV-F" chips). `src/lib/quizzes.ts` holds one knowledge check per domain. Every question has a source URL on Anthropic's or MCP's docs, and the answers were checked against those pages. The option order is shuffled the same way every time (`optionOrder()`), so the right answer isn't always first.
+
+Every question has a `style`: `judgment` (a scenario you reason through in plain words, with model tiers rather than names, like the real exam reportedly is) or `recall` (needs a specific name, number or syntax; shown with a **detail** tag). A test keeps judgment questions free of backticks and model names. `drawExam()` takes judgment questions first in each domain, and recall ones only fill a domain that runs short (none do now). Sources: Anthropic's and MCP's docs for anything about Claude; `docs.github.com` and `en.wikipedia.org` only for general software-engineering concepts (requirement types, life-cycle phases, CI, code review, refactoring, configuration management).
+
+A domain's knowledge check shows 8 questions from its bank (all of them if it has 8 or fewer), judgment questions first unless you tick **Include detail questions**; **New set of questions** draws another 8 (`questionSet()` in `QuizPanel.tsx`).
+
+**Practice tests** (`src/lib/mock-exam.ts`, `src/lib/exam-store.ts`, `MockExamPanel.tsx`, `?cert=exam`): every question carries a `skill`, one of its domain's test objectives (the blueprint's 25 skills, listed with their domains as `OBJECTIVES`). `allocate()` splits seats across weighted entries: one each first while seats last (heaviest first), then each next seat to whichever is furthest below its share, never more than an entry's room.
+
+- *Mock exam:* `blueprintCounts()` splits 53 questions across the domains by weight (largest remainder, so they add up exactly: 8, 17, 2, 1, 9, 6, 4, 6), moving seats to the heaviest domains if a bank runs short. `drawExam(seed)` then splits each domain's seats across its objectives with `allocate()`, judgment questions first (detail ones only fill what judgment ones can't), and mixes everything with a seeded generator.
+- *Custom test:* `drawTest(seed, spec)` takes a length, a list of objectives, whether detail questions may appear, and whether to leave out "Choose 2" questions (the builder does by default). With at least as many questions as objectives, each objective gets one and the rest go by weight; a shorter test picks which objectives to cover by weighted sampling. `testMinutes()` times it at the exam's pace (120 minutes for 53, to the nearest 5). `weakObjectives()` adds up the per-objective results it's given (the builder passes your last five tests) and lists objectives under the pass share, weakest first. `testSize()` tells the builder how many questions a spec yields and how many objectives it covers, the same numbers `drawTest()` uses.
+
+The attempt (questions, answers, flags, start and end time, and a custom test's settings) lives in `localStorage`, so a reload keeps your place, and the timer ends the test on time even if the page was closed. `scoreExam()` scores by domain and by objective; the scaled score is an estimate, `100 + 900 × share correct`, because the real exam's scaling isn't published. Objectives under that share (about 69%) are marked weak. Past results keep the last 20 tests, each marked mock exam or custom; only mock exams count for the study plan and the best-score line, and retries of missed questions don't count at all.
+
+**Study plan** (`src/lib/study-plan.ts`, `StudyPlanPanel.tsx`, `?cert=plan`): `buildPlan()` takes today, your exam date, minutes per day and your progress, and plans each day up to the one before the exam. Mock exams go on the first day, every 7 days, and the last day (which gets no new material); mistakes-deck rounds go on every third other day. `practiceQueue()` orders what's left to practice by unpracticed exam weight (examples, then challenges, then the domain's quiz); each day takes items in that order, looking up to 8 ahead for one that fits the time left. What doesn't fit is listed as unscheduled. The plan is saved when built (`claude-code-playground:study-plan:v1`), so days stay stable; `taskDone()` ticks tasks from your progress (a mock exam counts when taken on or after its day), and anything else can be ticked by hand.
+
+**Mistakes deck** (`src/lib/mistakes.ts`, `MistakesPanel.tsx`, `?cert=mistakes`): checking a knowledge check (answered questions only) or finishing a practice test (all questions, since unanswered ones score as wrong) calls `recordAnswers()`. A wrong answer adds the question or resets its streak; a right answer to a question in the deck counts toward clearing it, and 2 in a row clears it. `practiceSet()` builds rounds of 10: least progress first, then most missed, then longest ago.
+
+Practice tests, the mistakes deck and the other browser-only state share one small helper, `localStore()` in `src/lib/local-store.ts`: a JSON value in `localStorage`, synced across tabs through `useSyncExternalStore`, cleaned on read (for example, questions removed from the bank are dropped), and kept in memory when storage is blocked.
+
+**Keeping questions honest:** every question carries an `evidence` quote (exact text from its source page; the type requires it). `npm run verify:quizzes` (`scripts/verify-quizzes.mjs`, needs network) loads every source page as Markdown and checks each quote is still there; run it with a JSON file to check new questions before adding them. `.github/workflows/verify-quizzes.yml` runs it every Monday (and on demand); when a source or quote changed, it opens an issue, or comments on the open one, with the report.
+
+Readiness is `Σ weight × share done ÷ 100`, where a domain's share counts its examples tried, challenges passed and its quiz (passed at 80%, `markQuizPassed()`). The sidebar and `CertificationPanel.tsx` show it; `?cert=overview` and `?cert=<domain>` link straight to a page.
+
+### The study site
+
+The same code builds two editions (`src/lib/edition.ts`). The full app is everything above, on your computer. The **study site** (`NEXT_PUBLIC_STUDY_ONLY=1`, `npm run build:study`) is just the certification track, published to GitHub Pages by `.github/workflows/pages.yml`:
+
+- `next.config.ts` switches to `output: "export"` (plain static files in `out/`, no server), serves from the repo's sub-path (`NEXT_PUBLIC_BASE_PATH`), and sets `pageExtensions: ["tsx"]`. Every API route is a `route.ts`, so none of them is built: nothing on the site can reach Claude, the workspace or run code. CI checks `out/api` doesn't exist. Its type check uses `tsconfig.study.json`, which leaves the API routes out too, since Next doesn't generate their route types in that build (the full build still checks them).
+- With no server to read `?cert=`, the page reads the address in the browser (`useSyncExternalStore` on `location.search`) and updates it with `history.replaceState`, relative to the sub-path.
+- The sidebar and phone picker list only the certification track, the header has no connection pill (it would call `/api/status`), and domain pages leave out the example and challenge chips. `practiceHere()` returns nothing on the study site, so readiness counts knowledge checks and the study plan schedules quizzes, mistakes rounds and mock exams only.
+- Everything a visitor does is saved in their own browser, the same `localStorage` keys as the full app.
+
+Both editions carry the name **CCDV-F Study Lab** and a footer saying it's unofficial and not affiliated with Anthropic. Anthropic's branding rules for Agent SDK products don't allow "Claude Code" in a product's name.
+
+---
+
+## 6. MCP servers
 
 A run can connect to three kinds of MCP servers at once:
 
@@ -183,7 +302,7 @@ A run can connect to three kinds of MCP servers at once:
 
 ---
 
-## 6. The workspace and starter projects
+## 7. The workspace and starter projects
 
 Claude always works in **`workspace/`**. It's ignored by the playground's own git repo and created from a **starter** in `templates/`:
 
@@ -193,6 +312,7 @@ Claude always works in **`workspace/`**. It's ignored by the playground's own gi
 | REST API | `templates/rest-api/` | `node server.js` (long-running), `node --check server.js` |
 | MCP server | `templates/mcp-server/` | `node --check server.js` |
 | Agent SDK script | `templates/agent-sdk/` | `node agent.mjs`, `node --check agent.mjs` |
+| Claude API app | `templates/claude-api/` | `node run.mjs <file>` for each feature file (against the practice API), a syntax check of every `.mjs` |
 
 The list lives in `src/lib/templates.ts`.
 
@@ -202,17 +322,21 @@ The list lives in `src/lib/templates.ts`.
 2. Write `.playground-template` to remember which starter it came from.
 3. **Make it its own git repo** with one commit, "Starting point". Claude Code puts `git status` into Claude's context. Without its own repo, the workspace would show the playground's files (`../src`, `../package.json`) and Claude would wander there.
 
-**Why starters need no `npm install`.** `workspace/` sits inside the playground folder, so Node finds packages in the playground's `node_modules`: `@modelcontextprotocol/sdk`, `zod` and `@anthropic-ai/claude-agent-sdk`. Each starter's `CLAUDE.md` tells Claude not to install anything.
+**Why starters need no `npm install`.** `workspace/` sits inside the playground folder, so Node finds packages in the playground's `node_modules`: `@modelcontextprotocol/sdk`, `zod`, `@anthropic-ai/claude-agent-sdk` and `@anthropic-ai/sdk`. Each starter's `CLAUDE.md` tells Claude not to install anything.
 
 **Switching keeps your work.** `POST /api/workspace { template }` moves the current `workspace/` into `.workspaces/<starter>/` (git-ignored) and moves the target starter's parked folder back, or creates it fresh the first time. Files and git history survive the round trip; `GET /api/workspace` lists parked starters so the picker can mark them "saved". `DELETE /api/workspace` **resets** the current starter to its original files, which is the one action that discards work. Both stop any running program first. An example that needs a particular starter (`template` in `src/lib/examples.ts`) shows a **Switch to …** banner when your workspace has a different one.
 
+**New starter files** (`PATCH /api/workspace`, `addMissingStarterFiles()`): `GET /api/workspace` also lists `missing`, the current starter's files your workspace doesn't have (usually ones added for new challenges after you started). **Add them** copies in only those, never overwriting, and commits just those paths in the workspace's git repo, so the Changes tab keeps showing only your own changes.
+
 **Changes** (`GET /api/workspace/diff`, `workspaceDiff()`): runs `git add --intent-to-add --all` (so new files show up) and `git diff HEAD` inside the workspace, splits the output per file, and the Changes tab colors added and removed lines.
+
+**Binary files** (images, PDFs and similar, by extension or a NUL byte) are listed in the Files tab but not shown or editable as text, so saving can't corrupt them; they download intact.
 
 **Download** (`GET /api/workspace/download`): zips every file except `.git`, `node_modules` and the playground's marker, using a small built-in ZIP writer (`src/lib/zip.ts`, deflate via `node:zlib`, no extra packages).
 
 ---
 
-## 7. Run & test
+## 8. Run & test
 
 The **Run & test** tab (`src/components/RunPanel.tsx`) runs your project without leaving the page.
 
@@ -224,47 +348,67 @@ The **Run & test** tab (`src/components/RunPanel.tsx`) runs your project without
 - Output is kept (last 400 lines), and the panel polls `GET /api/process` every second while it's running.
 - **Stop** sends SIGTERM, then SIGKILL after 3 seconds. Running programs are also stopped when the playground exits.
 
+**The practice API** (Claude API starter): scripts marked `practiceApi` in `templates.ts` run with `ANTHROPIC_BASE_URL` pointing at a mock Claude API that the playground starts on a free localhost port the first time it's needed (`ensurePracticeApi()` in `src/lib/practice-api.ts`). All other `ANTHROPIC_*` variables are removed, so these programs never reach the real API or see a real key. The practice API answers with canned replies in the real shapes: a `tool_use` for the first tool you offer (with an input that fits its schema), an answer built from your `tool_result`s, JSON that fits an `output_config` schema, streamed events when you ask for a stream, cache writes then reads for a repeated `cache_control` prefix, message batches that are `in_progress` once before they end, Files API uploads (`POST /v1/files`) that later requests can reference by `file_id`, image and PDF blocks with the API's media-type checks, and the real API's errors for requests it would reject: malformed ones, an unknown model ID (404), and settings a model doesn't support, following the per-model tables in the docs (no `effort` or adaptive thinking on Haiku 4.5, no `budget_tokens` on Sonnet 5, Opus 4.7 and newer). Each request it handles is added to the program's log (`⇄ practice API: POST /v1/messages → stop_reason: tool_use (get_weather)`). It's not Claude: the text is a placeholder, but your code runs for real.
+
 **Request tester** (REST API starter; `/api/process/request`): sends one request from the server to `http://127.0.0.1:4100<path>`. The host and port are fixed, and the path must start with a single `/`, so it can only reach your own API. It shows the status, the time taken and the pretty-printed JSON body. "Connection refused" becomes "Click Start server first."
 
 **Connect to the playground** (MCP server starter): adds `{ name: "my-server", type: "stdio", command: "node", args: ["server.js"] }` to the run's MCP servers. Claude Code starts it inside `workspace/` on every run, so your latest code is always used.
 
 ---
 
-## 8. Security model
+## 9. Security model
 
 The playground can edit files and run programs on your computer, so it's locked down in layers:
 
 | Layer | Protection | Where |
 |---|---|---|
 | Network | The server listens on `127.0.0.1` only, so other devices on your network can't reach it | `package.json` (`--hostname 127.0.0.1`) |
-| Every API route | `Host` must be localhost (blocks DNS rebinding); an `Origin`, when present, must match (blocks other websites); POSTs must be JSON (forces a CORS preflight) | `src/lib/local-only.ts` |
-| Files | Tool paths outside `workspace/` are denied | `canUseTool` in `run-agent.ts` |
+| Every API route | `Host` must be localhost (blocks DNS rebinding); an `Origin`, when present, must match (blocks other websites); POSTs and PUTs must be JSON (forces a CORS preflight) | `src/lib/local-only.ts` |
+| Files | Tool paths outside `workspace/` are denied by an always-on `PreToolUse` hook, using real paths (symlinks followed), before any allow rule applies | `guardTool()` in `permissions.ts` |
+| Settings files | Changes to `.claude/settings*.json` always ask, even in `acceptEdits` | `guardTool()` |
+| File editor | Saves and deletes only inside the workspace, never `.git` or `node_modules` | `writeWorkspaceFile()` in `workspace.ts` |
 | Actions | Edits, commands and your MCP tools wait for your click | `canUseTool` |
 | Programs | Run & test runs only declared starter scripts | `processes.ts` |
 | Requests | The request tester only reaches `127.0.0.1:4100` | `processes.ts` |
 | Config | Your `~/.claude` settings and MCP servers are ignored | `settingSources`, `strictMcpConfig` |
 | Spend | Every run has a spending cap ($1 by default) | `maxBudgetUsd` |
 
-What it does **not** protect against: code **you** approve or run. A server Claude writes, an MCP server you add, or a Bash command you allow runs with your user's permissions. Read what you approve.
+What it does **not** protect against: code **you** approve or run. A server Claude writes, an MCP server you add, a Bash command you allow (or allow-list in `settings.local.json`), or a command hook in `settings.json` runs with your user's permissions. Bash can't be confined to the workspace the way file tools are. Read what you approve.
 
 ---
 
-## 9. Browser-only state
+## 10. Browser-only state
 
 Some preferences are kept in your browser's `localStorage`, for this browser only:
 
 | What | Key | File |
 |---|---|---|
 | Examples you've run successfully (✓) | `claude-code-playground:tried:v1` | `src/lib/tried.ts` |
+| Challenges you've passed (🏆) | `claude-code-playground:challenges-passed:v1` | `src/lib/tried.ts` |
+| Knowledge checks you've passed | `claude-code-playground:quizzes-passed:v1` | `src/lib/tried.ts` |
+| The practice test in progress, and your past results | `claude-code-playground:mock-exam:v1` | `src/lib/exam-store.ts` |
+| Your mistakes deck | `claude-code-playground:mistakes:v1` | `src/lib/mistakes.ts` |
+| Sidebar sections you opened or closed | `claude-code-playground:sidebar-open:v1` | `src/components/Sidebar.tsx` |
+| Your study plan and the tasks you ticked | `claude-code-playground:study-plan:v1` | `src/components/StudyPlanPanel.tsx` |
 | MCP servers you added | `claude-code-playground:mcp-servers:v1` | `src/lib/saved-mcp.ts` |
 
 The current conversation (its session id and turns) lives only in the page: reloading the page starts a new conversation. Claude Code itself keeps session transcripts in `~/.claude/projects/`, as it does in the terminal.
 
 If storage is blocked (private windows, strict settings), everything still works; these just aren't remembered.
 
+### Sign-in and progress sync
+
+When the build has a Supabase project (`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; see the README), the header shows **Sign in to sync** (`AccountMenu.tsx`). Without them, it shows nothing and nothing loads.
+
+- **Sign-in:** GitHub, through Supabase Auth with the PKCE flow (`src/lib/cloud.ts`). The Supabase library loads only when needed. Sign-in won't start on plain `http`, except on this computer, because the one-time code comes back in the address. (Supabase's built-in email sender allows only 2 emails an hour, so there's no email sign-in.)
+- **The database:** one row per user in `public.progress` (`supabase/migrations/`): the synced keys as JSON, capped at 256 KB, with `updated_at` set by the database. Row-level security lets a signed-in user read, write and delete only their own row; signed-out visitors can't read anything. `delete_my_account()` deletes the user, and their row with it.
+- **What syncs:** the study progress keys in the table above (knowledge checks passed, practice tests, mistakes deck, study plan, and in the full app examples tried and challenges passed). Sidebar sections and saved MCP servers never leave the browser.
+- **How** (`src/lib/progress-sync.ts`): the browser stays the working copy. `localStore()` reports each change (`onStoreChange()`), and a change to a synced key is saved about 1.5 seconds later. On sign-in, and whenever the tab comes back into view, it pulls. A browser with no unsaved changes takes the saved copy, so something cleared on one device stays cleared. A browser with unsaved changes, or signing in for the first time, merges both with `mergeSnapshots()` and saves the result: quiz passes and ticked tasks are combined, finished tests are combined (newest 20), mistakes keep the more recent copy, and the newest study plan wins. Arriving values go in with `replaceStored()`, which refreshes the page without counting as a new change. A failed save shows in the menu and retries after 30 seconds.
+- `claude-code-playground:sync:v1` remembers which account this browser synced, which version, and whether there are unsaved changes. Signing out forgets it and keeps the progress in the browser.
+
 ---
 
-## 10. Where to change things
+## 11. Where to change things
 
 | I want to… | Edit |
 |---|---|
@@ -275,7 +419,18 @@ If storage is blocked (private windows, strict settings), everything still works
 | Change what's allowed without asking | `canUseTool` in `src/lib/run-agent.ts` |
 | Change hooks or subagents | `hooks`, `SUBAGENTS`, `TEAM` in `src/lib/run-agent.ts` |
 | Change how a message is displayed | `src/components/Timeline.tsx` |
+| Add or change a practice challenge | `src/lib/challenges.ts`, `src/lib/challenge-checks.ts` (Claude API ones: `challenge-checks-api.ts`), `tests/fixtures/challenges/` |
+| Change the exam blueprint or what practices a skill | `src/lib/certification.ts` |
+| Add or fix a knowledge-check question | `src/lib/quizzes.ts` (with its source URL, an `evidence` quote, its `style` and its objective as `skill`; `tests/certification.test.ts` checks the format, `npm run verify:quizzes` checks the quote against the live docs) |
+| Change the mock exam's length, time or scoring | `MOCK_EXAM` and `scoreExam()` in `src/lib/mock-exam.ts` |
+| Change custom test lengths or pacing | `LENGTHS` in `MockExamPanel.tsx`, `testMinutes()` in `src/lib/mock-exam.ts` |
+| Change what syncs, or how two copies merge | `SYNCED_KEYS` and `MERGE` in `src/lib/progress-sync.ts` (and the table in `supabase/migrations/`) |
+| Change the app's name or what the study site includes | `APP_NAME` and `isStudyOnly()` in `src/lib/edition.ts`, `next.config.ts`, `.github/workflows/pages.yml` |
+| Change what the practice API answers | `practiceResponder()` in `src/lib/practice-api.ts` |
+| Change the question / plan cards, task list or context meter | `Timeline.tsx` (`QuestionCard`, `PlanCard`), `TaskListPanel.tsx`, `ContextMeter.tsx` |
 | Change the generated code in the Code tab | `src/components/CodePreview.tsx` |
+| Change a starter's Claude Code config | `templates/<starter>/.claude/` |
+| Change how `.claude/` is read or shown | `src/lib/claude-config.ts`, `src/components/ClaudeConfigPanel.tsx` |
 | Change the Changes diff view | `src/components/ChangesView.tsx`, `workspaceDiff()` in `src/lib/workspace.ts` |
 
 **Checks** (the same ones CI runs on every push, `.github/workflows/ci.yml`):
@@ -295,13 +450,30 @@ npm run build
 |---|---|
 | `run-types.test.ts` | MCP server validation (names, URLs, limits) |
 | `local-only.test.ts` | the localhost-only request guard |
-| `permissions.test.ts` | the permission rules: switched-off tools, paths outside the workspace, read-only auto-allow, Always allow |
+| `permissions.test.ts` | the permission rules and the always-on guard: switched-off tools, paths outside the workspace, settings edits ask, read-only auto-allow, Always allow |
+| `claude-config.test.ts` | reading `.claude/`: frontmatter, rules, hooks, invalid JSON, every starter's config is valid |
 | `zip.test.ts` | the ZIP writer round-trips files, and `unzip -t` accepts its output |
-| `workspace.test.ts` | creating, diffing, switching (work kept), exporting and resetting the workspace |
-| `processes.test.ts` | Run & test: only declared scripts run, the API server starts, answers and stops quickly |
+| `workspace.test.ts` | creating, diffing, switching (work kept), exporting, resetting, file editing limits, adding starter config, adding missing starter files (your edits kept, Changes still clean), binary files, symlink-aware path checks |
+| `processes.test.ts` | Run & test: only declared scripts run, the API server starts, answers and stops quickly, Claude API files run against the practice API (never a real key) |
+| `practice-api.test.ts` | the practice API driven by the real `@anthropic-ai/sdk`: messages, tool use, the API's 400s, which models accept which effort and thinking settings, structured output, cache usage, streaming (text, tool_use and thinking), token counting, batches, 404s; and every Claude API reference solution running through `run.mjs` |
+| `api-challenges.test.ts` | the Claude API checkers are fair: common mistakes (no `is_error`, a dropped assistant turn, no `additionalProperties: false`, a timestamp in the cached prefix, retries turned off, a hard-coded key, no stream, no gate, an expensive model for simple work, effort on Haiku, `budget_tokens` on Sonnet 5, counting a different request than you send, cache tokens at full price) fail with a useful reason, and other correct styles (tool runner, `messages.parse` + Zod, automatic caching, Opus 5 at max effort, your own updated prices) pass |
+| `study-plan.test.ts` | the study plan: dates across months, priority order and dedupe, mock exams on day one / weekly / last day, mistakes rounds, days filled within the daily time, unscheduled work, ticking tasks from progress |
+| `progress-sync.test.ts` | merging two copies of progress (quizzes, tests, mistakes, study plan), the store registry, and syncing against a fake table: first sign-in saves, a merge on sign-in, a clean device takes the saved copy, unsaved changes merge, changes saved after a pause (study progress only), retry after a failed save, nothing saved after sign-out |
+| `components/account-menu.test.tsx` | the account menu: hidden without a Supabase project, says what's stored, signs in with GitHub back to the site, refuses plain http, syncs when signed in, deleting the account after confirming |
+| `components/study-site.test.tsx` | the study site: only the certification track in the sidebar, readiness from knowledge checks, a plan of quizzes only, the address kept in step, links to domains and fallbacks, no connection check |
+| `mock-exam.test.ts` | the mock exam's split by domain weight (and when a bank is short), seeded draws with no repeats, spread across objectives and mixed domains; splitting seats by weight; custom tests (same seed same test, every objective covered, shorter tests, picked objectives, detail questions, single-answer only, pacing); scoring by domain and objective, the scaled estimate, and weak objectives |
+| `certification.test.ts` | the blueprint matches the guide's weights (domains add up to 100%, skills to their domain), links only to real examples and challenges, and every quiz question is well-formed ("Choose 2" when it has two answers), sourced from an official docs host and shuffled, and that answer length doesn't give the answer away (the right option isn't usually the longest, or the shortest); every question's objective belongs to its domain, and every objective has at least four exam-style questions |
 | `examples.test.ts` | every sidebar example is well-formed |
-| `code-preview.test.ts` | the Code tab mirrors settings, adds `resume`, wraps long prompts |
-| `components/*.test.tsx` | the UI in a simulated browser: timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), and the Runner (follow-ups send the session id, New conversation, Switch banner, connecting your MCP server) |
+| `code-preview.test.ts` | the Code tab mirrors settings, shows the live-session pattern, wraps long prompts |
+| `challenges.test.ts` | every challenge's checker: the untouched starter fails, the reference solution in `tests/fixtures/challenges/` passes every requirement, a crashing server is explained, the wrong starter is refused, and the security hook check accepts a JSON deny decision but not a hook that blocks everything or a matcher that misses Read |
+| `auth.test.ts`, `account.test.ts` | which credentials Claude Code gets in each mode, and the status for a subscription, a cloud provider, no login, a working, rejected, missing or unverifiable API key |
+| `harness.test.ts` | rebuilding the task list from tool calls, and checking card answers (questions, plan reviews) |
+| `live-session.test.ts` | the session manager with a fake Claude Code: context usage (and none once closed), queue vs steer, stop only while working, live model and mode changes, replay after reconnect, closing, idle cleanup, the three-session limit |
+| `components/*.test.tsx` | the UI in a simulated browser: the sidebar (default open sections, remembered open/closed state, challenges grouped by area, the focus domain, search with Enter and Escape), the missing-starter-files notice, the mistakes deck (adding, streaks, clearing, round order, collecting from a mock exam, a practice round), practice tests (answer, flag, jump, finish, results by domain and objective, review, retry missed, time running out after a reload, keeping your place; building a custom test on picked objectives, its pacing, and picking your weak objectives), the certification track (blueprint, readiness, focus next, domain pages) and knowledge checks (grading, explanations with sources, remembering a pass), the challenge panel (results, reasons, completion, hints), timeline cards and permission buttons, the Workspace panel (starter switch, Reset confirm, Changes, zip), the Claude config tab (rules, Use, new command → save), and the Runner against a fake live session (follow-ups, Steer / Queue / Stop, live model and mode changes, New conversation, Switch banner, connecting your MCP server, `/` suggestions) |
 
-The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something else is using port 4100.
+The workspace and process tests set `PLAYGROUND_ROOT` to a temporary folder with a copy of `templates/`, so they never touch your real `workspace/`. The Run & test server test skips itself if something answers on port 4100 (for example your own API server).
+
+**Practice mode end to end** (`tests/e2e/practice-mode.e2e.test.ts`, part of `npm run test:e2e`, free): a separate server in API-key mode with a **fake** key reports the rejected key right away, stops a run within seconds with advice, and still runs code and checks challenges.
+
+**Real-Claude end-to-end tests** (`npm run test:e2e`, `tests/e2e/`): builds the app, starts a separate production server on a free port with `PLAYGROUND_ROOT` pointing at a temporary folder, and refuses to run unless it can prove the server answering is that one (its workspace appears in the temporary folder). Then it drives it over HTTP with real Claude calls on Haiku (a few cents): a deny rule keeps `.env` private, an allow rule skips the question, `/add-route` edits the API and the `settings.json` hook checks it, settings edits always ask, follow-ups go into the same live session, steering mid-task switches Claude to your new message, Stop interrupts a turn while the session continues on a new model, Claude asks a question and uses your answer, plan mode (keep planning with feedback, then approve with auto-accept edits), the task list, context usage plus `/compact`, and two challenges solved by Claude and confirmed by **Check my work**. They are not part of `npm test` or CI.
 

@@ -1,6 +1,6 @@
 import { rejectNonLocal } from "@/lib/local-only";
 
-const req = (method: string, headers: Record<string, string>) => new Request("http://localhost:3000/api/run", { method, headers });
+const req = (method: string, headers: Record<string, string>) => new Request("http://localhost:3000/api/session", { method, headers });
 
 describe("rejectNonLocal", () => {
   it("allows the page's own requests", () => {

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "deny": ["Read(./.env)", "Bash(rm:*)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "node --check server.js && echo 'server.js syntax OK'" }]
+      }
+    ]
+  }
+}

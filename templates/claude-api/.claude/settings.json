@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "deny": ["Read(./.env)", "Read(./.env.*)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "for f in *.mjs; do node --check \"$f\" || exit 2; done && echo 'syntax OK'" }]
+      }
+    ]
+  }
+}

@@ -1,8 +1,9 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
-// Uses your Claude Code login. Remove any API key so it isn't used by accident.
+// Uses your Claude Code login. A key in your shell is only used if you opted in
+// with PLAYGROUND_AUTH=api-key (see the playground's README).
 const env = { ...process.env };
-delete env.ANTHROPIC_API_KEY;
+if (env.PLAYGROUND_AUTH !== "api-key") delete env.ANTHROPIC_API_KEY;
 
 const prompt = "In one sentence, what is the Claude Agent SDK?";
 

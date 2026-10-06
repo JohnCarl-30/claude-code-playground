@@ -1,0 +1,48 @@
+name: Verify quiz sources
+
+# The docs change often. Every week, check that each quiz question's source
+# page still loads and still contains the quote that backs its answer. If not,
+# open (or update) one issue listing what changed.
+
+on:
+  schedule:
+    - cron: "23 6 * * 1" # Mondays, 06:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The script imports src/lib/quizzes.ts directly, which needs Node's built-in TypeScript support.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Check sources and quotes
+        id: verify
+        run: |
+          set +e
+          npm run verify:quizzes > report.txt 2>&1
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          cat report.txt
+
+      - name: Report problems in an issue
+        if: steps.verify.outputs.status != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Quiz questions need a look: the docs changed"
+          body=$(printf 'The weekly check found quiz questions whose source page or evidence quote changed.\n\nRun `npm run verify:quizzes` locally, re-read each source page, and update the question (answer, explanation, or evidence) in `src/lib/quizzes.ts`.\n\n```\n%s\n```\n\n[Workflow run](%s)' "$(tail -c 60000 report.txt)" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+          exit 1

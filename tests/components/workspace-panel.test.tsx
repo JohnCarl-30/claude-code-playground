@@ -34,6 +34,21 @@ beforeEach(() => {
 });
 
 describe("WorkspacePanel", () => {
+  it("offers to add starter files the workspace is missing, and stays quiet otherwise", async () => {
+    const onAddMissing = jest.fn();
+    setup({ workspace: { ...workspace, missing: ["cost.mjs", "samples/policy.pdf", "samples/receipt.png", "think.mjs", "triage.mjs"] }, onAddMissing });
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent("5 starter files aren't in your workspace");
+    expect(notice).toHaveTextContent("cost.mjs, samples/policy.pdf, samples/receipt.png, think.mjs, +1 more");
+    await userEvent.click(screen.getByRole("button", { name: "Add them" }));
+    expect(onAddMissing).toHaveBeenCalled();
+  });
+
+  it("shows no missing-files notice when nothing is missing", () => {
+    setup({ workspace: { ...workspace, missing: [] } });
+    expect(screen.queryByRole("button", { name: /Add (it|them)/ })).not.toBeInTheDocument();
+  });
+
   it("switches starters from the dropdown", async () => {
     const { onSwitch } = setup();
     await userEvent.selectOptions(screen.getByRole("combobox", { name: /Starter/ }), "mcp-server");

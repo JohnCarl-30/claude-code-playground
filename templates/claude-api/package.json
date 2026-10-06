@@ -1,0 +1,8 @@
+{
+  "name": "my-claude-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ask": "node run.mjs ask"
+  }
+}

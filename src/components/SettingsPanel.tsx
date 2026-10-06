@@ -9,11 +9,11 @@ const MODES: { id: PlaygroundPermissionMode; label: string; hint: string }[] = [
   { id: "dontAsk", label: "dontAsk", hint: "Never ask; deny anything not pre-approved" },
 ];
 
-const TOGGLES: { key: "claudeMd" | "subagents" | "team" | "hooks"; label: string; hint: string }[] = [
-  { key: "claudeMd", label: "Load CLAUDE.md", hint: "Project instructions from workspace/CLAUDE.md" },
-  { key: "subagents", label: "code-reviewer subagent", hint: "A read-only helper on Haiku" },
+const TOGGLES: { key: "projectConfig" | "subagents" | "team" | "hooks"; label: string; hint: string }[] = [
+  { key: "projectConfig", label: "Project config", hint: "CLAUDE.md + .claude/ (rules, hooks, commands, skills, agents)" },
+  { key: "subagents", label: "code-reviewer subagent (in code)", hint: "A read-only helper on Haiku" },
   { key: "team", label: "Review team (3 subagents)", hint: "bug-hunter, readability-reviewer, test-designer" },
-  { key: "hooks", label: "Hooks", hint: "Log tool calls and protect README.md" },
+  { key: "hooks", label: "Hooks (in code)", hint: "Log tool calls and protect README.md" },
 ];
 
 const label = "mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted";
@@ -59,7 +59,7 @@ export function SettingsPanel({
           />
         </label>
         <label>
-          <span className={label}>Spending cap per run</span>
+          <span className={label}>Spending cap per conversation</span>
           <span className="flex items-center gap-1">
             $
             <input
@@ -73,7 +73,7 @@ export function SettingsPanel({
             />
           </span>
           <span className="mt-1 block text-xs text-muted">
-            Stops the run at this estimated cost (${BUDGET_LIMITS.min}–${BUDGET_LIMITS.max})
+            Stops Claude at this estimated cost for the whole conversation (${BUDGET_LIMITS.min}–${BUDGET_LIMITS.max})
           </span>
         </label>
       </div>

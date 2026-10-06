@@ -1,5 +1,6 @@
 import "server-only";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { claudeEnv } from "./auth";
 import { toSdkMcpServers } from "./run-agent";
 import type { CustomMcpServer } from "./run-types";
 import { WORKSPACE_DIR, ensureWorkspace } from "./workspace";
@@ -17,8 +18,7 @@ export type McpTestResult = {
  */
 export async function testMcpServers(servers: CustomMcpServer[]): Promise<McpTestResult[]> {
   await ensureWorkspace();
-  const env = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
+  const env = claudeEnv();
 
   async function* noPrompt(): AsyncGenerator<never> {
     await new Promise(() => {});

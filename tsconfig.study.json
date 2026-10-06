@@ -1,0 +1,7 @@
+{
+  // The study site (npm run build:study) builds pages only, so its type check leaves out the API
+  // routes: Next doesn't generate their route types in that build. The full build checks them.
+  "extends": "./tsconfig.json",
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "**/*.mts"],
+  "exclude": ["node_modules", "src/app/api"]
+}

@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -9,6 +9,8 @@ import path from "node:path";
 export function createTempPlaygroundRoot() {
   const root = mkdtempSync(path.join(tmpdir(), "playground-test-"));
   cpSync(path.join(process.cwd(), "templates"), path.join(root, "templates"), { recursive: true });
+  // Starters import packages (MCP SDK, zod) the way they do inside the real project.
+  symlinkSync(path.join(process.cwd(), "node_modules"), path.join(root, "node_modules"), "dir");
   process.env.PLAYGROUND_ROOT = root;
   return {
     root,
