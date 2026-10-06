@@ -23,11 +23,15 @@ export function RunPanel({
   mcpConnected,
   onConnectMcp,
   onTryMcp,
+  httpMcpConnected = false,
+  onConnectHttpMcp = () => {},
 }: {
   template: TemplateInfo;
   mcpConnected: boolean;
   onConnectMcp: () => void;
   onTryMcp: () => void;
+  httpMcpConnected?: boolean;
+  onConnectHttpMcp?: () => void;
 }) {
   const [proc, setProc] = useState<ProcessStatus | null>(null);
   const [error, setError] = useState("");
@@ -61,6 +65,7 @@ export function RunPanel({
   }
 
   const ownScript = proc && template.scripts.some((s) => s.id === proc.script);
+  const httpRunning = !!proc?.running && proc.script === "http";
 
   return (
     <div className="space-y-4 text-sm">
@@ -132,6 +137,30 @@ export function RunPanel({
               </button>
             )}
           </div>
+          {template.mcpHttpUrl && (
+            <div className="mt-4 border-t border-line pt-3">
+              <p className="font-medium">Or over HTTP</p>
+              <p className="mt-0.5 text-muted">
+                <code className="font-mono">server-http.js</code> serves the same kind of server at{" "}
+                <code className="font-mono">{template.mcpHttpUrl}</code>, the way a remote server many clients share works, with a resource
+                and a prompt as well as a tool. Start it with <strong>▶ Start HTTP server</strong>, then connect it.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {httpMcpConnected ? (
+                  <span className="flex h-9 items-center rounded-lg bg-ok-soft px-3 font-medium text-ok">✓ Connected over HTTP</span>
+                ) : (
+                  <button
+                    onClick={onConnectHttpMcp}
+                    disabled={!httpRunning}
+                    className="h-9 rounded-lg border border-line px-3 font-medium hover:bg-surface-2 disabled:opacity-50"
+                  >
+                    Connect HTTP server
+                  </button>
+                )}
+                {!httpRunning && <span className="text-xs text-muted">Start the HTTP server first.</span>}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

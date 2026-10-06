@@ -35,6 +35,8 @@ export function WorkspacePanel({
   mcpConnected,
   onConnectMcp,
   onTryMcp,
+  httpMcpConnected,
+  onConnectHttpMcp,
   claudeConfig = null,
   projectConfig = false,
   onToggleProjectConfig = () => {},
@@ -50,6 +52,8 @@ export function WorkspacePanel({
   mcpConnected: boolean;
   onConnectMcp: () => void;
   onTryMcp: () => void;
+  httpMcpConnected?: boolean;
+  onConnectHttpMcp?: () => void;
   claudeConfig?: ClaudeConfig | null;
   projectConfig?: boolean;
   onToggleProjectConfig?: (on: boolean) => void;
@@ -219,7 +223,15 @@ export function WorkspacePanel({
 
       {tab === "run" && template && (
         <div role="tabpanel" className="p-4">
-          <RunPanel key={template.id} template={template} mcpConnected={mcpConnected} onConnectMcp={onConnectMcp} onTryMcp={onTryMcp} />
+          <RunPanel
+            key={template.id}
+            template={template}
+            mcpConnected={mcpConnected}
+            onConnectMcp={onConnectMcp}
+            onTryMcp={onTryMcp}
+            httpMcpConnected={httpMcpConnected}
+            onConnectHttpMcp={onConnectHttpMcp}
+          />
         </div>
       )}
 

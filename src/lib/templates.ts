@@ -23,11 +23,15 @@ export type TemplateInfo = {
   apiPort?: number;
   /** The workspace itself is an MCP server that can be plugged into the playground. */
   mcpServer?: boolean;
+  /** It can also run as an HTTP MCP server at this URL (started by its long-running script). */
+  mcpHttpUrl?: string;
 };
 
 const CLAUDE_API_FILES = ["ask", "tools", "extract", "faq", "batch", "errors", "stream", "workflow", "route", "think", "budget", "cost", "triage", "docs", "classify", "history"];
 
 export const API_PORT = 4100;
+/** Where the MCP starter's HTTP server listens (templates/mcp-server/server-http.js). */
+export const MCP_HTTP_PORT = 4101;
 
 export const TEMPLATES: TemplateInfo[] = [
   {
@@ -50,8 +54,21 @@ export const TEMPLATES: TemplateInfo[] = [
     id: "mcp-server",
     title: "MCP server",
     blurb: "Your own MCP server with the official SDK. Plug it into the playground.",
-    scripts: [{ id: "check", label: "Check syntax", command: ["node", "--check", "server.js"] }],
+    scripts: [
+      {
+        id: "check",
+        label: "Check syntax",
+        // server-http.js is newer than some workspaces, so check whichever servers exist.
+        command: [
+          "node",
+          "-e",
+          "const fs = require('fs'); const files = ['server.js', 'server-http.js'].filter((f) => fs.existsSync(f)); for (const f of files) require('child_process').execFileSync(process.execPath, ['--check', f], { stdio: 'inherit' }); console.log('OK: ' + files.join(', '))",
+        ],
+      },
+      { id: "http", label: "Start HTTP server", command: ["node", "server-http.js"], longRunning: true },
+    ],
     mcpServer: true,
+    mcpHttpUrl: `http://127.0.0.1:${MCP_HTTP_PORT}/mcp`,
   },
   {
     id: "agent-sdk",
@@ -89,3 +106,4 @@ export function findTemplate(id: unknown): TemplateInfo | undefined {
 
 /** The MCP server entry that runs the workspace's own server.js over stdio. */
 export const WORKSPACE_MCP_SERVER = { name: "my-server", type: "stdio" as const, command: "node", args: ["server.js"] };
+export const WORKSPACE_HTTP_MCP_SERVER = { name: "my-http-server", type: "http" as const, url: `http://127.0.0.1:${MCP_HTTP_PORT}/mcp` };

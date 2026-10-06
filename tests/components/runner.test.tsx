@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Runner, toTurns } from "@/components/Runner";
 import { forgetSetupStatus } from "@/components/SetupStatus";
@@ -196,6 +196,11 @@ describe("Runner (live session)", () => {
     render(<Runner preset={{ prompt: "Use my tools", tools: [] }} />);
     await user.click(await screen.findByRole("button", { name: "Connect to the playground" }));
     await user.click(screen.getByRole("button", { name: "▶ Run" }));
+    // A local server's command runs on this computer, so the first run asks first.
+    const ask = screen.getByRole("alertdialog", { name: "Run these commands?" });
+    expect(ask).toHaveTextContent("node server.js");
+    expect(posted("/api/session")).toHaveLength(0);
+    await user.click(within(ask).getByRole("button", { name: "Run it" }));
     await screen.findByText("Answer 1");
     expect(posted("/api/session")[0].mcpServers).toEqual([{ name: "my-server", type: "stdio", command: "node", args: ["server.js"] }]);
   });
